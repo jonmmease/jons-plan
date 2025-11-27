@@ -90,7 +90,7 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
 
     # Recent progress
     echo "### Recent Progress"
-    RECENT=$(plan recent-progress --lines 10 2>/dev/null || echo "")
+    RECENT=$(plan recent-progress --lines 5 2>/dev/null || echo "")
     if [[ -n "$RECENT" ]]; then
         echo "\`\`\`"
         echo "$RECENT"
@@ -100,47 +100,9 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
     fi
     echo ""
 
-    # Task status
-    echo "### Tasks"
-    STATS=$(plan task-stats 2>/dev/null || echo "?/?")
-    echo "**Status:** ${STATS}"
+    # Plan status overview
+    plan status 2>/dev/null || echo "_Could not load status_"
     echo ""
-
-    # Show in-progress tasks first (these should be resumed)
-    IN_PROGRESS=$(plan in-progress 2>/dev/null || echo "")
-    if [[ -n "$IN_PROGRESS" ]]; then
-        echo "**In Progress (resume these):**"
-        echo "$IN_PROGRESS" | while read task; do
-            echo "- ${task}"
-        done
-        echo ""
-    fi
-
-    # Show available tasks (can be started or parallelized)
-    AVAILABLE=$(plan next-tasks 2>/dev/null || echo "")
-    if [[ -n "$AVAILABLE" ]]; then
-        echo "**Available (ready to start):**"
-        echo "$AVAILABLE" | while read task; do
-            TASK_ID=$(echo "$task" | cut -d: -f1)
-            PARENT_DIRS=$(plan parent-dirs "$TASK_ID" 2>/dev/null | wc -l | tr -d ' ')
-            if [[ "$PARENT_DIRS" -gt 0 ]]; then
-                echo "- ${task} [${PARENT_DIRS} parent tasks]"
-            else
-                echo "- ${task}"
-            fi
-        done
-        echo ""
-
-        # Count available tasks for parallelization hint
-        AVAILABLE_COUNT=$(echo "$AVAILABLE" | wc -l | tr -d ' ')
-        if [[ "$AVAILABLE_COUNT" -gt 1 ]]; then
-            echo "_${AVAILABLE_COUNT} tasks can run in parallel via subagents_"
-            echo ""
-        fi
-    elif [[ -z "$IN_PROGRESS" ]]; then
-        echo "**All tasks complete!**"
-        echo ""
-    fi
 
     # Check for reference materials (files other than the standard ones)
     REFERENCE_FILES=$(find "$ACTIVE_PLAN_DIR" -type f \
@@ -157,6 +119,10 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
         done
         echo ""
     fi
+
+    # CLI help
+    plan help 2>/dev/null || true
+    echo ""
 
     # Plan mode instruction
     echo "---"

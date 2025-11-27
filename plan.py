@@ -98,10 +98,34 @@ def cmd_list_plans(args: argparse.Namespace) -> int:
     """List all available plans."""
     project_dir = get_project_dir()
     plans_dir = project_dir / ".claude" / "jons-plan" / "plans"
+    active = get_active_plan(project_dir)
     if plans_dir.is_dir():
         for plan in sorted(plans_dir.iterdir()):
             if plan.is_dir():
-                print(plan.name)
+                marker = " (active)" if plan.name == active else ""
+                print(f"{plan.name}{marker}")
+    return 0
+
+
+def cmd_set_active(args: argparse.Namespace) -> int:
+    """Set the active plan."""
+    project_dir = get_project_dir()
+    plans_dir = project_dir / ".claude" / "jons-plan" / "plans"
+    plan_dir = plans_dir / args.plan_name
+
+    if not plan_dir.is_dir():
+        print(f"Plan not found: {args.plan_name}", file=sys.stderr)
+        print("Available plans:", file=sys.stderr)
+        if plans_dir.is_dir():
+            for plan in sorted(plans_dir.iterdir()):
+                if plan.is_dir():
+                    print(f"  {plan.name}", file=sys.stderr)
+        return 1
+
+    active_plan_file = project_dir / ".claude" / "jons-plan" / "active-plan"
+    active_plan_file.parent.mkdir(parents=True, exist_ok=True)
+    active_plan_file.write_text(args.plan_name)
+    print(f"Active plan set to: {args.plan_name}")
     return 0
 
 
@@ -271,6 +295,80 @@ def cmd_has_outputs(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_help(args: argparse.Namespace) -> int:
+    """Print concise CLI reference."""
+    print("""## CLI Commands
+
+**Overview:** `status` - all plans, active plan stats, tasks
+**Switch plan:** `set-active <plan>`
+**Task status:** `set-status <task-id> in-progress|done`
+**Next tasks:** `next-tasks` - available tasks to start
+**Progress:** `log <message>` | `recent-progress`
+
+Full docs: ~/.claude-plugins/jons-plan/CLAUDE.md""")
+    return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """Show comprehensive status overview."""
+    project_dir = get_project_dir()
+    plans_dir = project_dir / ".claude" / "jons-plan" / "plans"
+    active = get_active_plan(project_dir)
+
+    # Plans section
+    print("## Plans")
+    if plans_dir.is_dir():
+        plans = [p for p in sorted(plans_dir.iterdir()) if p.is_dir()]
+        if plans:
+            for plan in plans:
+                marker = " (active)" if plan.name == active else ""
+                print(f"  - {plan.name}{marker}")
+        else:
+            print("  (no plans)")
+    else:
+        print("  (no plans directory)")
+
+    # Active plan details
+    if active:
+        plan_dir = get_active_plan_dir(project_dir)
+        if plan_dir:
+            tasks = get_tasks(plan_dir)
+            todo = sum(1 for t in tasks if t.get("status") == "todo")
+            in_progress_count = sum(1 for t in tasks if t.get("status") == "in-progress")
+            done = sum(1 for t in tasks if t.get("status") == "done")
+            total = len(tasks)
+
+            print(f"\n## Active: {active}")
+            print(f"  Progress: {done}/{total} done, {in_progress_count} in-progress, {todo} todo")
+
+            # In-progress tasks
+            in_progress_tasks = [t for t in tasks if t.get("status") == "in-progress"]
+            if in_progress_tasks:
+                print("\n  In Progress:")
+                for task in in_progress_tasks:
+                    print(f"    - {task['id']}: {task.get('description', '')}")
+
+            # Next available tasks
+            task_status = {t["id"]: t.get("status") for t in tasks}
+            next_tasks = []
+            for task in tasks:
+                if task.get("status") != "todo":
+                    continue
+                parents = task.get("parents", [])
+                if all(task_status.get(pid) == "done" for pid in parents):
+                    next_tasks.append(task)
+
+            if next_tasks:
+                print("\n  Next Available:")
+                for task in next_tasks:
+                    print(f"    - {task['id']}: {task.get('description', '')}")
+    else:
+        print("\n## No active plan")
+        print("  Use: uv run ~/.claude-plugins/jons-plan/plan.py set-active <plan-name>")
+
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Plan management CLI for long-running agent harness",
@@ -286,6 +384,10 @@ def main() -> int:
 
     # list-plans
     subparsers.add_parser("list-plans", help="List all available plans")
+
+    # set-active
+    p_set_active = subparsers.add_parser("set-active", help="Set the active plan")
+    p_set_active.add_argument("plan_name", help="Plan name to activate")
 
     # log
     p_log = subparsers.add_parser("log", help="Append message to progress log")
@@ -325,12 +427,19 @@ def main() -> int:
     p_outputs = subparsers.add_parser("has-outputs", help="Check if task has outputs")
     p_outputs.add_argument("task_id", help="Task ID")
 
+    # status
+    subparsers.add_parser("status", help="Show comprehensive status overview")
+
+    # help
+    subparsers.add_parser("help", help="Print concise CLI reference")
+
     args = parser.parse_args()
 
     commands = {
         "active-plan": cmd_active_plan,
         "active-plan-dir": cmd_active_plan_dir,
         "list-plans": cmd_list_plans,
+        "set-active": cmd_set_active,
         "log": cmd_log,
         "task-stats": cmd_task_stats,
         "in-progress": cmd_in_progress,
@@ -341,6 +450,8 @@ def main() -> int:
         "ensure-task-dir": cmd_ensure_task_dir,
         "parent-dirs": cmd_parent_dirs,
         "has-outputs": cmd_has_outputs,
+        "status": cmd_status,
+        "help": cmd_help,
     }
 
     return commands[args.command](args)

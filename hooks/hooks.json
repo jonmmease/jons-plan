@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "session-start.sh",
+            "command": "~/.claude-plugins/jons-plan/hooks/session-start.sh",
             "timeout": 10000
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "post-tool-use.sh",
+            "command": "~/.claude-plugins/jons-plan/hooks/post-tool-use.sh",
             "timeout": 5000
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "stop.sh",
+            "command": "~/.claude-plugins/jons-plan/hooks/stop.sh",
             "timeout": 10000
           }
         ]

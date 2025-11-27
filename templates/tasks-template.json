@@ -12,17 +12,31 @@
       "status": "todo"
     },
     {
-      "id": "task-2a",
-      "description": "Parallel task A (depends on task-1)",
+      "id": "quick-research",
+      "description": "Quick lookup of existing patterns",
       "parents": ["task-1"],
-      "steps": [],
+      "subagent": "Explore",
+      "subagent_prompt": "quick search",
+      "model": "haiku",
+      "steps": ["Find files matching...", "Report findings"],
       "status": "todo"
     },
     {
-      "id": "task-2b",
-      "description": "Parallel task B (depends on task-1)",
+      "id": "thorough-research",
+      "description": "Comprehensive codebase analysis",
       "parents": ["task-1"],
-      "steps": [],
+      "subagent": "Explore",
+      "subagent_prompt": "very thorough analysis across multiple locations and naming conventions",
+      "model": "haiku",
+      "steps": ["Analyze all auth patterns...", "Document findings"],
+      "status": "todo"
+    },
+    {
+      "id": "complex-implementation",
+      "description": "Complex refactoring task",
+      "parents": ["thorough-research"],
+      "model": "opus",
+      "steps": ["Implement the new pattern..."],
       "status": "todo"
     }
   ]
