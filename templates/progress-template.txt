@@ -1,0 +1,5 @@
+# Progress Log: [PLAN_NAME]
+# Created: [TIMESTAMP]
+
+---
+

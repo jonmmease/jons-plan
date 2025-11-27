@@ -1,0 +1,29 @@
+{
+  "planName": "[PLAN_NAME]",
+  "tasks": [
+    {
+      "id": "task-1",
+      "description": "Example task - replace with actual",
+      "parents": [],
+      "steps": [
+        "Step 1: ...",
+        "Step 2: ..."
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "task-2a",
+      "description": "Parallel task A (depends on task-1)",
+      "parents": ["task-1"],
+      "steps": [],
+      "status": "todo"
+    },
+    {
+      "id": "task-2b",
+      "description": "Parallel task B (depends on task-1)",
+      "parents": ["task-1"],
+      "steps": [],
+      "status": "todo"
+    }
+  ]
+}
