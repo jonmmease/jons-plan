@@ -4,6 +4,12 @@
 
 set -e
 
+# Debug logging - writes to file while still outputting to stdout
+DEBUG_LOG="/tmp/jons-plan-hook-debug.log"
+echo "=== SessionStart hook started at $(date) ===" >> "$DEBUG_LOG"
+echo "PWD: $(pwd)" >> "$DEBUG_LOG"
+echo "CLAUDE_PLUGIN_ROOT: ${CLAUDE_PLUGIN_ROOT:-not set}" >> "$DEBUG_LOG"
+
 # Helper to run plan CLI from plugin location
 plan() {
     uv run ~/.claude-plugins/jons-plan/plan.py "$@"
@@ -20,29 +26,39 @@ while [[ "$PROJECT_DIR" != "/" ]]; do
     fi
     PROJECT_DIR="$(dirname "$PROJECT_DIR")"
 done
+echo "PROJECT_DIR: ${PROJECT_DIR}" >> "$DEBUG_LOG"
 
 PLANS_DIR="${PROJECT_DIR}/.claude/jons-plan/plans"
 
 # Get active plan
 ACTIVE_PLAN=$(plan active-plan 2>/dev/null || echo "")
+echo "ACTIVE_PLAN: '${ACTIVE_PLAN}'" >> "$DEBUG_LOG"
 
 # Count existing plans
 PLAN_COUNT=0
 if [[ -d "$PLANS_DIR" ]]; then
     PLAN_COUNT=$(find "$PLANS_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
 fi
+echo "PLANS_DIR: ${PLANS_DIR}" >> "$DEBUG_LOG"
+echo "PLAN_COUNT: ${PLAN_COUNT}" >> "$DEBUG_LOG"
 
 # Auto-select logic when no active plan
 if [[ -z "$ACTIVE_PLAN" ]]; then
     if [[ "$PLAN_COUNT" -eq 0 ]]; then
         # No plans exist - instruct to create default
-        echo "## Session Start: No Plans"
-        echo ""
-        echo "No plans exist yet. Create the \`default\` plan to get started:"
-        echo ""
-        echo "1. Write \`default\` to \`.claude/jons-plan/active-plan\`"
-        echo "2. Ensure \`.claude/jons-plan/plans/\` and \`.claude/jons-plan/active-plan\` are in \`.gitignore\`"
-        echo "3. Enter plan mode (shift+tab) to create the plan structure"
+        echo "Taking no-plans branch" >> "$DEBUG_LOG"
+        OUTPUT="## Session Start: No Plans
+
+No plans exist yet. Create one with:
+
+\`\`\`
+/jons-plan:new [topic]
+\`\`\`
+
+Example: \`/jons-plan:new add user authentication\`"
+        echo "OUTPUT: ${OUTPUT}" >> "$DEBUG_LOG"
+        echo "$OUTPUT"
+        echo "=== Hook exiting (no plans) ===" >> "$DEBUG_LOG"
         exit 0
     elif [[ "$PLAN_COUNT" -eq 1 ]]; then
         # Single plan - auto-select it
@@ -60,7 +76,7 @@ if [[ -z "$ACTIVE_PLAN" ]]; then
             echo "- \`${p}\`"
         done
         echo ""
-        echo "Enter plan mode (shift+tab) to select a plan."
+        echo "Use \`/jons-plan:switch [name]\` to select a plan, or \`/jons-plan:new [topic]\` to create a new one."
         exit 0
     fi
 fi
@@ -124,9 +140,42 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
     plan help 2>/dev/null || true
     echo ""
 
-    # Plan mode instruction
-    echo "---"
-    echo "**Plan Mode:** Edit plans in place at \`.claude/jons-plan/plans/${ACTIVE_PLAN}/plan.md\`"
+    # Check for tasks that need resuming
+    IN_PROGRESS=$(plan in-progress 2>/dev/null || echo "")
+    NEXT_TASKS=$(plan next-tasks 2>/dev/null || echo "")
+
+    if [[ -n "$IN_PROGRESS" ]]; then
+        # Tasks were in-progress when session ended - must resume
+        echo "---"
+        echo "### ⚠️ AUTO-RESUME REQUIRED"
+        echo ""
+        echo "Tasks were in-progress when the previous session ended."
+        echo "**You MUST immediately run \`/jons-plan:proceed\` to continue implementation.**"
+        echo ""
+        echo "Do not wait for user input. Run the command now."
+    elif [[ -n "$NEXT_TASKS" ]]; then
+        # Tasks available but none in-progress - check if we were mid-execution
+        # (indicated by recent progress showing task work, not just SESSION_START)
+        LAST_PROGRESS=$(plan recent-progress --lines 1 2>/dev/null || echo "")
+        if [[ "$LAST_PROGRESS" != *"SESSION_START"* ]] && [[ -n "$LAST_PROGRESS" ]]; then
+            # Was working on tasks, should continue
+            echo "---"
+            echo "### ⚠️ AUTO-RESUME REQUIRED"
+            echo ""
+            echo "Implementation was in progress. Tasks are available to continue."
+            echo "**You MUST immediately run \`/jons-plan:proceed\` to continue implementation.**"
+            echo ""
+            echo "Do not wait for user input. Run the command now."
+        else
+            # Fresh start or just planning - show normal commands
+            echo "---"
+            echo "**Commands:** \`/jons-plan:plan [feedback]\` to refine | \`/jons-plan:status\` to see all | \`/jons-plan:proceed\` to implement"
+        fi
+    else
+        # No tasks to do - either all done or plan not set up
+        echo "---"
+        echo "**Commands:** \`/jons-plan:plan [feedback]\` to refine | \`/jons-plan:status\` to see all | \`/jons-plan:proceed\` to implement"
+    fi
 
     # Log session start
     plan log "SESSION_START" 2>/dev/null || true
@@ -138,7 +187,8 @@ else
     echo "Active plan \`${ACTIVE_PLAN}\` not found. Clearing..."
     rm -f "${PROJECT_DIR}/.claude/jons-plan/active-plan"
     echo ""
-    echo "Enter plan mode (shift+tab) to select or create a plan."
+    echo "Use \`/jons-plan:new [topic]\` to create a new plan."
 fi
 
+echo "=== Hook exiting normally ===" >> "$DEBUG_LOG"
 exit 0

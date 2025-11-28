@@ -50,6 +50,9 @@ def get_tasks(plan_dir: Path) -> list[dict]:
     tasks_file = plan_dir / "tasks.json"
     if tasks_file.exists():
         data = json.loads(tasks_file.read_text())
+        # Handle both formats: {"tasks": [...]} or just [...]
+        if isinstance(data, list):
+            return data
         return data.get("tasks", [])
     return []
 
@@ -59,8 +62,14 @@ def save_tasks(plan_dir: Path, tasks: list[dict]) -> None:
     tasks_file = plan_dir / "tasks.json"
     if tasks_file.exists():
         data = json.loads(tasks_file.read_text())
-        data["tasks"] = tasks
-        tasks_file.write_text(json.dumps(data, indent=2) + "\n")
+        # Handle both formats: {"tasks": [...]} or just [...]
+        if isinstance(data, list):
+            # Raw array format - just write the array
+            tasks_file.write_text(json.dumps(tasks, indent=2) + "\n")
+        else:
+            # Dict format - update the tasks key
+            data["tasks"] = tasks
+            tasks_file.write_text(json.dumps(data, indent=2) + "\n")
 
 
 def log_progress(plan_dir: Path, message: str) -> None:

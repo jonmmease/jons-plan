@@ -1,43 +1,12 @@
-{
-  "planName": "[PLAN_NAME]",
-  "tasks": [
-    {
-      "id": "task-1",
-      "description": "Example task - replace with actual",
-      "parents": [],
-      "steps": [
-        "Step 1: ...",
-        "Step 2: ..."
-      ],
-      "status": "todo"
-    },
-    {
-      "id": "quick-research",
-      "description": "Quick lookup of existing patterns",
-      "parents": ["task-1"],
-      "subagent": "Explore",
-      "subagent_prompt": "quick search",
-      "model": "haiku",
-      "steps": ["Find files matching...", "Report findings"],
-      "status": "todo"
-    },
-    {
-      "id": "thorough-research",
-      "description": "Comprehensive codebase analysis",
-      "parents": ["task-1"],
-      "subagent": "Explore",
-      "subagent_prompt": "very thorough analysis across multiple locations and naming conventions",
-      "model": "haiku",
-      "steps": ["Analyze all auth patterns...", "Document findings"],
-      "status": "todo"
-    },
-    {
-      "id": "complex-implementation",
-      "description": "Complex refactoring task",
-      "parents": ["thorough-research"],
-      "model": "opus",
-      "steps": ["Implement the new pattern..."],
-      "status": "todo"
-    }
-  ]
-}
+[
+  {
+    "id": "example-task",
+    "description": "Example task - replace with actual tasks",
+    "parents": [],
+    "steps": [
+      "Step 1: ...",
+      "Step 2: ..."
+    ],
+    "status": "todo"
+  }
+]
