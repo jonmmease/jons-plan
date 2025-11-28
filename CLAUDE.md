@@ -4,7 +4,7 @@ Based on Anthropic's "Effective Harnesses for Long-Running Agents" pattern.
 
 ## Two Agent Roles
 
-### Planning Agent (`/plan-new` command)
+### Planning Agent (`/jons-plan:new` command)
 Creates infrastructure for a new plan:
 - `plan.md` - Implementation plan
 - `tasks.json` - Task list with dependencies (all `status: "todo"`)
@@ -244,7 +244,8 @@ Each task can optionally write outputs to: `.claude/jons-plan/plans/[plan]/tasks
 1. Confirm working directory (`pwd`)
 2. Show recent git logs
 3. Show recent progress entries
-4. Identify next feature (highest-priority, `passes: false`)
+4. Show in-progress and available tasks
+5. Auto-resume prompt if tasks were in-progress
 
 ### During Work
 - PostToolUse hook logs file modifications
