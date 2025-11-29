@@ -80,6 +80,26 @@ If exit code is 0 (has blockers):
      ```
    - The blocker file remains for reference but is no longer active
 
+### Validation Task Blockers
+
+When a validation task (typically `validate-*`) is blocked, the blockers.md contains **observations** about test failures:
+
+1. **Read the observations carefully**: They explain what tests failed and why fixing is a "large side quest"
+
+2. **Interpret the investigation**: The agent documented what it found during debugging - use this context
+
+3. **Resolution options**:
+   - **Fix the spec**: If tests were too strict or requirements unclear, update the test-definition task
+   - **Add prerequisite**: If missing infrastructure, add a task before the validation
+   - **Modify approach**: If architectural mismatch, change implementation strategy
+   - **Descope**: Remove criteria that can't be met in this plan
+   - **Split feature**: Break into smaller pieces where some can pass validation
+
+4. **After resolving**:
+   - Update tasks.json with any new/modified tasks
+   - Reset the validation task to `todo`
+   - Consider if the test-definition task also needs updates
+
 If user provides feedback, consider how it relates to any blockers before proceeding.
 
 ## User Feedback

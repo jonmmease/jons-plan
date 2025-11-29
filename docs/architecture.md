@@ -129,6 +129,24 @@ Responsibilities:
 - Blocked tasks stop all execution until replanned
 - Status changes are logged to `claude-progress.txt`
 
+### Test-First Task Pattern
+
+For features with measurable acceptance criteria, use a three-task pattern:
+
+```
+┌──────────────────┐     ┌─────────────────┐     ┌──────────────┐
+│ define-tests-*   │────►│ implement-*     │────►│ validate-*   │
+│ (early)          │     │ (middle)        │     │ (late)       │
+│                  │     │                 │     │              │
+│ Output:          │     │ Reads spec,     │     │ Runs tests,  │
+│ test-spec.md     │     │ builds feature  │     │ verifies     │
+└──────────────────┘     └─────────────────┘     └──────────────┘
+```
+
+**Validation blocking:** If tests fail and fixing requires a "large side quest" (changes outside plan scope, architectural mismatch, missing prerequisite), the validation task marks `blocked` with observations about what failed and why.
+
+The planner then reads these observations and updates the task graph (fix spec, add prereqs, modify approach, or descope).
+
 ### Task Availability
 
 A task is "available" when:

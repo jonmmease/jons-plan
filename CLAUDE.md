@@ -98,6 +98,24 @@ When a task cannot proceed due to issues beyond the coding agent's control, mark
 
 When replanning with `/jons-plan:plan`, the planner reads all `blockers.md` files and updates the task graph to resolve them.
 
+### Test-First Planning
+
+For features with clear acceptance criteria, use a test-first task structure:
+
+```
+define-tests-* (early)     → Write test-spec.md
+    ↓
+implement-* (middle)       → Read spec, build feature
+    ↓
+validate-* (late)          → Run tests, verify criteria
+```
+
+**Test definition tasks** write `test-spec.md` to their output directory. This flows automatically to child tasks via `build-task-prompt`.
+
+**Validation tasks** run tests and either mark `done` (all pass) or `blocked` with observations if failures require a "large side quest" (out of scope, architectural mismatch, missing prerequisite, etc.).
+
+See `proceed.md` for detailed validation task guidance and blocking criteria.
+
 **Parallelization rules:** Tasks without parent dependencies can run in parallel, but **only if they won't mutate files in the same directories**. Add parent dependencies to force sequential execution when:
 - Tasks modify files in the same directory
 - Tasks edit the same configuration files
@@ -190,6 +208,8 @@ When creating tasks in plan mode, choose the right combination:
 | Simple implementation | (omit) | (omit) | (omit) |
 | Complex implementation | (omit) | (omit) | `opus` |
 | Architecture decisions | (omit) | (omit) | `opus` |
+| Test definition | (omit) | (omit) | (omit) |
+| Validation/verification | (omit) | (omit) | (omit) |
 | Plan/design review | `gemini-reviewer` | (omit) | (omit) |
 | Code review before commit | `codex-reviewer` | (omit) | (omit) |
 | Image/diagram analysis | `gemini-reviewer` | (omit) | (omit) |

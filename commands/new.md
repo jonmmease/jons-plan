@@ -143,6 +143,91 @@ Tasks can run in parallel ONLY if they won't conflict:
 | Simple implementation | (omit) | (omit) | (omit) |
 | Complex implementation | (omit) | (omit) | `opus` |
 | Architecture decisions | (omit) | (omit) | `opus` |
+| Test definition | (omit) | (omit) | (omit) |
+| Validation/verification | (omit) | (omit) | (omit) |
+
+## Test-First Planning Pattern
+
+For features with clear acceptance criteria, consider structuring tasks in a test-first pattern:
+
+### When to Use Test-First
+
+- Feature has measurable success criteria
+- Multiple implementation tasks depend on consistent expectations
+- You want explicit validation gates before marking complete
+- Complex features that benefit from upfront test design
+
+### Task Structure
+
+```
+define-tests-* (early)     → Write test-spec.md
+    ↓
+implement-* (middle)       → Read spec, build feature & tests
+    ↓
+validate-* (late)          → Run tests, verify criteria
+```
+
+### Test Specification Output
+
+Test definition tasks write to: `tasks/[task-id]/test-spec.md`
+
+Simple format:
+```markdown
+# Test Specification: [Feature]
+
+## Tests to Add/Modify
+- [ ] Test: [description] - [expected behavior]
+- [ ] Test: [description] - [expected behavior]
+
+## Acceptance Criteria
+- [Criterion with measurable verification method]
+- [Criterion with measurable verification method]
+
+## Edge Cases
+- [Edge case to handle]
+```
+
+### Example Task Structure
+
+```json
+[
+  {
+    "id": "define-tests-auth",
+    "description": "Define test cases for authentication",
+    "parents": [],
+    "steps": [
+      "Document required test scenarios",
+      "Define acceptance criteria with measurable verification",
+      "Write test-spec.md to task output directory"
+    ],
+    "status": "todo"
+  },
+  {
+    "id": "implement-auth",
+    "description": "Implement authentication to meet test spec",
+    "parents": ["define-tests-auth"],
+    "steps": [
+      "Read test-spec.md from parent task",
+      "Implement feature to satisfy criteria",
+      "Write tests matching the specification"
+    ],
+    "status": "todo"
+  },
+  {
+    "id": "validate-auth",
+    "description": "Validate auth implementation against spec",
+    "parents": ["implement-auth"],
+    "steps": [
+      "Read test-spec.md from define-tests-auth",
+      "Run test suite and verify all tests pass",
+      "If failures require large side quest, mark blocked with observations"
+    ],
+    "status": "todo"
+  }
+]
+```
+
+See `proceed.md` for validation task execution details and blocking criteria.
 
 ## Important Reminders
 
