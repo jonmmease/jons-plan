@@ -54,7 +54,12 @@ uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> done
 
 ## Execution Order
 
-1. **Resume in-progress tasks first**: If any tasks have `status: "in-progress"`, complete those before starting new ones
+1. **Resume in-progress tasks first**: If any tasks have `status: "in-progress"`:
+   - Read their progress file to understand where you left off:
+     ```bash
+     uv run ~/.claude-plugins/jons-plan/plan.py task-progress <task-id>
+     ```
+   - Continue from the last logged step
 
 2. **Pick from available tasks**: Tasks are available when:
    - `status` is `"todo"`
@@ -73,6 +78,22 @@ uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> done
    TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
    ```
 
+## Task Progress Logging (Best Effort)
+
+Log your progress as you work on each task. This helps with resumption after compaction or session boundaries.
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "message"
+```
+
+**When to log:**
+- After completing each step: `"Completed step 1: Created middleware skeleton"`
+- When modifying files: `"Modified src/auth/middleware.ts"`
+- Before significant decisions: `"Choosing JWT over sessions for stateless auth"`
+- When encountering blockers: `"Blocked: need to resolve dependency conflict"`
+
+This is **best effort** - log what you think is important for resumption.
+
 ## Parallelization
 
 Tasks without shared parents can run in parallel via subagents, but ONLY if they won't edit files in the same directories.
@@ -87,6 +108,25 @@ Honor each task's configuration when launching subagents:
 - `subagent`: Agent type (default: `general-purpose`)
 - `subagent_prompt`: Additional context for the agent
 - `model`: Which model to use (`sonnet`, `haiku`, `opus`)
+
+### Subagent Context Injection
+
+When launching a subagent for a task that may have prior progress (e.g., a task being resumed), include the existing progress in the prompt:
+
+1. Check for existing progress:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py task-progress <task-id>
+   ```
+
+2. If progress exists, include it in the subagent prompt:
+   ```
+   Prior progress on this task:
+   [paste task-progress output here]
+
+   Continue from where the previous work left off.
+   ```
+
+This ensures subagents have context from previous work on the same task.
 
 ## Progress Logging
 

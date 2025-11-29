@@ -80,6 +80,16 @@ def log_progress(plan_dir: Path, message: str) -> None:
         f.write(f"[{timestamp}] {message}\n")
 
 
+def log_task_progress(plan_dir: Path, task_id: str, message: str) -> None:
+    """Append entry to task's progress.txt."""
+    task_dir = plan_dir / "tasks" / task_id
+    task_dir.mkdir(parents=True, exist_ok=True)
+    progress_file = task_dir / "progress.txt"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(progress_file, "a") as f:
+        f.write(f"[{timestamp}] {message}\n")
+
+
 # --- Subcommand handlers ---
 
 
@@ -213,19 +223,31 @@ def cmd_set_status(args: argparse.Namespace) -> int:
         return 1
 
     tasks = get_tasks(plan_dir)
-    found = False
+    found_task = None
     for task in tasks:
         if task["id"] == args.task_id:
             task["status"] = args.status
-            found = True
+            found_task = task
             break
 
-    if not found:
+    if not found_task:
         print(f"Task not found: {args.task_id}", file=sys.stderr)
         return 1
 
     save_tasks(plan_dir, tasks)
     log_progress(plan_dir, f"TASK_STATUS: {args.task_id} -> {args.status}")
+
+    # Write task-level progress entries
+    if args.status == "in-progress":
+        # Initialize task progress with description and steps
+        log_task_progress(plan_dir, args.task_id, f"TASK_STARTED: {found_task.get('description', '')}")
+        steps = found_task.get("steps", [])
+        if steps:
+            steps_text = "\n".join(f"  - {step}" for step in steps)
+            log_task_progress(plan_dir, args.task_id, f"Steps:\n{steps_text}")
+    elif args.status == "done":
+        log_task_progress(plan_dir, args.task_id, f"TASK_COMPLETED: {found_task.get('description', '')}")
+
     return 0
 
 
@@ -302,6 +324,56 @@ def cmd_has_outputs(args: argparse.Namespace) -> int:
     if task_dir.is_dir() and any(task_dir.iterdir()):
         return 0
     return 1
+
+
+def cmd_task_log(args: argparse.Namespace) -> int:
+    """Append message to task's progress.txt."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    # Verify task exists
+    tasks = get_tasks(plan_dir)
+    task_exists = any(t["id"] == args.task_id for t in tasks)
+    if not task_exists:
+        print(f"Task not found: {args.task_id}", file=sys.stderr)
+        return 1
+
+    # Create task directory if needed
+    task_dir = plan_dir / "tasks" / args.task_id
+    task_dir.mkdir(parents=True, exist_ok=True)
+
+    # Append to progress.txt
+    progress_file = task_dir / "progress.txt"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(progress_file, "a") as f:
+        f.write(f"[{timestamp}] {args.message}\n")
+
+    return 0
+
+
+def cmd_task_progress(args: argparse.Namespace) -> int:
+    """Show recent entries from task's progress.txt."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    task_dir = plan_dir / "tasks" / args.task_id
+    progress_file = task_dir / "progress.txt"
+
+    if not progress_file.exists():
+        # Not an error - just no progress yet
+        return 0
+
+    lines = progress_file.read_text().splitlines()
+    for line in lines[-args.lines:]:
+        print(line)
+
+    return 0
 
 
 def cmd_help(args: argparse.Namespace) -> int:
@@ -480,6 +552,16 @@ def main() -> int:
     p_outputs = subparsers.add_parser("has-outputs", help="Check if task has outputs")
     p_outputs.add_argument("task_id", help="Task ID")
 
+    # task-log
+    p_task_log = subparsers.add_parser("task-log", help="Append message to task progress")
+    p_task_log.add_argument("task_id", help="Task ID")
+    p_task_log.add_argument("message", help="Message to log")
+
+    # task-progress
+    p_task_progress = subparsers.add_parser("task-progress", help="Show task progress entries")
+    p_task_progress.add_argument("task_id", help="Task ID")
+    p_task_progress.add_argument("--lines", "-n", type=int, default=10, help="Number of lines")
+
     # status
     subparsers.add_parser("status", help="Show comprehensive status overview")
 
@@ -513,6 +595,8 @@ def main() -> int:
         "ensure-task-dir": cmd_ensure_task_dir,
         "parent-dirs": cmd_parent_dirs,
         "has-outputs": cmd_has_outputs,
+        "task-log": cmd_task_log,
+        "task-progress": cmd_task_progress,
         "status": cmd_status,
         "help": cmd_help,
         "set-mode": cmd_set_mode,

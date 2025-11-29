@@ -8,7 +8,9 @@ When AI agents work on complex projects that span multiple context windows, each
 
 - **Structured task management** with dependencies and status tracking
 - **Progress logging** to orient Claude at the start of each session
+- **Task-level progress** for fine-grained resumption context
 - **Automatic session resumption** when tasks were interrupted
+- **PreCompact hook** to preserve state during context compaction
 - **Parallel task execution** via subagents for independent work
 
 ## How It Works
@@ -109,7 +111,7 @@ Tasks can optionally specify:
 
 ## Hooks
 
-The plugin uses three hooks to manage session lifecycle:
+The plugin uses five hooks to manage session lifecycle:
 
 ### SessionStart Hook
 
@@ -117,8 +119,22 @@ Runs at the beginning of each Claude Code session:
 - Shows the active plan and working directory
 - Displays recent git commits and uncommitted changes
 - Shows recent progress log entries
-- Lists in-progress and available tasks
+- Lists in-progress and available tasks with their task-level progress
 - Prompts for auto-resume if tasks were interrupted
+
+### PreCompact Hook
+
+Runs before context compaction:
+- Injects jons-plan state into the compaction summary
+- Includes session mode, active plan, and in-progress tasks
+- Shows recent task-level progress entries
+- Provides pointers to progress files for post-compaction resumption
+
+### UserPromptSubmit Hook
+
+Runs when user submits a message:
+- Clears session mode for non-jons-plan commands
+- Ensures fresh sessions show neutral state
 
 ### PostToolUse Hook
 
@@ -152,8 +168,10 @@ uv run ~/.claude-plugins/jons-plan/plan.py <command>
 | `in-progress` | List in-progress tasks |
 | `next-tasks` | List available tasks |
 | `set-status <id> <status>` | Update task status |
-| `log <message>` | Append to progress log |
-| `recent-progress` | Show recent progress entries |
+| `log <message>` | Append to plan-level progress log |
+| `recent-progress` | Show recent plan-level progress entries |
+| `task-log <id> <message>` | Append to task's progress.txt |
+| `task-progress <id>` | Show recent task progress entries |
 
 ## Installation
 
@@ -167,7 +185,7 @@ uv run ~/.claude-plugins/jons-plan/plan.py <command>
 
 **Bug:** https://github.com/anthropics/claude-code/issues/12151
 
-Plugin-based hooks execute successfully but their stdout is not passed to the agent's context. This affects `SessionStart`, `PostToolUse`, and `Stop` hooks defined in `hooks/hooks.json`.
+Plugin-based hooks execute successfully but their stdout is not passed to the agent's context. This affects all hooks defined in `hooks/hooks.json`.
 
 ### Workaround
 
@@ -183,6 +201,17 @@ Until the bug is fixed, hooks must be defined in `~/.claude/settings.json` inste
             "type": "command",
             "command": "~/.claude-plugins/jons-plan/hooks/session-start.sh",
             "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude-plugins/jons-plan/hooks/pre-compact.sh",
+            "timeout": 5000
           }
         ]
       }

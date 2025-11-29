@@ -148,6 +148,29 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
     IN_PROGRESS=$(plan in-progress 2>/dev/null || echo "")
     NEXT_TASKS=$(plan next-tasks 2>/dev/null || echo "")
 
+    # Show task-level progress for in-progress tasks
+    if [[ -n "$IN_PROGRESS" ]]; then
+        echo "### In-Progress Task Details"
+        echo ""
+        echo "$IN_PROGRESS" | while IFS=':' read -r task_id task_desc; do
+            task_id=$(echo "$task_id" | tr -d ' ')
+            if [[ -n "$task_id" ]]; then
+                echo "**Task:** \`${task_id}\`"
+                TASK_PROGRESS=$(plan task-progress "$task_id" --lines 5 2>/dev/null || echo "")
+                if [[ -n "$TASK_PROGRESS" ]]; then
+                    echo "\`\`\`"
+                    echo "$TASK_PROGRESS"
+                    echo "\`\`\`"
+                    PROGRESS_FILE="${ACTIVE_PLAN_DIR}/tasks/${task_id}/progress.txt"
+                    echo "_Continue logging to: \`${PROGRESS_FILE}\`_"
+                else
+                    echo "_No progress logged yet_"
+                fi
+                echo ""
+            fi
+        done
+    fi
+
     # Only auto-resume if we're in "proceed" mode
     # Other modes (new, new-design, plan) are read-only planning modes
     if [[ "$SESSION_MODE" == "proceed" ]]; then

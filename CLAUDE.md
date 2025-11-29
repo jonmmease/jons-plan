@@ -256,19 +256,69 @@ Each task can optionally write outputs to: `.claude/jons-plan/plans/[plan]/tasks
 - Implementation tasks (code goes in repo)
 - Bug fixes, refactoring (changes are in repo)
 
+## Task-Level Progress (Best Effort)
+
+Each task can have its own progress log at: `.claude/jons-plan/plans/[plan]/tasks/[task-id]/progress.txt`
+
+**Automatic entries:**
+- `set-status in-progress` → writes TASK_STARTED with description and steps
+- `set-status done` → writes TASK_COMPLETED
+
+**Manual logging (best effort):**
+Log your progress as you work. This helps with resumption after compaction or session boundaries.
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "message"
+```
+
+**When to log:**
+- After completing each step: `"Completed step 1: Created middleware skeleton"`
+- When modifying files: `"Modified src/auth/middleware.ts"`
+- Before significant decisions: `"Choosing JWT over sessions for stateless auth"`
+- When encountering blockers: `"Blocked: need to resolve dependency conflict"`
+
+## Subagent Context Injection
+
+When launching a subagent for a task that may have prior progress (e.g., resuming an interrupted task), include the existing progress in the prompt:
+
+1. Check for existing progress:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py task-progress <task-id>
+   ```
+
+2. If progress exists, include it in the subagent prompt:
+   ```
+   Prior progress on this task:
+   [paste task-progress output here]
+
+   Continue from where the previous work left off.
+   ```
+
+This ensures subagents have context from previous work on the same task.
+
 ## Session Workflow
 
 ### Startup (Automated by SessionStart hook)
 1. Confirm working directory (`pwd`)
 2. Show recent git logs
-3. Show recent progress entries
+3. Show recent plan-level progress entries
 4. Show in-progress and available tasks
-5. Auto-resume prompt if tasks were in-progress
+5. Show task-level progress for in-progress tasks
+6. Auto-resume prompt if tasks were in-progress
+
+### PreCompact Hook
+Before compaction, the hook injects jons-plan state into the compaction summary:
+- Session mode (proceed, plan, etc.)
+- Active plan name
+- In-progress tasks with recent progress entries
+- Pointers to task progress files
+
+This ensures jons-plan context survives compaction.
 
 ### During Work
-- PostToolUse hook logs file modifications
+- PostToolUse hook logs file modifications to plan-level progress
+- Agent logs task-level progress using `task-log` (best effort)
 - Commit at logical checkpoints
-- Add context notes to progress file
 
 ### Session End (Automated by Stop hook)
 - Shows session summary
@@ -302,8 +352,14 @@ All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 ### Progress Logging
 | Command | Description |
 |---------|-------------|
-| `log <message>` | Append message to progress log |
-| `recent-progress [-n N]` | Show recent progress entries (default: 10) |
+| `log <message>` | Append message to plan-level progress log |
+| `recent-progress [-n N]` | Show recent plan-level progress entries (default: 10) |
+
+### Task-Level Progress
+| Command | Description |
+|---------|-------------|
+| `task-log <task-id> <message>` | Append message to task's progress.txt |
+| `task-progress <task-id> [-n N]` | Show recent entries from task's progress.txt (default: 10) |
 
 ### Task Outputs
 | Command | Description |
