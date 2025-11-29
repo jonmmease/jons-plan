@@ -376,6 +376,80 @@ def cmd_task_progress(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_build_task_prompt(args: argparse.Namespace) -> int:
+    """Build a complete prompt for a task with all context."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    # Find the task
+    tasks = get_tasks(plan_dir)
+    task = None
+    for t in tasks:
+        if t["id"] == args.task_id:
+            task = t
+            break
+
+    if not task:
+        print(f"Task not found: {args.task_id}", file=sys.stderr)
+        return 1
+
+    # Build prompt parts
+    prompt_parts = []
+
+    # 1. Description with optional subagent_prompt prefix
+    subagent_prompt = task.get("subagent_prompt", "")
+    description = task.get("description", "")
+    if subagent_prompt:
+        prompt_parts.append(f"{subagent_prompt}: {description}")
+    else:
+        prompt_parts.append(description)
+
+    # 2. Steps list
+    steps = task.get("steps", [])
+    if steps:
+        prompt_parts.append("\nSteps:")
+        for step in steps:
+            prompt_parts.append(f"- {step}")
+
+    # 3. Parent task outputs
+    parents = task.get("parents", [])
+    parent_outputs = []
+    for parent_id in parents:
+        parent_dir = plan_dir / "tasks" / parent_id
+        if parent_dir.is_dir():
+            # Look for output files (output.md, or any .md file)
+            output_files = list(parent_dir.glob("*.md"))
+            # Also check for progress.txt but skip it (that's internal)
+            for output_file in output_files:
+                if output_file.name != "progress.txt":
+                    content = output_file.read_text().strip()
+                    if content:
+                        parent_outputs.append((parent_id, output_file.name, content))
+
+    if parent_outputs:
+        prompt_parts.append("\n\n## Parent Task Outputs")
+        for parent_id, filename, content in parent_outputs:
+            prompt_parts.append(f"\n### {parent_id}/{filename}")
+            prompt_parts.append(content)
+
+    # 4. Prior progress (for resumption)
+    task_dir = plan_dir / "tasks" / args.task_id
+    progress_file = task_dir / "progress.txt"
+    if progress_file.exists():
+        progress_content = progress_file.read_text().strip()
+        if progress_content:
+            prompt_parts.append("\n\n## Prior Progress (Resuming)")
+            prompt_parts.append(progress_content)
+            prompt_parts.append("\nContinue from where the previous work left off.")
+
+    # Output the complete prompt
+    print("\n".join(prompt_parts))
+    return 0
+
+
 def cmd_help(args: argparse.Namespace) -> int:
     """Print concise CLI reference."""
     print("""## CLI Commands
@@ -562,6 +636,10 @@ def main() -> int:
     p_task_progress.add_argument("task_id", help="Task ID")
     p_task_progress.add_argument("--lines", "-n", type=int, default=10, help="Number of lines")
 
+    # build-task-prompt
+    p_build_prompt = subparsers.add_parser("build-task-prompt", help="Build complete prompt for task")
+    p_build_prompt.add_argument("task_id", help="Task ID")
+
     # status
     subparsers.add_parser("status", help="Show comprehensive status overview")
 
@@ -597,6 +675,7 @@ def main() -> int:
         "has-outputs": cmd_has_outputs,
         "task-log": cmd_task_log,
         "task-progress": cmd_task_progress,
+        "build-task-prompt": cmd_build_task_prompt,
         "status": cmd_status,
         "help": cmd_help,
         "set-mode": cmd_set_mode,

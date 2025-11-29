@@ -111,22 +111,28 @@ Honor each task's configuration when launching subagents:
 
 ### Subagent Context Injection
 
-When launching a subagent for a task that may have prior progress (e.g., a task being resumed), include the existing progress in the prompt:
+Use `build-task-prompt` to automatically gather all context for a subagent:
 
-1. Check for existing progress:
-   ```bash
-   uv run ~/.claude-plugins/jons-plan/plan.py task-progress <task-id>
-   ```
+```bash
+PROMPT=$(uv run ~/.claude-plugins/jons-plan/plan.py build-task-prompt <task-id>)
+```
 
-2. If progress exists, include it in the subagent prompt:
-   ```
-   Prior progress on this task:
-   [paste task-progress output here]
+This command outputs a complete prompt containing:
+- Task description (with `subagent_prompt` prefix if configured)
+- Steps as bullet list
+- Parent task outputs (contents of output files from parent tasks)
+- Prior progress entries (if any, with resumption instructions)
 
-   Continue from where the previous work left off.
-   ```
+Use this prompt directly when launching the subagent via the Task tool:
+```
+Task(
+  subagent_type: task.subagent or "general-purpose",
+  model: task.model (if specified),
+  prompt: $PROMPT
+)
+```
 
-This ensures subagents have context from previous work on the same task.
+This eliminates manual context gathering and ensures subagents always have complete context.
 
 ## Progress Logging
 

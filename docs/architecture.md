@@ -470,6 +470,7 @@ uv run ~/.claude-plugins/jons-plan/plan.py <command>
 |---------|-------------|
 | `task-log <id> <message>` | Append to task's progress.txt |
 | `task-progress <id> [-n N]` | Show recent task progress entries |
+| `build-task-prompt <id>` | Build complete subagent prompt with all context |
 
 ### Task Outputs
 | Command | Description |
