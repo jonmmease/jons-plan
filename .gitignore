@@ -1,0 +1,5 @@
+# Claude Code local settings (user-specific)
+.claude/settings.local.json
+
+# Plan data (excluded via .git/info/exclude, but also here for safety)
+.claude/jons-plan/
