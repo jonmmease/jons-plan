@@ -171,9 +171,13 @@ def cmd_task_stats(args: argparse.Namespace) -> int:
     todo = sum(1 for t in tasks if t.get("status") == "todo")
     in_progress = sum(1 for t in tasks if t.get("status") == "in-progress")
     done = sum(1 for t in tasks if t.get("status") == "done")
+    blocked = sum(1 for t in tasks if t.get("status") == "blocked")
     total = len(tasks)
 
-    print(f"{done}/{total} done, {in_progress} in-progress, {todo} todo")
+    if blocked > 0:
+        print(f"{done}/{total} done, {in_progress} in-progress, {blocked} blocked, {todo} todo")
+    else:
+        print(f"{done}/{total} done, {in_progress} in-progress, {todo} todo")
     return 0
 
 
@@ -189,6 +193,34 @@ def cmd_in_progress(args: argparse.Namespace) -> int:
         if task.get("status") == "in-progress":
             print(f"{task['id']}: {task.get('description', '')}")
     return 0
+
+
+def cmd_blocked_tasks(args: argparse.Namespace) -> int:
+    """List blocked tasks."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        return 1
+
+    tasks = get_tasks(plan_dir)
+    for task in tasks:
+        if task.get("status") == "blocked":
+            print(f"{task['id']}: {task.get('description', '')}")
+    return 0
+
+
+def cmd_has_blockers(args: argparse.Namespace) -> int:
+    """Check if plan has blocked tasks (exit 0 if yes, 1 if no)."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        return 1
+
+    tasks = get_tasks(plan_dir)
+    blocked_count = sum(1 for t in tasks if t.get("status") == "blocked")
+    if blocked_count > 0:
+        return 0  # Has blockers
+    return 1  # No blockers
 
 
 def cmd_next_tasks(args: argparse.Namespace) -> int:
@@ -212,8 +244,8 @@ def cmd_next_tasks(args: argparse.Namespace) -> int:
 
 def cmd_set_status(args: argparse.Namespace) -> int:
     """Set task status."""
-    if args.status not in ("todo", "in-progress", "done"):
-        print(f"Invalid status: {args.status} (must be todo, in-progress, or done)", file=sys.stderr)
+    if args.status not in ("todo", "in-progress", "done", "blocked"):
+        print(f"Invalid status: {args.status} (must be todo, in-progress, done, or blocked)", file=sys.stderr)
         return 1
 
     project_dir = get_project_dir()
@@ -226,7 +258,6 @@ def cmd_set_status(args: argparse.Namespace) -> int:
     found_task = None
     for task in tasks:
         if task["id"] == args.task_id:
-            task["status"] = args.status
             found_task = task
             break
 
@@ -234,6 +265,22 @@ def cmd_set_status(args: argparse.Namespace) -> int:
         print(f"Task not found: {args.task_id}", file=sys.stderr)
         return 1
 
+    # When setting to blocked, verify blockers.md exists
+    if args.status == "blocked":
+        task_dir = plan_dir / "tasks" / args.task_id
+        blockers_file = task_dir / "blockers.md"
+        if not blockers_file.exists():
+            print(f"Cannot mark task as blocked: blockers.md not found", file=sys.stderr)
+            print(f"First write: {blockers_file}", file=sys.stderr)
+            print("", file=sys.stderr)
+            print("blockers.md should contain:", file=sys.stderr)
+            print("  - What was attempted", file=sys.stderr)
+            print("  - Why it failed", file=sys.stderr)
+            print("  - Suggested resolution", file=sys.stderr)
+            return 1
+
+    # Update status
+    found_task["status"] = args.status
     save_tasks(plan_dir, tasks)
     log_progress(plan_dir, f"TASK_STATUS: {args.task_id} -> {args.status}")
 
@@ -247,6 +294,10 @@ def cmd_set_status(args: argparse.Namespace) -> int:
             log_task_progress(plan_dir, args.task_id, f"Steps:\n{steps_text}")
     elif args.status == "done":
         log_task_progress(plan_dir, args.task_id, f"TASK_COMPLETED: {found_task.get('description', '')}")
+    elif args.status == "blocked":
+        log_task_progress(plan_dir, args.task_id, f"TASK_BLOCKED: {found_task.get('description', '')}")
+        print(f"Task {args.task_id} is now BLOCKED.", file=sys.stderr)
+        print("STOP execution and run /jons-plan:plan to address the blocker.", file=sys.stderr)
 
     return 0
 
@@ -535,10 +586,21 @@ def cmd_status(args: argparse.Namespace) -> int:
             todo = sum(1 for t in tasks if t.get("status") == "todo")
             in_progress_count = sum(1 for t in tasks if t.get("status") == "in-progress")
             done = sum(1 for t in tasks if t.get("status") == "done")
+            blocked_count = sum(1 for t in tasks if t.get("status") == "blocked")
             total = len(tasks)
 
             print(f"\n## Active: {active}")
-            print(f"  Progress: {done}/{total} done, {in_progress_count} in-progress, {todo} todo")
+            if blocked_count > 0:
+                print(f"  Progress: {done}/{total} done, {in_progress_count} in-progress, {blocked_count} blocked, {todo} todo")
+            else:
+                print(f"  Progress: {done}/{total} done, {in_progress_count} in-progress, {todo} todo")
+
+            # Blocked tasks (show first - most important)
+            blocked_tasks = [t for t in tasks if t.get("status") == "blocked"]
+            if blocked_tasks:
+                print("\n  BLOCKED (requires /jons-plan:plan):")
+                for task in blocked_tasks:
+                    print(f"    - {task['id']}: {task.get('description', '')}")
 
             # In-progress tasks
             in_progress_tasks = [t for t in tasks if t.get("status") == "in-progress"]
@@ -598,13 +660,19 @@ def main() -> int:
     # in-progress
     subparsers.add_parser("in-progress", help="List in-progress tasks")
 
+    # blocked-tasks
+    subparsers.add_parser("blocked-tasks", help="List blocked tasks")
+
+    # has-blockers
+    subparsers.add_parser("has-blockers", help="Check if plan has blocked tasks (exit 0=yes, 1=no)")
+
     # next-tasks
     subparsers.add_parser("next-tasks", help="List available tasks")
 
     # set-status
     p_status = subparsers.add_parser("set-status", help="Set task status")
     p_status.add_argument("task_id", help="Task ID")
-    p_status.add_argument("status", choices=["todo", "in-progress", "done"], help="New status")
+    p_status.add_argument("status", choices=["todo", "in-progress", "done", "blocked"], help="New status")
 
     # recent-progress
     p_progress = subparsers.add_parser("recent-progress", help="Show recent progress entries")
@@ -666,6 +734,8 @@ def main() -> int:
         "log": cmd_log,
         "task-stats": cmd_task_stats,
         "in-progress": cmd_in_progress,
+        "blocked-tasks": cmd_blocked_tasks,
+        "has-blockers": cmd_has_blockers,
         "next-tasks": cmd_next_tasks,
         "set-status": cmd_set_status,
         "recent-progress": cmd_recent_progress,

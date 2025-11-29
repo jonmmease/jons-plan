@@ -110,15 +110,23 @@ Responsibilities:
 ┌───────┐     set-status      ┌─────────────┐     set-status     ┌──────┐
 │  todo │ ──────────────────► │ in-progress │ ─────────────────► │ done │
 └───────┘                     └─────────────┘                    └──────┘
-     ▲                                                                │
-     └────────────────────────────────────────────────────────────────┘
-                           (can reset for rework)
+     ▲                               │                                │
+     │                               │ set-status                     │
+     │                               ▼                                │
+     │                        ┌─────────┐                             │
+     │                        │ blocked │                             │
+     │                        └────┬────┘                             │
+     │                             │                                  │
+     └─────────────────────────────┴──────────────────────────────────┘
+                           (can reset for rework/unblock)
 ```
 
 **Rules:**
 - All tasks start as `todo`
 - A task MUST be marked `in-progress` before any work begins
 - A task MUST be marked `done` immediately after completion (no batching)
+- A task can be marked `blocked` if it cannot proceed (requires `blockers.md` first)
+- Blocked tasks stop all execution until replanned
 - Status changes are logged to `claude-progress.txt`
 
 ### Task Availability
@@ -249,12 +257,14 @@ Claude Code supports lifecycle hooks that execute shell scripts at specific even
 
 **Actions:**
 1. Show active plan and working directory
-2. Display recent git commits
-3. Show recent progress log entries
-4. List in-progress and available tasks
-5. Show task-level progress for in-progress tasks
-6. Check session mode and decide on auto-resume
-7. Log SESSION_START to progress file
+2. **Check for blocked tasks** - if any exist, show them prominently
+3. Display recent git commits
+4. Show recent progress log entries
+5. List in-progress and available tasks
+6. Show task-level progress for in-progress tasks
+7. Check session mode and decide on auto-resume
+   - **Skip auto-resume if blocked tasks exist** - require replanning first
+8. Log SESSION_START to progress file
 
 ### PreCompact
 
@@ -450,7 +460,9 @@ uv run ~/.claude-plugins/jons-plan/plan.py <command>
 | `task-stats` | Print task counts |
 | `in-progress` | List in-progress tasks |
 | `next-tasks` | List available tasks |
-| `set-status <id> <status>` | Update task status |
+| `set-status <id> <status>` | Update task status (validates blockers.md for blocked) |
+| `blocked-tasks` | List blocked tasks |
+| `has-blockers` | Check if blocked tasks exist (exit 0 if yes) |
 
 ### Session Mode
 | Command | Description |

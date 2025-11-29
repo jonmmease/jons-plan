@@ -44,6 +44,44 @@ If the file is empty or missing:
 - Tell user: "No active plan. Use `/jons-plan:new [topic]` to create one."
 - Stop here - do not proceed further.
 
+## Check for Blocked Tasks
+
+Before processing user feedback, check for blocked tasks:
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py has-blockers
+```
+
+If exit code is 0 (has blockers):
+
+1. **List blocked tasks**: `uv run ~/.claude-plugins/jons-plan/plan.py blocked-tasks`
+
+2. **Read each blocker file**: For each blocked task, read its `blockers.md`:
+   ```bash
+   TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py task-dir <task-id>)
+   # Read ${TASK_DIR}/blockers.md
+   ```
+
+3. **Summarize blockers** to the user:
+   - What tasks are blocked
+   - Why (from blockers.md)
+   - Suggested resolutions (from blockers.md)
+
+4. **Propose plan updates**: Based on the blockers, suggest:
+   - **Modify task**: Change the approach/steps to avoid the issue
+   - **Add prerequisites**: Insert new tasks that must complete first
+   - **Split task**: Break into smaller pieces where some can proceed
+   - **Remove task**: If no longer needed or not feasible
+
+5. **Resolve the blockers**: After updating the plan:
+   - Reset resolved tasks from `blocked` back to `todo`:
+     ```bash
+     uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> todo
+     ```
+   - The blocker file remains for reference but is no longer active
+
+If user provides feedback, consider how it relates to any blockers before proceeding.
+
 ## User Feedback
 
 {{#if args}}

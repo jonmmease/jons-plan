@@ -77,7 +77,26 @@ Active plan: `.claude/jons-plan/active-plan`
 
 - All tasks start with `status: "todo"`
 - Each task has a unique `id` and optional `parents` array (task IDs it depends on)
-- Task statuses: `todo` → `in-progress` → `done`
+- Task statuses: `todo` → `in-progress` → `done` (or `blocked` if stuck)
+
+### Blocked Tasks
+
+When a task cannot proceed due to issues beyond the coding agent's control, mark it as `blocked`:
+
+1. **Create blockers.md** in the task directory with:
+   - What was attempted
+   - Why it failed
+   - Suggested resolution
+
+2. **Set status to blocked**:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> blocked
+   ```
+   Note: This command validates that `blockers.md` exists first.
+
+3. **Stop execution** - Do not continue with other tasks. Tell the user to run `/jons-plan:plan` to address the blocker.
+
+When replanning with `/jons-plan:plan`, the planner reads all `blockers.md` files and updates the task graph to resolve them.
 
 **Parallelization rules:** Tasks without parent dependencies can run in parallel, but **only if they won't mutate files in the same directories**. Add parent dependencies to force sequential execution when:
 - Tasks modify files in the same directory
@@ -119,7 +138,7 @@ Tasks can specify optional fields to control how they're executed:
 | `description` | Yes | What the task accomplishes |
 | `parents` | Yes | Array of task IDs that must complete first (empty `[]` if none) |
 | `steps` | Yes | Array of steps to complete the task |
-| `status` | Yes | `todo`, `in-progress`, or `done` |
+| `status` | Yes | `todo`, `in-progress`, `done`, or `blocked` |
 | `subagent` | No | Agent type (default: `general-purpose`) |
 | `subagent_prompt` | No | Additional prompt text for the agent (e.g., thoroughness level) |
 | `model` | No | Model to use (default: `sonnet`) |
@@ -353,7 +372,7 @@ All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 | `task-stats` | Print task counts (done/total, in-progress, todo) |
 | `in-progress` | List tasks currently in progress |
 | `next-tasks` | List available tasks (todo with all parents done) |
-| `set-status <task-id> <status>` | Set task status (todo, in-progress, done) |
+| `set-status <task-id> <status>` | Set task status (todo, in-progress, done, blocked) |
 
 ### Progress Logging
 | Command | Description |
@@ -367,6 +386,12 @@ All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 | `task-log <task-id> <message>` | Append message to task's progress.txt |
 | `task-progress <task-id> [-n N]` | Show recent entries from task's progress.txt (default: 10) |
 | `build-task-prompt <task-id>` | Build complete prompt with all context (description, steps, parent outputs, prior progress) |
+
+### Blocked Task Management
+| Command | Description |
+|---------|-------------|
+| `blocked-tasks` | List all blocked tasks |
+| `has-blockers` | Check if plan has blocked tasks (exit 0 if yes) |
 
 ### Task Outputs
 | Command | Description |

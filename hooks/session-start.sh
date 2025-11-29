@@ -91,6 +91,36 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
     echo "**Working Directory:** \`$(pwd)\`"
     echo ""
 
+    # Check for blocked tasks first - most important status
+    BLOCKED_TASKS=$(plan blocked-tasks 2>/dev/null || echo "")
+    HAS_BLOCKERS=false
+    if [[ -n "$BLOCKED_TASKS" ]]; then
+        HAS_BLOCKERS=true
+        echo "### ⚠️ BLOCKED TASKS"
+        echo ""
+        echo "The following tasks are blocked and require attention:"
+        echo ""
+        echo "$BLOCKED_TASKS" | while IFS=':' read -r task_id task_desc; do
+            task_id=$(echo "$task_id" | tr -d ' ')
+            if [[ -n "$task_id" ]]; then
+                # Read first line of blocker reason
+                BLOCKER_FILE="${ACTIVE_PLAN_DIR}/tasks/${task_id}/blockers.md"
+                if [[ -f "$BLOCKER_FILE" ]]; then
+                    REASON=$(grep -A1 "## Why It Failed" "$BLOCKER_FILE" 2>/dev/null | tail -1 | head -c 80)
+                    echo "- \`${task_id}\`:${task_desc}"
+                    if [[ -n "$REASON" && "$REASON" != "## Why It Failed" ]]; then
+                        echo "  _${REASON}..._"
+                    fi
+                else
+                    echo "- \`${task_id}\`:${task_desc}"
+                fi
+            fi
+        done
+        echo ""
+        echo "**Action Required:** Run \`/jons-plan:plan\` to review blockers and update the plan."
+        echo ""
+    fi
+
     # Git status
     if git rev-parse --git-dir > /dev/null 2>&1; then
         echo "### Git Status"
@@ -171,10 +201,17 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
         done
     fi
 
-    # Only auto-resume if we're in "proceed" mode
+    # Only auto-resume if we're in "proceed" mode AND no blocked tasks
     # Other modes (new, new-design, plan) are read-only planning modes
     if [[ "$SESSION_MODE" == "proceed" ]]; then
-        if [[ -n "$IN_PROGRESS" ]]; then
+        if [[ "$HAS_BLOCKERS" == "true" ]]; then
+            # Blocked tasks exist - do NOT auto-resume, require replanning
+            echo "---"
+            echo "### Cannot Auto-Resume: Blocked Tasks"
+            echo ""
+            echo "Implementation cannot continue due to blocked tasks."
+            echo "**Run \`/jons-plan:plan\` to address the blockers before proceeding.**"
+        elif [[ -n "$IN_PROGRESS" ]]; then
             # Tasks were in-progress when session ended - must resume
             echo "---"
             echo "### ⚠️ AUTO-RESUME REQUIRED"

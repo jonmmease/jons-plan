@@ -27,6 +27,19 @@ If the file is empty or missing:
 - Tell user: "No active plan. Use `/jons-plan:new [topic]` to create one."
 - Stop here - do not proceed further.
 
+## Check for Blocked Tasks
+
+Before proceeding, check if any tasks are blocked:
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py has-blockers
+```
+
+If exit code is 0 (has blockers):
+- Run `uv run ~/.claude-plugins/jons-plan/plan.py blocked-tasks` to list them
+- Tell user: "Cannot proceed - blocked tasks require attention. Run `/jons-plan:plan` to review blockers and update the plan."
+- **STOP HERE** - do not proceed with any tasks
+
 ## Load Plan State
 
 1. Read `tasks.json` from the active plan directory
@@ -140,6 +153,84 @@ Log significant progress:
 ```bash
 uv run ~/.claude-plugins/jons-plan/plan.py log "Completed task X: brief description"
 ```
+
+## When to Mark a Task as Blocked
+
+Mark a task as `blocked` when you encounter issues that **cannot be resolved by the coding agent**:
+
+1. **Missing prerequisites**: A required dependency, API, or external resource isn't available
+2. **Unclear requirements**: Task steps are ambiguous or contradictory
+3. **Technical impossibility**: The approach described won't work (discovered during implementation)
+4. **External blockers**: Need user input, permissions, credentials, or third-party action
+5. **Scope mismatch**: Task is much larger than anticipated and needs to be broken down
+
+**Do NOT mark as blocked for:**
+- Errors you can fix by trying a different approach
+- Missing information you can find by exploring the codebase
+- Test failures that just need debugging
+
+## How to Mark a Task as Blocked
+
+When you determine a task is blocked, follow this **exact workflow**:
+
+### Step 1: Create blockers.md
+
+First, create the task directory and write the blockers file:
+
+```bash
+TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
+```
+
+Then write `blockers.md` with this structure:
+
+```markdown
+# Blocker Report: <task-id>
+
+## What Was Attempted
+
+[Describe what you tried to do and how far you got]
+
+## Why It Failed
+
+[Explain the specific technical issue or blocker]
+
+## Suggested Resolution
+
+[Propose how this could be fixed - new prereqs, modified approach, etc.]
+```
+
+### Step 2: Set Status to Blocked
+
+Only after `blockers.md` exists:
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> blocked
+```
+
+### Step 3: STOP Execution
+
+**⚠️ CRITICAL: After marking a task as blocked, you MUST STOP all task execution.**
+
+- Do NOT continue to other tasks
+- Do NOT try workarounds
+- Tell the user: "Task `<task-id>` is blocked. Run `/jons-plan:plan` to review and update the plan."
+- End your response
+
+The blocked task requires replanning before any more work can be done.
+
+## Parallelization
+
+Tasks without shared parents can run in parallel via subagents, but ONLY if they won't edit files in the same directories.
+
+When launching parallel subagents, each subagent must still follow the status workflow:
+- Set `in-progress` before starting
+- Set `done` immediately after completing
+
+**⚠️ If ANY task becomes blocked:**
+- All parallel execution must stop
+- Subagents should complete their current work gracefully
+- No new tasks should be started
+- Report the blocker to the user
 
 ## When All Tasks Complete
 
