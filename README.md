@@ -35,10 +35,32 @@ Works incrementally on tasks across sessions:
 | Command | Purpose |
 |---------|---------|
 | `/jons-plan:new [topic]` | Create a new implementation plan |
+| `/jons-plan:new-design [topic]` | Create a new design plan (research/exploration) |
 | `/jons-plan:plan [feedback]` | Refine the active plan |
 | `/jons-plan:proceed` | Start/continue implementing tasks |
 | `/jons-plan:switch [name]` | Switch to a different plan |
 | `/jons-plan:status` | Show all plans and task progress |
+
+## Two Types of Plans
+
+### Implementation Plans (`/jons-plan:new`)
+
+Standard plans for building features, fixing bugs, or making code changes. The tasks produce code modifications in the repository.
+
+### Design Plans (`/jons-plan:new-design`)
+
+Plans for research, exploration, and design work. Key differences:
+
+- **Enforced `-design` suffix**: Plan names must end with `-design` (e.g., `auth-design`)
+- **Research-focused tasks**: Codebase exploration, API research, prototyping
+- **Model strategy**: Uses `haiku` for fast exploration, `opus` for synthesis
+- **External review**: Emphasizes `gemini-reviewer` or `codex-reviewer` for outside perspective
+- **Deliverable**: Produces `design.md` document, not code changes
+
+**Two-phase workflow:**
+1. `/jons-plan:new-design auth` → Research and explore → `design.md`
+2. User reviews and approves the design
+3. `/jons-plan:new auth` → Implement based on the approved design
 
 ## Plan Directory Structure
 

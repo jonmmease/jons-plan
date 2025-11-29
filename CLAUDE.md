@@ -20,15 +20,33 @@ Works incrementally on tasks:
 
 ## Plan Commands
 
-Use these slash commands to manage implementation plans:
+Use these slash commands to manage plans:
 
 | Command | Purpose |
 |---------|---------|
-| `/jons-plan:new [topic]` | Create new plan (explores codebase, creates tasks) |
+| `/jons-plan:new [topic]` | Create new implementation plan (explores codebase, creates tasks) |
+| `/jons-plan:new-design [topic]` | Create new design plan (research, exploration, produces `design.md`) |
 | `/jons-plan:plan [feedback]` | Refine active plan |
 | `/jons-plan:proceed` | Start implementing tasks (enforces status workflow) |
 | `/jons-plan:switch [name]` | Switch to different plan |
 | `/jons-plan:status` | Show all plans and task progress |
+
+## Design Plans vs Implementation Plans
+
+The plugin supports two types of plans:
+
+| Aspect | Implementation Plan (`/new`) | Design Plan (`/new-design`) |
+|--------|------------------------------|----------------------------|
+| **Purpose** | Build features, fix bugs | Research, explore, design |
+| **Naming** | `[topic]` | `[topic]-design` (enforced) |
+| **Deliverable** | Code changes | `design.md` document |
+| **Model strategy** | Balanced (sonnet default) | Exploration (haiku), synthesis (opus) |
+| **External review** | Optional | Emphasized |
+
+**Two-phase workflow:**
+1. `/jons-plan:new-design auth` → Research, explore → `design.md`
+2. User reviews design
+3. `/jons-plan:new auth` → Implement based on approved design
 
 ## Refining Plans (`/jons-plan:plan`)
 
