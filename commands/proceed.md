@@ -3,6 +3,18 @@ description: Start implementing tasks from the active jons-plan
 allowed-tools: "*"
 ---
 
+## FIRST: Set Session Mode
+
+Before doing anything else, set the session mode so compaction recovery works correctly:
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py set-mode proceed
+```
+
+Run this command NOW before proceeding.
+
+---
+
 # Implement Tasks
 
 You are implementing tasks from the active jons-plan.

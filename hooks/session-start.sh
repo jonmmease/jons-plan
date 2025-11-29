@@ -140,25 +140,28 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
     plan help 2>/dev/null || true
     echo ""
 
+    # Check session mode to determine if we should auto-resume
+    SESSION_MODE=$(plan get-mode 2>/dev/null || echo "")
+    echo "SESSION_MODE: '${SESSION_MODE}'" >> "$DEBUG_LOG"
+
     # Check for tasks that need resuming
     IN_PROGRESS=$(plan in-progress 2>/dev/null || echo "")
     NEXT_TASKS=$(plan next-tasks 2>/dev/null || echo "")
 
-    if [[ -n "$IN_PROGRESS" ]]; then
-        # Tasks were in-progress when session ended - must resume
-        echo "---"
-        echo "### ⚠️ AUTO-RESUME REQUIRED"
-        echo ""
-        echo "Tasks were in-progress when the previous session ended."
-        echo "**You MUST immediately run \`/jons-plan:proceed\` to continue implementation.**"
-        echo ""
-        echo "Do not wait for user input. Run the command now."
-    elif [[ -n "$NEXT_TASKS" ]]; then
-        # Tasks available but none in-progress - check if we were mid-execution
-        # (indicated by recent progress showing task work, not just SESSION_START)
-        LAST_PROGRESS=$(plan recent-progress --lines 1 2>/dev/null || echo "")
-        if [[ "$LAST_PROGRESS" != *"SESSION_START"* ]] && [[ -n "$LAST_PROGRESS" ]]; then
-            # Was working on tasks, should continue
+    # Only auto-resume if we're in "proceed" mode
+    # Other modes (new, new-design, plan) are read-only planning modes
+    if [[ "$SESSION_MODE" == "proceed" ]]; then
+        if [[ -n "$IN_PROGRESS" ]]; then
+            # Tasks were in-progress when session ended - must resume
+            echo "---"
+            echo "### ⚠️ AUTO-RESUME REQUIRED"
+            echo ""
+            echo "Tasks were in-progress when the previous session ended."
+            echo "**You MUST immediately run \`/jons-plan:proceed\` to continue implementation.**"
+            echo ""
+            echo "Do not wait for user input. Run the command now."
+        elif [[ -n "$NEXT_TASKS" ]]; then
+            # In proceed mode with available tasks - continue
             echo "---"
             echo "### ⚠️ AUTO-RESUME REQUIRED"
             echo ""
@@ -167,12 +170,26 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
             echo ""
             echo "Do not wait for user input. Run the command now."
         else
-            # Fresh start or just planning - show normal commands
+            # In proceed mode but no tasks - show commands
             echo "---"
             echo "**Commands:** \`/jons-plan:plan [feedback]\` to refine | \`/jons-plan:status\` to see all | \`/jons-plan:proceed\` to implement"
         fi
+    elif [[ "$SESSION_MODE" == "new" || "$SESSION_MODE" == "new-design" ]]; then
+        # In planning mode - continue creating the plan
+        echo "---"
+        echo "### Session Mode: Creating Plan"
+        echo ""
+        echo "You were creating a new plan. Continue with the planning workflow."
+        echo "Do NOT start implementation - finish creating the plan first."
+    elif [[ "$SESSION_MODE" == "plan" ]]; then
+        # In refine mode - continue refining
+        echo "---"
+        echo "### Session Mode: Refining Plan"
+        echo ""
+        echo "You were refining the plan. Continue with the refinement workflow."
+        echo "Do NOT start implementation - finish refining the plan first."
     else
-        # No tasks to do - either all done or plan not set up
+        # No mode set - show neutral commands
         echo "---"
         echo "**Commands:** \`/jons-plan:plan [feedback]\` to refine | \`/jons-plan:status\` to see all | \`/jons-plan:proceed\` to implement"
     fi

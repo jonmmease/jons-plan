@@ -187,6 +187,17 @@ Until the bug is fixed, hooks must be defined in `~/.claude/settings.json` inste
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude-plugins/jons-plan/hooks/user-prompt-submit.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",

@@ -318,6 +318,50 @@ Full docs: ~/.claude-plugins/jons-plan/CLAUDE.md""")
     return 0
 
 
+# --- Session Mode Commands ---
+
+VALID_MODES = ("new", "new-design", "plan", "proceed")
+
+
+def get_session_mode_file(project_dir: Path) -> Path:
+    """Get path to session-mode file."""
+    return project_dir / ".claude" / "jons-plan" / "session-mode"
+
+
+def cmd_set_mode(args: argparse.Namespace) -> int:
+    """Set the current session mode."""
+    if args.mode not in VALID_MODES:
+        print(f"Invalid mode: {args.mode}", file=sys.stderr)
+        print(f"Valid modes: {', '.join(VALID_MODES)}", file=sys.stderr)
+        return 1
+
+    project_dir = get_project_dir()
+    mode_file = get_session_mode_file(project_dir)
+    mode_file.parent.mkdir(parents=True, exist_ok=True)
+    mode_file.write_text(args.mode)
+    return 0
+
+
+def cmd_get_mode(args: argparse.Namespace) -> int:
+    """Get the current session mode (empty if not set)."""
+    project_dir = get_project_dir()
+    mode_file = get_session_mode_file(project_dir)
+    if mode_file.exists():
+        mode = mode_file.read_text().strip()
+        print(mode)
+    # Return 0 even if no mode set - empty output indicates no mode
+    return 0
+
+
+def cmd_clear_mode(args: argparse.Namespace) -> int:
+    """Clear the session mode."""
+    project_dir = get_project_dir()
+    mode_file = get_session_mode_file(project_dir)
+    if mode_file.exists():
+        mode_file.unlink()
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     """Show comprehensive status overview."""
     project_dir = get_project_dir()
@@ -442,6 +486,16 @@ def main() -> int:
     # help
     subparsers.add_parser("help", help="Print concise CLI reference")
 
+    # set-mode
+    p_set_mode = subparsers.add_parser("set-mode", help="Set session mode")
+    p_set_mode.add_argument("mode", choices=VALID_MODES, help="Mode to set")
+
+    # get-mode
+    subparsers.add_parser("get-mode", help="Get current session mode")
+
+    # clear-mode
+    subparsers.add_parser("clear-mode", help="Clear session mode")
+
     args = parser.parse_args()
 
     commands = {
@@ -461,6 +515,9 @@ def main() -> int:
         "has-outputs": cmd_has_outputs,
         "status": cmd_status,
         "help": cmd_help,
+        "set-mode": cmd_set_mode,
+        "get-mode": cmd_get_mode,
+        "clear-mode": cmd_clear_mode,
     }
 
     return commands[args.command](args)
