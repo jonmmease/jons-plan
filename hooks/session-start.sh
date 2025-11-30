@@ -234,7 +234,7 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
             echo "---"
             echo "**Commands:** \`/jons-plan:plan [feedback]\` to refine | \`/jons-plan:status\` to see all | \`/jons-plan:proceed\` to implement"
         fi
-    elif [[ "$SESSION_MODE" == "new" || "$SESSION_MODE" == "new-design" ]]; then
+    elif [[ "$SESSION_MODE" == "new" || "$SESSION_MODE" == "new-design" || "$SESSION_MODE" == "new-deep" ]]; then
         # In planning mode - continue creating the plan
         echo "---"
         echo "### Session Mode: Creating Plan"

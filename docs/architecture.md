@@ -33,6 +33,7 @@ Key insights from the post:
 │  │                    Slash Commands                            ││
 │  │  /jons-plan:new    Create implementation plan                ││
 │  │  /jons-plan:new-design  Create design/research plan          ││
+│  │  /jons-plan:new-deep  Deep exploration + implementation plan ││
 │  │  /jons-plan:plan   Refine active plan                        ││
 │  │  /jons-plan:proceed  Execute tasks                           ││
 │  │  /jons-plan:status   Show all plans                          ││
@@ -180,6 +181,7 @@ To handle compaction correctly, we track which command is currently active:
     ├─────────┤
     │ new         │  → Creating implementation plan
     │ new-design  │  → Creating design plan
+    │ new-deep    │  → Deep exploration + implementation plan
     │ plan        │  → Refining plan
     │ proceed     │  → Implementing tasks
     │ (empty)     │  → No active jons-plan command
@@ -396,7 +398,7 @@ The session mode determines how the agent behaves after compaction:
 | Mode | After Compaction |
 |------|------------------|
 | `proceed` | Auto-resume: immediately continue implementation |
-| `new`/`new-design` | Continue creating plan (no auto-resume) |
+| `new`/`new-design`/`new-deep` | Continue creating plan (no auto-resume) |
 | `plan` | Continue refining plan (no auto-resume) |
 | (empty) | Show neutral command options |
 
@@ -450,6 +452,19 @@ for task in available:
 - **Naming:** `[topic]-design` (enforced suffix)
 - **Model strategy:** haiku for exploration, opus for synthesis
 - **Workflow:** design.md → user review → implementation plan
+
+### Deep Exploration Plans (`/jons-plan:new-deep`)
+
+- **Purpose:** Complex features requiring thorough exploration
+- **Deliverable:** Code changes in repository
+- **Naming:** `[topic]` (e.g., `add-auth`)
+- **Workflow:** Auto-executes 5 phases within a single command:
+  1. Parallel Exploration (3 haiku agents)
+  2. Draft Plan Synthesis (opus)
+  3. External Review (gemini + codex in parallel)
+  4. Final Synthesis (opus)
+  5. Create Plan Infrastructure
+- **Use when:** Complex features, unclear architecture, benefits from external review
 
 ---
 

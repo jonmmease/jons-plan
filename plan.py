@@ -517,7 +517,7 @@ Full docs: ~/.claude-plugins/jons-plan/CLAUDE.md""")
 
 # --- Session Mode Commands ---
 
-VALID_MODES = ("new", "new-design", "plan", "proceed")
+VALID_MODES = ("new", "new-design", "new-deep", "plan", "proceed")
 
 
 def get_session_mode_file(project_dir: Path) -> Path:

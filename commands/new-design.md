@@ -76,10 +76,20 @@ Use AskUserQuestion to clarify any ambiguities before proceeding.
 
 ### Step 3: Initial Understanding
 
-Launch up to 3 Explore agents IN PARALLEL to understand the problem space *enough to plan the tasks*:
-- **Codebase exploration**: What exists today? What patterns are used?
-- **External research**: What are the common approaches to this problem?
-- **Requirements gathering**: What must the solution achieve?
+Launch Explore agents to understand the problem space *enough to plan the tasks*. **You decide** how many agents and what each explores based on the topic.
+
+**Common exploration angles:**
+- **Codebase exploration** — What exists today? What patterns are used?
+- **External research** — What are the common approaches to this problem?
+- **Requirements gathering** — What must the solution achieve?
+- **API/library research** — What tools or integrations are relevant?
+- **Prototyping** — Quick spikes to validate assumptions (write to `prototypes/` in plan directory)
+
+**Launch agents appropriately:**
+- Run independent explorations in parallel for speed
+- Chain explorations that depend on each other if needed
+- Use more agents for complex topics with many angles
+- Use fewer for focused topics with clear scope
 
 **Model guidance**: Use `haiku` for all Explore agents (fast, cheap discovery).
 
