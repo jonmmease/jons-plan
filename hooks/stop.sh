@@ -12,8 +12,9 @@ plan() {
 # Read hook input from stdin
 INPUT=$(cat)
 
-# Parse stop_hook_active from input JSON (prevents infinite loops)
-STOP_HOOK_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false')
+# Note: We intentionally don't check stop_hook_active here.
+# Our termination condition is "no available tasks", which naturally
+# prevents infinite loops. We want Claude to keep working until done.
 
 # Find project root (where .claude/ lives)
 PROJECT_DIR="$(pwd)"
@@ -41,7 +42,7 @@ if [[ -f "$SESSION_MODE_FILE" ]]; then
 fi
 
 # Auto-continue logic: Block stop if in proceed mode with available tasks
-if [[ "$SESSION_MODE" == "proceed" ]] && [[ "$STOP_HOOK_ACTIVE" != "true" ]]; then
+if [[ "$SESSION_MODE" == "proceed" ]]; then
     # Check for blocked tasks first
     if plan has-blockers 2>/dev/null; then
         # Don't auto-continue if there are blocked tasks
@@ -52,7 +53,7 @@ if [[ "$SESSION_MODE" == "proceed" ]] && [[ "$STOP_HOOK_ACTIVE" != "true" ]]; th
         if [[ -n "$NEXT_TASKS" ]]; then
             # There are available tasks - block the stop
             TASK_COUNT=$(echo "$NEXT_TASKS" | wc -l | tr -d ' ')
-            echo '{"decision": "block", "reason": "Session mode is proceed and there are '"$TASK_COUNT"' available tasks. Continue working on the next task. Run: uv run ~/.claude-plugins/jons-plan/plan.py next-tasks"}'
+            echo '{"decision": "block", "reason": "Session mode is proceed and there are '"$TASK_COUNT"' available tasks and no blocked tasks. Continue working on the next task. Run: uv run ~/.claude-plugins/jons-plan/plan.py next-tasks"}'
             exit 2
         fi
     fi
