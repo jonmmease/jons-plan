@@ -427,6 +427,289 @@ def cmd_task_progress(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_record_confidence(args: argparse.Namespace) -> int:
+    """Record confidence score for a task."""
+    if not 1 <= args.score <= 5:
+        print(f"Invalid score: {args.score} (must be 1-5)", file=sys.stderr)
+        return 1
+
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    # Verify task exists
+    tasks = get_tasks(plan_dir)
+    task_exists = any(t["id"] == args.task_id for t in tasks)
+    if not task_exists:
+        print(f"Task not found: {args.task_id}", file=sys.stderr)
+        return 1
+
+    # Create task directory if needed
+    task_dir = plan_dir / "tasks" / args.task_id
+    task_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write confidence.json
+    confidence_data = {
+        "score": args.score,
+        "rationale": args.rationale,
+        "timestamp": datetime.now().isoformat(),
+    }
+    confidence_file = task_dir / "confidence.json"
+    confidence_file.write_text(json.dumps(confidence_data, indent=2) + "\n")
+
+    # Log to task progress
+    log_task_progress(plan_dir, args.task_id, f"CONFIDENCE: {args.score}/5 - {args.rationale}")
+
+    # Log to plan progress
+    log_progress(plan_dir, f"CONFIDENCE: {args.task_id} scored {args.score}/5")
+
+    # Warn if low confidence
+    if args.score < 4:
+        print(f"LOW CONFIDENCE ({args.score}/5): {args.rationale}", file=sys.stderr)
+        print("Consider using AskUserQuestion to discuss concerns with user.", file=sys.stderr)
+
+    return 0
+
+
+def cmd_check_confidence(args: argparse.Namespace) -> int:
+    """Check confidence score for a task."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    task_dir = plan_dir / "tasks" / args.task_id
+    confidence_file = task_dir / "confidence.json"
+
+    if not confidence_file.exists():
+        print(f"No confidence recorded for task: {args.task_id}", file=sys.stderr)
+        return 1
+
+    data = json.loads(confidence_file.read_text())
+    print(f"Score: {data['score']}/5")
+    print(f"Rationale: {data['rationale']}")
+    print(f"Recorded: {data['timestamp']}")
+
+    return 0
+
+
+def cmd_low_confidence_tasks(args: argparse.Namespace) -> int:
+    """List tasks with confidence score < 4."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    tasks_dir = plan_dir / "tasks"
+    if not tasks_dir.is_dir():
+        return 0  # No tasks yet
+
+    low_confidence = []
+    for task_dir in tasks_dir.iterdir():
+        if not task_dir.is_dir():
+            continue
+        confidence_file = task_dir / "confidence.json"
+        if confidence_file.exists():
+            data = json.loads(confidence_file.read_text())
+            if data["score"] < 4:
+                low_confidence.append((task_dir.name, data["score"], data["rationale"]))
+
+    if low_confidence:
+        for task_id, score, rationale in sorted(low_confidence, key=lambda x: x[1]):
+            print(f"{task_id}: {score}/5 - {rationale}")
+    else:
+        print("No low-confidence tasks found.")
+
+    return 0
+
+
+def validate_task_schema(task: dict) -> list[str]:
+    """Validate a task object against the schema. Returns list of errors."""
+    errors = []
+    required_fields = ["id", "description", "parents", "steps", "status"]
+    for field in required_fields:
+        if field not in task:
+            errors.append(f"Missing required field: {field}")
+
+    if "id" in task and not isinstance(task["id"], str):
+        errors.append("Field 'id' must be a string")
+
+    if "parents" in task and not isinstance(task["parents"], list):
+        errors.append("Field 'parents' must be an array")
+
+    if "steps" in task and not isinstance(task["steps"], list):
+        errors.append("Field 'steps' must be an array")
+
+    if "status" in task and task["status"] not in ("todo", "in-progress", "done", "blocked"):
+        errors.append(f"Invalid status: {task['status']}")
+
+    valid_subagents = ("general-purpose", "Explore", "Plan", "claude-code-guide", "gemini-reviewer", "codex-reviewer")
+    if "subagent" in task and task["subagent"] not in valid_subagents:
+        errors.append(f"Invalid subagent: {task['subagent']}")
+
+    valid_models = ("sonnet", "haiku", "opus")
+    if "model" in task and task["model"] not in valid_models:
+        errors.append(f"Invalid model: {task['model']}")
+
+    return errors
+
+
+def cmd_add_task(args: argparse.Namespace) -> int:
+    """Add a new task to tasks.json from JSON input."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    # Read task JSON from file or stdin
+    if args.json_file == "-":
+        task_json = sys.stdin.read()
+    else:
+        json_path = Path(args.json_file)
+        if not json_path.exists():
+            print(f"File not found: {args.json_file}", file=sys.stderr)
+            return 1
+        task_json = json_path.read_text()
+
+    try:
+        new_task = json.loads(task_json)
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON: {e}", file=sys.stderr)
+        return 1
+
+    # Validate schema
+    errors = validate_task_schema(new_task)
+    if errors:
+        print("Task validation failed:", file=sys.stderr)
+        for error in errors:
+            print(f"  - {error}", file=sys.stderr)
+        return 1
+
+    # Check for duplicate ID
+    tasks = get_tasks(plan_dir)
+    if any(t["id"] == new_task["id"] for t in tasks):
+        print(f"Task with ID '{new_task['id']}' already exists", file=sys.stderr)
+        return 1
+
+    # Validate parent references
+    task_ids = {t["id"] for t in tasks}
+    for parent_id in new_task.get("parents", []):
+        if parent_id not in task_ids:
+            print(f"Parent task not found: {parent_id}", file=sys.stderr)
+            return 1
+
+    # Add task
+    tasks.append(new_task)
+    save_tasks(plan_dir, tasks)
+
+    # Log the modification
+    log_progress(plan_dir, f"TASK_ADDED: {new_task['id']} - {new_task['description']}")
+    print(f"Added task: {new_task['id']}")
+
+    return 0
+
+
+def cmd_update_task_parents(args: argparse.Namespace) -> int:
+    """Update a task's parent dependencies."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    tasks = get_tasks(plan_dir)
+    task_ids = {t["id"] for t in tasks}
+
+    # Find the task
+    target_task = None
+    for task in tasks:
+        if task["id"] == args.task_id:
+            target_task = task
+            break
+
+    if not target_task:
+        print(f"Task not found: {args.task_id}", file=sys.stderr)
+        return 1
+
+    # Validate parent references
+    for parent_id in args.parent_ids:
+        if parent_id not in task_ids:
+            print(f"Parent task not found: {parent_id}", file=sys.stderr)
+            return 1
+        if parent_id == args.task_id:
+            print("Task cannot be its own parent", file=sys.stderr)
+            return 1
+
+    # Update parents
+    old_parents = target_task.get("parents", [])
+    target_task["parents"] = list(args.parent_ids)
+    save_tasks(plan_dir, tasks)
+
+    # Log the modification
+    log_progress(plan_dir, f"TASK_PARENTS_UPDATED: {args.task_id} from {old_parents} to {list(args.parent_ids)}")
+    print(f"Updated parents for {args.task_id}: {list(args.parent_ids)}")
+
+    return 0
+
+
+def cmd_update_task_steps(args: argparse.Namespace) -> int:
+    """Update a task's steps from JSON input."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    # Read steps JSON from file or stdin
+    if args.json_file == "-":
+        steps_json = sys.stdin.read()
+    else:
+        json_path = Path(args.json_file)
+        if not json_path.exists():
+            print(f"File not found: {args.json_file}", file=sys.stderr)
+            return 1
+        steps_json = json_path.read_text()
+
+    try:
+        new_steps = json.loads(steps_json)
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON: {e}", file=sys.stderr)
+        return 1
+
+    if not isinstance(new_steps, list):
+        print("Steps must be a JSON array", file=sys.stderr)
+        return 1
+
+    tasks = get_tasks(plan_dir)
+
+    # Find the task
+    target_task = None
+    for task in tasks:
+        if task["id"] == args.task_id:
+            target_task = task
+            break
+
+    if not target_task:
+        print(f"Task not found: {args.task_id}", file=sys.stderr)
+        return 1
+
+    # Update steps
+    old_steps_count = len(target_task.get("steps", []))
+    target_task["steps"] = new_steps
+    save_tasks(plan_dir, tasks)
+
+    # Log the modification
+    log_progress(plan_dir, f"TASK_STEPS_UPDATED: {args.task_id} ({old_steps_count} -> {len(new_steps)} steps)")
+    print(f"Updated steps for {args.task_id}: {len(new_steps)} steps")
+
+    return 0
+
+
 def cmd_build_task_prompt(args: argparse.Namespace) -> int:
     """Build a complete prompt for a task with all context."""
     project_dir = get_project_dir()
@@ -708,6 +991,33 @@ def main() -> int:
     p_build_prompt = subparsers.add_parser("build-task-prompt", help="Build complete prompt for task")
     p_build_prompt.add_argument("task_id", help="Task ID")
 
+    # record-confidence
+    p_record_conf = subparsers.add_parser("record-confidence", help="Record confidence score for task")
+    p_record_conf.add_argument("task_id", help="Task ID")
+    p_record_conf.add_argument("score", type=int, help="Confidence score (1-5)")
+    p_record_conf.add_argument("rationale", help="Explanation for the score")
+
+    # check-confidence
+    p_check_conf = subparsers.add_parser("check-confidence", help="Check confidence score for task")
+    p_check_conf.add_argument("task_id", help="Task ID")
+
+    # low-confidence-tasks
+    subparsers.add_parser("low-confidence-tasks", help="List tasks with confidence < 4")
+
+    # add-task
+    p_add_task = subparsers.add_parser("add-task", help="Add a task from JSON file or stdin")
+    p_add_task.add_argument("json_file", help="JSON file with task definition, or '-' for stdin")
+
+    # update-task-parents
+    p_update_parents = subparsers.add_parser("update-task-parents", help="Update task parent dependencies")
+    p_update_parents.add_argument("task_id", help="Task ID to update")
+    p_update_parents.add_argument("parent_ids", nargs="*", help="New parent task IDs")
+
+    # update-task-steps
+    p_update_steps = subparsers.add_parser("update-task-steps", help="Update task steps from JSON")
+    p_update_steps.add_argument("task_id", help="Task ID to update")
+    p_update_steps.add_argument("json_file", help="JSON file with steps array, or '-' for stdin")
+
     # status
     subparsers.add_parser("status", help="Show comprehensive status overview")
 
@@ -746,6 +1056,12 @@ def main() -> int:
         "task-log": cmd_task_log,
         "task-progress": cmd_task_progress,
         "build-task-prompt": cmd_build_task_prompt,
+        "record-confidence": cmd_record_confidence,
+        "check-confidence": cmd_check_confidence,
+        "low-confidence-tasks": cmd_low_confidence_tasks,
+        "add-task": cmd_add_task,
+        "update-task-parents": cmd_update_task_parents,
+        "update-task-steps": cmd_update_task_steps,
         "status": cmd_status,
         "help": cmd_help,
         "set-mode": cmd_set_mode,

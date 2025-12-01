@@ -433,3 +433,135 @@ All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 | `ensure-task-dir <task-id>` | Create task directory if needed, print path |
 | `parent-dirs <task-id>` | List parent task directories that exist |
 | `has-outputs <task-id>` | Check if task has outputs (exit code 0/1) |
+
+### Confidence Scoring
+| Command | Description |
+|---------|-------------|
+| `record-confidence <task-id> <score> <rationale>` | Record confidence score (1-5) for a task |
+| `check-confidence <task-id>` | Check recorded confidence score for a task |
+| `low-confidence-tasks` | List tasks with confidence score < 4 |
+
+### Dynamic Task Modification
+| Command | Description |
+|---------|-------------|
+| `add-task <json-file>` | Add a new task from JSON file (use `-` for stdin) |
+| `update-task-parents <task-id> <parent-ids...>` | Update a task's parent dependencies |
+| `update-task-steps <task-id> <json-file>` | Update a task's steps from JSON (use `-` for stdin) |
+
+## Confidence Scoring
+
+Synthesis tasks should provide a confidence assessment indicating how tractable the plan is.
+
+### Score Scale
+
+| Score | Meaning | Action |
+|-------|---------|--------|
+| 5 | Fully confident | Proceed automatically |
+| 4 | Minor uncertainties | Proceed, note concerns in plan |
+| 3 | Moderate concerns | **STOP and discuss with user** |
+| 2 | Significant doubts | **STOP**, recommend descoping |
+| 1 | Not tractable | **STOP**, recommend abandoning or major pivot |
+
+### Confidence Dimensions
+
+- **Feasibility**: Can this be implemented with current architecture/tools?
+- **Scope**: Is this achievable in a reasonable task count?
+- **Technical Risk**: Are there unknowns that could derail implementation?
+
+### Recording Confidence
+
+```bash
+# Record confidence score for a synthesis task
+uv run ~/.claude-plugins/jons-plan/plan.py record-confidence draft-synthesis 4 "Minor uncertainty about API compatibility"
+
+# Check confidence for a task
+uv run ~/.claude-plugins/jons-plan/plan.py check-confidence draft-synthesis
+
+# List all low-confidence tasks
+uv run ~/.claude-plugins/jons-plan/plan.py low-confidence-tasks
+```
+
+### When Confidence < 4
+
+If confidence is below 4, the agent must **STOP** and use `AskUserQuestion` to discuss concerns:
+
+```
+If confidence < 4:
+  - Present the confidence assessment to the user
+  - List specific concerns and dimensions
+  - Ask for guidance: proceed anyway, descope, or abandon
+  - Wait for user response before continuing
+```
+
+## Feedback Categorization
+
+When processing reviewer feedback (gemini-reviewer, codex-reviewer), categorize each piece as:
+
+| Category | Meaning | Action |
+|----------|---------|--------|
+| **ACCEPT** | Valid criticism, straightforward to address | Apply immediately |
+| **INVESTIGATE** | Challenges assumptions, needs validation | Launch explore agents |
+| **REJECT** | Misunderstands context or constraints | Document rationale, skip |
+
+### categorized-feedback.md Format
+
+```markdown
+# Categorized Feedback
+
+## Confidence: [1-5]
+[Brief rationale]
+
+## Source: gemini-reviewer
+
+### ACCEPT
+- [Feedback point]: [How to address]
+
+### INVESTIGATE
+- [Feedback point]: [Question for explore agent]
+  - Domain: codebase|technical|requirements
+  - Specific question: "Does X exist? How does Y work?"
+
+### REJECT
+- [Feedback point]: [Why this doesn't apply]
+
+## Source: codex-reviewer
+[Same structure]
+
+## Investigation Questions Summary
+- Codebase: [list of questions]
+- Technical: [list of questions]
+- Requirements: [list of questions]
+```
+
+## Dynamic Task Modification
+
+For `/new-design` plans, the `process-feedback` task can modify `tasks.json` at runtime to add investigation tasks based on reviewer feedback.
+
+### When to Add Investigation Tasks
+
+Add investigation tasks when feedback items are categorized as **INVESTIGATE**:
+- Reviewer challenges a core assumption
+- Need to validate something in the codebase
+- Technical approach needs verification
+
+### CLI Commands for Dynamic Modification
+
+```bash
+# Add a new investigation task
+echo '{"id": "investigate-api", "description": "Validate API compatibility concern", "subagent": "Explore", "model": "haiku", "parents": ["process-feedback"], "steps": ["Search for X", "Verify Y"], "status": "todo"}' | uv run ~/.claude-plugins/jons-plan/plan.py add-task -
+
+# Update final-synthesis to depend on new investigation task
+uv run ~/.claude-plugins/jons-plan/plan.py update-task-parents final-synthesis process-feedback investigate-api
+
+# Update steps for an existing task
+echo '["Updated step 1", "Updated step 2"]' | uv run ~/.claude-plugins/jons-plan/plan.py update-task-steps final-synthesis -
+```
+
+### Task Schema Validation
+
+All task modifications are validated against the schema:
+- Required fields: `id`, `description`, `parents`, `steps`, `status`
+- Valid statuses: `todo`, `in-progress`, `done`, `blocked`
+- Valid subagents: `general-purpose`, `Explore`, `Plan`, `claude-code-guide`, `gemini-reviewer`, `codex-reviewer`
+- Valid models: `sonnet`, `haiku`, `opus`
+- Parent references must exist in tasks.json

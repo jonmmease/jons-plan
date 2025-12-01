@@ -105,19 +105,37 @@ Based on initial understanding, determine what research tasks the plan needs:
 
 Don't do the research now — create tasks that will do it during execution.
 
-### Step 5: Plan External Review
+### Step 5: Plan Draft Synthesis
+
+After research tasks, add a **draft-synthesis** task that:
+1. Synthesizes all research findings into a draft design (use `opus` model)
+2. Provides a confidence score (1-5) with rationale
+3. Stops and uses AskUserQuestion if confidence < 4
+
+### Step 6: Plan External Review
 
 Include external review tasks using `gemini-reviewer` and `codex-reviewer` if available:
-- These provides critical feedback from an outside perspective
-- The reviews should happen after research tasks complete
+- These provide critical feedback from an outside perspective
+- The reviews should happen after draft-synthesis completes
 
-### Step 6: Plan Synthesis
+### Step 7: Plan Feedback Processing
 
-The final tasks should:
-1. Synthesize all research findings (use `opus` model)
-2. Write the `design.md` document to the plan directory
+Add a **process-feedback** task that:
+1. Reads feedback from external reviewers
+2. Categorizes feedback as ACCEPT/INVESTIGATE/REJECT
+3. Can **dynamically add investigation tasks** if needed
+4. Updates final-synthesis parents to include any new tasks
+5. Provides confidence score; stops if < 4
 
-### Step 7: Create Plan Infrastructure
+### Step 8: Plan Final Synthesis
+
+The final synthesis task should:
+1. Read draft design, categorized feedback, and any investigation outputs
+2. Incorporate accepted feedback and investigation findings
+3. Provide final confidence score (1-5); stop if < 4
+4. Write the `design.md` document to the plan directory
+
+### Step 9: Create Plan Infrastructure
 
 1. Ensure `.claude/jons-plan/` is in `.git/info/exclude` (do NOT modify `.gitignore`)
 2. Create directory: `.claude/jons-plan/plans/[name]-design/`
@@ -126,7 +144,7 @@ The final tasks should:
 5. Create `claude-progress.txt` with initial entry
 6. Write plan name to `.claude/jons-plan/active-plan`
 
-### Step 8: Present Summary
+### Step 10: Present Summary
 
 - Show plan name and task count
 - List tasks with their dependencies
@@ -202,18 +220,220 @@ A well-structured design plan typically includes:
    - External research (APIs, libraries, patterns)
    - Requirements analysis
 
-2. **External review task** (gemini-reviewer or codex-reviewer)
-   - Review research findings
-   - Identify gaps and blind spots
+2. **Draft synthesis task** (opus, depends on research)
+   - Synthesize research findings
+   - Provide confidence score
+   - Write draft-design.md
 
-3. **Synthesis task** (opus, depends on research + review)
-   - Combine all findings
-   - Document trade-offs
-   - Write draft design
+3. **External review tasks** (gemini-reviewer and/or codex-reviewer)
+   - Review draft design
+   - Identify gaps, risks, and blind spots
 
-4. **Final design task** (opus)
+4. **Process feedback task** (opus, depends on reviews)
+   - Categorize feedback as ACCEPT/INVESTIGATE/REJECT
+   - Dynamically add investigation tasks if needed
+   - Update final-synthesis parents
+
+5. **Final synthesis task** (opus, depends on process-feedback)
+   - Incorporate feedback and investigations
+   - Provide final confidence score
    - Produce `design.md` in plan directory
-   - Include implementation outline for next phase
+
+## Core Task Templates
+
+### Draft Synthesis Task
+
+```json
+{
+  "id": "draft-synthesis",
+  "description": "Synthesize research findings into draft design",
+  "model": "opus",
+  "parents": ["research-codebase", "research-external"],
+  "steps": [
+    "Read all research findings from parent task outputs",
+    "Synthesize into coherent draft design approach",
+    "Identify any areas of uncertainty",
+    "Record confidence score using: uv run ~/.claude-plugins/jons-plan/plan.py record-confidence draft-synthesis <score> '<rationale>'",
+    "If confidence < 4: STOP and use AskUserQuestion to discuss concerns with user",
+    "Write draft-design.md to task output directory"
+  ],
+  "status": "todo"
+}
+```
+
+### Process Feedback Task (Dynamic Task Modification)
+
+This task has special capabilities to modify the task graph:
+
+```json
+{
+  "id": "process-feedback",
+  "description": "Process reviewer feedback and update task graph if needed",
+  "model": "opus",
+  "parents": ["gemini-review", "codex-review"],
+  "steps": [
+    "Read feedback from parent review tasks",
+    "For each piece of feedback, categorize as:",
+    "  - ACCEPT: Will incorporate in final design",
+    "  - INVESTIGATE: Needs more research before deciding",
+    "  - REJECT: Explain why not applicable",
+    "Record confidence score for categorization decisions",
+    "If confidence < 4: STOP and use AskUserQuestion",
+    "If INVESTIGATE items exist, dynamically add investigation tasks (see Dynamic Task Modification below)",
+    "Write categorized-feedback.md to task output directory"
+  ],
+  "status": "todo"
+}
+```
+
+### Final Synthesis Task
+
+```json
+{
+  "id": "final-synthesis",
+  "description": "Produce final design document",
+  "model": "opus",
+  "parents": ["process-feedback"],
+  "steps": [
+    "Read draft-design.md from draft-synthesis task output",
+    "Read categorized-feedback.md from process-feedback task output",
+    "Check for and read any investigation task outputs (from dynamically added tasks)",
+    "Incorporate all ACCEPT feedback items",
+    "Integrate investigation findings where applicable",
+    "Record final confidence score",
+    "If confidence < 4: STOP and use AskUserQuestion to discuss remaining concerns",
+    "Write final design.md to plan directory (not task output)"
+  ],
+  "status": "todo"
+}
+```
+
+## Dynamic Task Modification
+
+The `process-feedback` task can modify the task graph at runtime. This enables the plan to evolve based on reviewer feedback.
+
+### When to Add Investigation Tasks
+
+Add investigation tasks when reviewer feedback:
+- Raises valid technical concerns that need verification
+- Identifies gaps that require additional research
+- Questions assumptions that weren't validated in initial research
+
+Do NOT add tasks for:
+- Feedback that can be addressed directly in final synthesis
+- Nitpicks or style preferences
+- Suggestions already covered by existing research
+
+### How to Add Investigation Tasks
+
+Use the CLI to add tasks and update dependencies:
+
+```bash
+# 1. Add a new investigation task
+echo '{
+  "id": "investigate-scaling",
+  "description": "Investigate scaling concerns raised by reviewer",
+  "subagent": "Explore",
+  "subagent_prompt": "thorough analysis",
+  "model": "haiku",
+  "parents": ["process-feedback"],
+  "steps": [
+    "Research the specific scaling concern",
+    "Analyze current codebase for related patterns",
+    "Document findings and recommendations"
+  ],
+  "status": "todo"
+}' | uv run ~/.claude-plugins/jons-plan/plan.py add-task -
+
+# 2. Update final-synthesis to depend on the new task
+uv run ~/.claude-plugins/jons-plan/plan.py update-task-parents final-synthesis process-feedback investigate-scaling
+```
+
+### JSON Structure for New Tasks
+
+Investigation tasks should follow this pattern:
+
+```json
+{
+  "id": "investigate-[topic]",
+  "description": "Investigate [specific concern from reviewer]",
+  "subagent": "Explore",
+  "subagent_prompt": "thorough analysis",
+  "model": "haiku",
+  "parents": ["process-feedback"],
+  "steps": [
+    "Research [specific aspect]",
+    "Analyze [relevant code/docs]",
+    "Document findings with recommendations"
+  ],
+  "status": "todo"
+}
+```
+
+### CLI Commands for Dynamic Modification
+
+| Command | Description |
+|---------|-------------|
+| `add-task <json_file>` | Add task from JSON file or stdin (`-`) |
+| `update-task-parents <task_id> <parent_ids...>` | Set new parent dependencies |
+| `update-task-steps <task_id> <json_file>` | Update task steps from JSON |
+| `record-confidence <task_id> <score> <rationale>` | Record confidence (1-5) |
+
+### Example: Multiple Investigations
+
+If reviewers raise multiple concerns:
+
+```bash
+# Add first investigation
+echo '{"id": "investigate-auth", "description": "...", ...}' | uv run ~/.claude-plugins/jons-plan/plan.py add-task -
+
+# Add second investigation
+echo '{"id": "investigate-perf", "description": "...", ...}' | uv run ~/.claude-plugins/jons-plan/plan.py add-task -
+
+# Update final-synthesis to depend on both (plus process-feedback)
+uv run ~/.claude-plugins/jons-plan/plan.py update-task-parents final-synthesis process-feedback investigate-auth investigate-perf
+```
+
+## Confidence Scoring
+
+Design tasks should record confidence scores to surface uncertainty early.
+
+### Recording Confidence
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py record-confidence <task-id> <score> "<rationale>"
+```
+
+Score meanings:
+- **5** - Very confident, no concerns
+- **4** - Confident, minor uncertainties that won't block progress
+- **3** - Moderate confidence, some concerns that should be discussed
+- **2** - Low confidence, significant concerns
+- **1** - Not confident, major blockers or missing information
+
+### Confidence Gating
+
+When confidence < 4, the task should:
+1. **NOT** mark itself as done
+2. Use `AskUserQuestion` to discuss concerns with user
+3. Wait for user input before proceeding
+
+Example in task steps:
+```
+"Record confidence score using record-confidence CLI",
+"If confidence < 4: STOP and use AskUserQuestion to surface concerns",
+"Only proceed to write output if confidence >= 4"
+```
+
+### Checking Confidence
+
+```bash
+# Check a specific task's confidence
+uv run ~/.claude-plugins/jons-plan/plan.py check-confidence <task-id>
+
+# List all tasks with low confidence
+uv run ~/.claude-plugins/jons-plan/plan.py low-confidence-tasks
+```
 
 ## design.md Structure
 

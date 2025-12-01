@@ -26,7 +26,7 @@ You are creating an **implementation plan** using a multi-phase automated explor
 - `/new-design` — Creates tasks for later execution, produces design.md
 - `/new-deep` — **Auto-executes** exploration and review phases, produces implementation plan
 
-The phases below run within this single command invocation. You do NOT create tasks for phases 1-4; you execute them directly.
+The phases below run within this single command invocation. You do NOT create tasks for phases 1-6; you execute them directly.
 
 ## CRITICAL: Read-Only Constraint (except plan directory)
 
@@ -61,17 +61,23 @@ Phase 1: Exploration (haiku agents)
 └─ Launch exploration agents as needed for the topic
 
 Phase 2: Draft Plan Synthesis (opus)
-└─ Combine explorations into draft implementation plan
+└─ Combine explorations into draft-plan.md with confidence score
 
 Phase 3: External Review (parallel)
 ├─ gemini-reviewer: Structure, completeness, blind spots
 └─ codex-reviewer: Technical approach, architecture
 
-Phase 4: Final Synthesis (opus)
-└─ Consider review feedback, produce final plan
+Phase 4: Feedback Processing (opus)
+└─ Categorize feedback, assess confidence, user checkpoint if score < 4
 
-Phase 5: Create Plan Infrastructure
-└─ Write plan.md, tasks.json, set active plan
+Phase 5: Targeted Investigation (conditional, haiku)
+└─ Explore INVESTIGATE items, write investigation-findings.md
+
+Phase 6: Final Synthesis (opus)
+└─ Integrate all artifacts, final confidence check
+
+Phase 7: Create Plan Infrastructure
+└─ Write plan.md, tasks.json, clean up drafts
 ```
 
 ---
@@ -115,7 +121,7 @@ Collect the findings from each exploration for use in Phase 2.
 
 ## Phase 2: Draft Plan Synthesis
 
-Using the exploration findings, synthesize a **draft implementation plan**.
+Using the exploration findings, synthesize a **draft implementation plan** with confidence assessment.
 
 This phase runs as the main agent (you), using opus-level reasoning.
 
@@ -136,9 +142,36 @@ This phase runs as the main agent (you), using opus-level reasoning.
    - Identify dependencies between tasks
    - Estimate complexity (guides model selection)
 
-4. **Write draft plan** to a temporary location:
+4. **Assess confidence** in the draft plan:
+   - Score each dimension 1-5
+   - Identify areas of uncertainty
+   - Note questions for reviewers
+
+5. **Write draft plan** to a temporary location:
    - Save to `.claude/jons-plan/plans/[plan-name]/draft-plan.md`
-   - Include: overview, approach, task list, open questions
+   - Include: overview, approach, task list, open questions, AND confidence assessment
+
+### Confidence Assessment Format
+
+Include this section at the end of `draft-plan.md`:
+
+```markdown
+## Confidence Assessment
+
+**Overall Score: [1-5]**
+
+| Dimension | Score | Explanation |
+|-----------|-------|-------------|
+| Feasibility | [1-5] | Can this be implemented with the current codebase? |
+| Scope | [1-5] | Is the scope well-defined and achievable? |
+| Technical Risk | [1-5] | Are there unknowns or risky assumptions? |
+
+**Areas of Uncertainty:**
+- [List specific uncertainties to resolve via review]
+
+**Questions for Reviewers:**
+- [Specific questions you want external reviewers to address]
+```
 
 ---
 
@@ -180,51 +213,196 @@ Collect the feedback from each reviewer for use in Phase 4.
 
 ---
 
-## Phase 4: Final Synthesis
+## Phase 4: Feedback Processing
 
-Consider the review feedback and produce the final implementation plan.
+Categorize the review feedback and assess confidence in proceeding.
 
 This phase runs as the main agent (you), using opus-level reasoning.
 
+### Categorization Process
+
+1. **For each reviewer's feedback**, categorize each point as:
+   - **ACCEPT** — Valid feedback that should be incorporated into the plan
+   - **INVESTIGATE** — Raises a question that needs exploration before deciding
+   - **REJECT** — Doesn't apply to this context or is based on misunderstanding
+
+2. **Assess overall confidence** in proceeding:
+   - Score 1-5 based on how well feedback was understood and addressed
+   - Low scores indicate unresolved concerns needing user input
+
+3. **Write categorized feedback** to `.claude/jons-plan/plans/[plan-name]/categorized-feedback.md`
+
+### Categorized Feedback Format
+
+```markdown
+# Categorized Feedback
+
+## Confidence: [1-5]
+[Brief rationale for the confidence score]
+
+## Source: gemini-reviewer
+
+### ACCEPT
+- [Feedback point]: [How this will be addressed in the plan]
+- [Feedback point]: [How this will be addressed in the plan]
+
+### INVESTIGATE
+- [Feedback point]: [Question that needs exploration]
+  - Domain: codebase|technical|requirements
+  - Specific question: "[Precise question for an explore agent]"
+
+### REJECT
+- [Feedback point]: [Why this doesn't apply or is incorrect]
+
+## Source: codex-reviewer
+
+### ACCEPT
+- [Feedback point]: [How this will be addressed in the plan]
+
+### INVESTIGATE
+- [Feedback point]: [Question that needs exploration]
+  - Domain: codebase|technical|requirements
+  - Specific question: "[Precise question for an explore agent]"
+
+### REJECT
+- [Feedback point]: [Why this doesn't apply or is incorrect]
+
+## Investigation Questions Summary
+
+**Codebase questions:**
+- [Question 1]
+- [Question 2]
+
+**Technical questions:**
+- [Question 1]
+
+**Requirements questions:**
+- [Question 1]
+```
+
+### User Checkpoint (if confidence < 4)
+
+**If your confidence score is below 4**, you MUST stop and discuss concerns with the user before proceeding.
+
+Use `AskUserQuestion` to present the situation:
+
+```
+Question: "I have concerns about the implementation plan. How should I proceed?"
+
+Options:
+1. "Proceed anyway" - Continue despite concerns
+2. "Investigate further" - Run targeted explorations
+3. "Let's discuss" - Explain the concerns in detail
+```
+
+**Do NOT proceed to Phase 5 if confidence < 4 without user acknowledgment.**
+
+---
+
+## Phase 5: Targeted Investigation (Conditional)
+
+**SKIP this phase if there are no INVESTIGATE items in categorized-feedback.md.**
+
+For each INVESTIGATE question, launch a haiku exploration agent to find the answer.
+
+### Investigation Process
+
+1. **Parse investigation questions** from `categorized-feedback.md`
+
+2. **Launch explore agents** for each question:
+   - Use `haiku` model for efficiency
+   - Group related questions if appropriate
+   - Run independent investigations in parallel
+
+3. **Collect findings** and write to `.claude/jons-plan/plans/[plan-name]/investigation-findings.md`
+
+### Investigation Findings Format
+
+```markdown
+# Investigation Findings
+
+## Question: [Original question from categorized-feedback.md]
+**Domain:** codebase|technical|requirements
+**Finding:** [What was discovered]
+**Impact on Plan:** [How this affects the draft plan]
+**Recommendation:** accept-feedback|reject-feedback|modify-approach
+
+## Question: [Next question]
+...
+```
+
+---
+
+## Phase 6: Final Synthesis
+
+Integrate all artifacts and produce the final implementation plan.
+
+This phase runs as the main agent (you), using opus-level reasoning.
+
+### Required Reading
+
+Before synthesizing, read all available artifacts:
+- `draft-plan.md` — Original plan with initial confidence assessment
+- `categorized-feedback.md` — Processed reviewer feedback
+- `investigation-findings.md` — (if exists) Results of targeted investigations
+
 ### Refinement Process
 
-1. **Evaluate feedback**:
-   - What critiques are valid and should be addressed?
-   - What suggestions improve the plan?
-   - What feedback can be noted but doesn't require changes?
+1. **Integrate accepted feedback**:
+   - Incorporate all ACCEPT items from categorized-feedback.md
+   - Address any concerns raised
 
-2. **Refine the plan**:
-   - Address valid concerns
-   - Incorporate useful suggestions
-   - Resolve any conflicting feedback between reviewers
-   - Ensure task dependencies are correct
+2. **Apply investigation findings** (if any):
+   - Update the plan based on what was discovered
+   - Resolve INVESTIGATE items based on findings
 
 3. **Finalize task list**:
    - Ensure all tasks are well-defined
    - Verify parallelization safety (see rules below)
    - Assign appropriate models to tasks
 
+4. **Final confidence assessment**:
+   - Score 1-5 confidence in the final plan
+   - Document any remaining uncertainties
+
+### Final Confidence Check
+
+**If your final confidence score is below 4**, you MUST stop and discuss with the user.
+
+Use `AskUserQuestion`:
+
+```
+Question: "The final plan has unresolved concerns. How should I proceed?"
+
+Options:
+1. "Create the plan anyway" - Accept the risks and proceed
+2. "Let's discuss the concerns" - Explain what's uncertain
+3. "Abandon this plan" - Start over with different approach
+```
+
+**Do NOT proceed to Phase 7 if final confidence < 4 without user acknowledgment.**
+
 ---
 
-## Phase 5: Create Plan Infrastructure
+## Phase 7: Create Plan Infrastructure
 
-### Step 5.1: Derive Plan Name
+### Step 7.1: Derive Plan Name
 
 Convert topic to kebab-case:
 - "authentication system" → "authentication-system"
 - "API rate limiting" → "api-rate-limiting"
 
-### Step 5.2: Ensure Git Exclusion
+### Step 7.2: Ensure Git Exclusion
 
 Check that `.claude/jons-plan/` is in `.git/info/exclude`. If not, add it.
 
-### Step 5.3: Create Plan Directory
+### Step 7.3: Create Plan Directory
 
 ```bash
 mkdir -p .claude/jons-plan/plans/[plan-name]
 ```
 
-### Step 5.4: Write Plan Files
+### Step 7.4: Write Plan Files
 
 Create these files in the plan directory:
 
@@ -233,6 +411,7 @@ Create these files in the plan directory:
 - Key design decisions and rationale
 - Summary of exploration findings
 - Notes from external reviews
+- Final confidence assessment
 
 **tasks.json** — Task list following schema below
 
@@ -241,20 +420,25 @@ Create these files in the plan directory:
 [timestamp] Plan created via /jons-plan:new-deep
 [timestamp] Exploration phases completed: [list what was explored]
 [timestamp] Reviews: gemini-reviewer, codex-reviewer
+[timestamp] Final confidence: [score]/5
 ```
 
-### Step 5.5: Set Active Plan
+### Step 7.5: Set Active Plan
 
 ```bash
 echo "[plan-name]" > .claude/jons-plan/active-plan
 ```
 
-### Step 5.6: Clean Up
+### Step 7.6: Clean Up Draft Artifacts
 
-Remove the draft plan file:
+Remove all intermediate artifacts:
 ```bash
-rm .claude/jons-plan/plans/[plan-name]/draft-plan.md
+rm -f .claude/jons-plan/plans/[plan-name]/draft-plan.md
+rm -f .claude/jons-plan/plans/[plan-name]/categorized-feedback.md
+rm -f .claude/jons-plan/plans/[plan-name]/investigation-findings.md
 ```
+
+These artifacts are temporary working files. The final `plan.md` contains all relevant information.
 
 ---
 
@@ -339,8 +523,11 @@ If context compaction occurs during any phase:
 
 1. **Check session mode**: The `new-deep` mode will be detected by the session-start hook
 2. **Resume current phase**: Continue from where you left off
-3. **Reference saved artifacts**: Check for `draft-plan.md` or partial outputs
-4. **Don't restart completed phases**: Use logged progress to determine state
+3. **Reference saved artifacts**: Check for these files to determine state:
+   - `draft-plan.md` — Phase 2 complete
+   - `categorized-feedback.md` — Phase 4 complete
+   - `investigation-findings.md` — Phase 5 complete (if it was needed)
+4. **Don't restart completed phases**: Use logged progress and artifact presence to determine state
 
 ---
 
@@ -351,8 +538,9 @@ If context compaction occurs during any phase:
 | Exploration | Light exploration | Creates tasks for later | Auto-executes exploration |
 | External review | No | Creates review task | Auto-executes review |
 | Synthesis | Single-shot | Task in plan | Multi-round with feedback |
+| Confidence checks | No | No | Yes (phases 4 and 6) |
 | Output | Implementation plan | design.md | Implementation plan |
-| User intervention | After planning | After each /proceed | After all phases complete |
+| User intervention | After planning | After each /proceed | After all phases complete (or at confidence checkpoints) |
 | Best for | Simple features | Complex research | Complex implementation |
 
 ---
@@ -362,19 +550,21 @@ If context compaction occurs during any phase:
 After completing all phases, show:
 
 1. Plan name and task count
-2. Key insights from exploration
-3. Notable feedback from reviewers
-4. Task list with dependencies
-5. Next step: "Type `/jons-plan:proceed` to implement, or `/jons-plan:plan [feedback]` to refine."
+2. Final confidence score
+3. Key insights from exploration
+4. Notable feedback from reviewers (accepted items)
+5. Task list with dependencies
+6. Next step: "Type `/jons-plan:proceed` to implement, or `/jons-plan:plan [feedback]` to refine."
 
 ---
 
 ## Important Reminders
 
-- Execute phases 1-4 directly — do NOT create tasks for them
-- The only tasks in `tasks.json` are the **implementation tasks** from Phase 5
+- Execute phases 1-6 directly — do NOT create tasks for them
+- The only tasks in `tasks.json` are the **implementation tasks** from Phase 7
 - All implementation tasks start with `status: "todo"`
-- Use `haiku` for exploration, `opus` for synthesis
+- Use `haiku` for exploration, `opus` for synthesis and feedback processing
 - Wait for parallel operations to complete before proceeding
-- Save intermediate artifacts to the plan directory
+- Save intermediate artifacts to the plan directory (cleaned up in Phase 7)
+- Stop and ask user if confidence score < 4 at checkpoints (phases 4 and 6)
 - The final deliverable is plan.md + tasks.json (NOT design.md)
