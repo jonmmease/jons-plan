@@ -41,19 +41,25 @@ if [[ -f "$SESSION_MODE_FILE" ]]; then
     SESSION_MODE=$(cat "$SESSION_MODE_FILE")
 fi
 
-# Auto-continue logic: Block stop if in proceed mode with available tasks
+# Auto-continue logic: Block stop if in proceed mode with work remaining
 if [[ "$SESSION_MODE" == "proceed" ]]; then
-    # Check for blocked tasks first
+    # Check for blocked tasks first - need human intervention
     if plan has-blockers 2>/dev/null; then
         # Don't auto-continue if there are blocked tasks
         :
     else
-        # Check for available tasks
+        # Check for available tasks (todo with parents done)
         NEXT_TASKS=$(plan next-tasks 2>/dev/null || echo "")
         if [[ -n "$NEXT_TASKS" ]]; then
-            # There are available tasks - block the stop
             TASK_COUNT=$(echo "$NEXT_TASKS" | wc -l | tr -d ' ')
-            echo '{"decision": "block", "reason": "Session mode is proceed and there are '"$TASK_COUNT"' available tasks and no blocked tasks. Continue working on the next task. Run: uv run ~/.claude-plugins/jons-plan/plan.py next-tasks"}'
+            echo '{"decision": "block", "reason": "Session mode is proceed and there are '"$TASK_COUNT"' available tasks. Continue working on the next task. Run: uv run ~/.claude-plugins/jons-plan/plan.py next-tasks"}'
+            exit 2
+        fi
+
+        # Check for in-progress tasks (might be blocked waiting on subagents or need resumption)
+        IN_PROGRESS=$(plan in-progress 2>/dev/null || echo "")
+        if [[ -n "$IN_PROGRESS" ]]; then
+            echo '{"decision": "block", "reason": "Session mode is proceed and there are in-progress tasks that need to be completed. Run: uv run ~/.claude-plugins/jons-plan/plan.py in-progress"}'
             exit 2
         fi
     fi
