@@ -369,8 +369,18 @@ This ensures jons-plan context survives compaction.
 - Commit at logical checkpoints
 
 ### Session End (Automated by Stop hook)
+The Stop hook provides **auto-continue** behavior:
+
+**When session mode is `proceed`:**
+- If there are available tasks → **blocks the stop** and tells Claude to continue
+- If there are blocked tasks → allows stop (human intervention needed)
+- If all tasks are done → allows stop with session summary
+
+**Otherwise:**
 - Shows session summary
 - Reminds about uncommitted changes
+
+This means `/jons-plan:proceed` will keep Claude working until all tasks are complete or a task becomes blocked. No need to re-run the command after each batch of tasks.
 
 ## CLI Reference
 

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Stop hook: Provide session summary before ending
-# Shows statistics and reminds about uncommitted changes
+# Stop hook: Auto-continue in proceed mode, otherwise provide session summary
+# Blocks stop if in proceed mode with available tasks
 
 set -e
 
@@ -11,6 +11,9 @@ plan() {
 
 # Read hook input from stdin
 INPUT=$(cat)
+
+# Parse stop_hook_active from input JSON (prevents infinite loops)
+STOP_HOOK_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false')
 
 # Find project root (where .claude/ lives)
 PROJECT_DIR="$(pwd)"
@@ -30,7 +33,32 @@ if [[ -z "$ACTIVE_PLAN_DIR" ]]; then
     exit 0
 fi
 
-# Log session stop
+# Check session mode
+SESSION_MODE_FILE="${PROJECT_DIR}/.claude/jons-plan/session-mode"
+SESSION_MODE=""
+if [[ -f "$SESSION_MODE_FILE" ]]; then
+    SESSION_MODE=$(cat "$SESSION_MODE_FILE")
+fi
+
+# Auto-continue logic: Block stop if in proceed mode with available tasks
+if [[ "$SESSION_MODE" == "proceed" ]] && [[ "$STOP_HOOK_ACTIVE" != "true" ]]; then
+    # Check for blocked tasks first
+    if plan has-blockers 2>/dev/null; then
+        # Don't auto-continue if there are blocked tasks
+        :
+    else
+        # Check for available tasks
+        NEXT_TASKS=$(plan next-tasks 2>/dev/null || echo "")
+        if [[ -n "$NEXT_TASKS" ]]; then
+            # There are available tasks - block the stop
+            TASK_COUNT=$(echo "$NEXT_TASKS" | wc -l | tr -d ' ')
+            echo '{"decision": "block", "reason": "Session mode is proceed and there are '"$TASK_COUNT"' available tasks. Continue working on the next task. Run: uv run ~/.claude-plugins/jons-plan/plan.py next-tasks"}'
+            exit 2
+        fi
+    fi
+fi
+
+# If we get here, allow the stop - log it
 plan log "SESSION_STOP" 2>/dev/null || true
 
 # Calculate session statistics
