@@ -88,6 +88,7 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
     echo "## Session Start: Plan Active"
     echo ""
     echo "**Active Plan:** \`${ACTIVE_PLAN}\`"
+    echo "**Path:** \`${ACTIVE_PLAN_DIR}\`"
     echo "**Working Directory:** \`$(pwd)\`"
     echo ""
 

@@ -281,7 +281,9 @@ def cmd_set_status(args: argparse.Namespace) -> int:
 
     # Update status
     found_task["status"] = args.status
+    tasks_file = plan_dir / "tasks.json"
     save_tasks(plan_dir, tasks)
+    print(f"Updated: {tasks_file}")
     log_progress(plan_dir, f"TASK_STATUS: {args.task_id} -> {args.status}")
 
     # Write task-level progress entries
@@ -338,8 +340,12 @@ def cmd_ensure_task_dir(args: argparse.Namespace) -> int:
         return 1
 
     task_dir = plan_dir / "tasks" / args.task_id
+    was_created = not task_dir.exists()
     task_dir.mkdir(parents=True, exist_ok=True)
-    print(task_dir)
+    if was_created:
+        print(f"Created: {task_dir}")
+    else:
+        print(task_dir)
     return 0
 
 
@@ -458,6 +464,7 @@ def cmd_record_confidence(args: argparse.Namespace) -> int:
     }
     confidence_file = task_dir / "confidence.json"
     confidence_file.write_text(json.dumps(confidence_data, indent=2) + "\n")
+    print(f"Recorded: {confidence_file}")
 
     # Log to task progress
     log_task_progress(plan_dir, args.task_id, f"CONFIDENCE: {args.score}/5 - {args.rationale}")
@@ -605,11 +612,13 @@ def cmd_add_task(args: argparse.Namespace) -> int:
 
     # Add task
     tasks.append(new_task)
+    tasks_file = plan_dir / "tasks.json"
     save_tasks(plan_dir, tasks)
 
     # Log the modification
     log_progress(plan_dir, f"TASK_ADDED: {new_task['id']} - {new_task['description']}")
     print(f"Added task: {new_task['id']}")
+    print(f"Updated: {tasks_file}")
 
     return 0
 
@@ -648,11 +657,13 @@ def cmd_update_task_parents(args: argparse.Namespace) -> int:
     # Update parents
     old_parents = target_task.get("parents", [])
     target_task["parents"] = list(args.parent_ids)
+    tasks_file = plan_dir / "tasks.json"
     save_tasks(plan_dir, tasks)
 
     # Log the modification
     log_progress(plan_dir, f"TASK_PARENTS_UPDATED: {args.task_id} from {old_parents} to {list(args.parent_ids)}")
     print(f"Updated parents for {args.task_id}: {list(args.parent_ids)}")
+    print(f"Updated: {tasks_file}")
 
     return 0
 
@@ -701,11 +712,13 @@ def cmd_update_task_steps(args: argparse.Namespace) -> int:
     # Update steps
     old_steps_count = len(target_task.get("steps", []))
     target_task["steps"] = new_steps
+    tasks_file = plan_dir / "tasks.json"
     save_tasks(plan_dir, tasks)
 
     # Log the modification
     log_progress(plan_dir, f"TASK_STEPS_UPDATED: {args.task_id} ({old_steps_count} -> {len(new_steps)} steps)")
     print(f"Updated steps for {args.task_id}: {len(new_steps)} steps")
+    print(f"Updated: {tasks_file}")
 
     return 0
 
@@ -873,6 +886,7 @@ def cmd_status(args: argparse.Namespace) -> int:
             total = len(tasks)
 
             print(f"\n## Active: {active}")
+            print(f"  Path: {plan_dir}")
             if blocked_count > 0:
                 print(f"  Progress: {done}/{total} done, {in_progress_count} in-progress, {blocked_count} blocked, {todo} todo")
             else:

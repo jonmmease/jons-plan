@@ -389,7 +389,7 @@ All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 ### Overview Commands
 | Command | Description |
 |---------|-------------|
-| `status` | **Comprehensive overview** - all plans, active plan stats, in-progress tasks, next available |
+| `status` | **Comprehensive overview** - all plans, active plan stats (with path), in-progress tasks, next available |
 | `list-plans` | List all plans (marks active) |
 | `active-plan` | Print active plan name |
 | `active-plan-dir` | Print active plan directory path |
@@ -405,7 +405,7 @@ All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 | `task-stats` | Print task counts (done/total, in-progress, todo) |
 | `in-progress` | List tasks currently in progress |
 | `next-tasks` | List available tasks (todo with all parents done) |
-| `set-status <task-id> <status>` | Set task status (todo, in-progress, done, blocked) |
+| `set-status <task-id> <status>` | Set task status (prints `Updated: /path/to/tasks.json`) |
 
 ### Progress Logging
 | Command | Description |
@@ -430,23 +430,23 @@ All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 | Command | Description |
 |---------|-------------|
 | `task-dir <task-id>` | Print task output directory path |
-| `ensure-task-dir <task-id>` | Create task directory if needed, print path |
+| `ensure-task-dir <task-id>` | Create task directory if needed (prints `Created: /path` when new) |
 | `parent-dirs <task-id>` | List parent task directories that exist |
 | `has-outputs <task-id>` | Check if task has outputs (exit code 0/1) |
 
 ### Confidence Scoring
 | Command | Description |
 |---------|-------------|
-| `record-confidence <task-id> <score> <rationale>` | Record confidence score (1-5) for a task |
+| `record-confidence <task-id> <score> <rationale>` | Record confidence score (prints `Recorded: /path/to/confidence.json`) |
 | `check-confidence <task-id>` | Check recorded confidence score for a task |
 | `low-confidence-tasks` | List tasks with confidence score < 4 |
 
 ### Dynamic Task Modification
 | Command | Description |
 |---------|-------------|
-| `add-task <json-file>` | Add a new task from JSON file (use `-` for stdin) |
-| `update-task-parents <task-id> <parent-ids...>` | Update a task's parent dependencies |
-| `update-task-steps <task-id> <json-file>` | Update a task's steps from JSON (use `-` for stdin) |
+| `add-task <json-file>` | Add task from JSON (prints `Updated: /path/to/tasks.json`) |
+| `update-task-parents <task-id> <parent-ids...>` | Update parents (prints `Updated: /path/to/tasks.json`) |
+| `update-task-steps <task-id> <json-file>` | Update steps (prints `Updated: /path/to/tasks.json`) |
 
 ## Confidence Scoring
 
