@@ -1,18 +1,6 @@
 ---
 description: Refine the active jons-plan implementation plan
-allowed-tools: WebSearch, Fetch, WebFetch, Bash(find:*), Bash(git status:*), Bash(tree:*), Bash(mkdir:*), Bash(uv run ~/.claude-plugins/jons-plan/plan.py set-mode *), Write(**/.claude/jons-plan/**), Edit(**/.claude/jons-plan/**)
----
-
-## FIRST: Set Session Mode
-
-Before doing anything else, set the session mode so compaction recovery works correctly:
-
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py set-mode plan
-```
-
-Run this command NOW before proceeding.
-
+allowed-tools: WebSearch, Fetch, WebFetch, Bash(find:*), Bash(git status:*), Bash(tree:*), Bash(mkdir:*), Write(**/.claude/jons-plan/**), Edit(**/.claude/jons-plan/**)
 ---
 
 # Refine Active Plan

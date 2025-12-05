@@ -240,15 +240,23 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
         echo "---"
         echo "### Session Mode: Creating Plan"
         echo ""
-        echo "You were creating a new plan. Continue with the planning workflow."
-        echo "Do NOT start implementation - finish creating the plan first."
+        echo "You were creating a new plan. **Do NOT execute tasks or modify code outside the plan directory.**"
+        echo ""
+        echo "To continue:"
+        echo "1. Read \`plan.md\` and \`tasks.json\` from the plan directory (if they exist)"
+        echo "2. Check recent progress: \`uv run ~/.claude-plugins/jons-plan/plan.py recent-progress\`"
+        echo "3. Continue developing the plan following the \`/jons-plan:new\` workflow"
     elif [[ "$SESSION_MODE" == "plan" ]]; then
         # In refine mode - continue refining
         echo "---"
         echo "### Session Mode: Refining Plan"
         echo ""
-        echo "You were refining the plan. Continue with the refinement workflow."
-        echo "Do NOT start implementation - finish refining the plan first."
+        echo "You were refining the plan. **Do NOT execute tasks or modify code outside the plan directory.**"
+        echo ""
+        echo "To continue:"
+        echo "1. Read \`plan.md\` and \`tasks.json\` from the plan directory"
+        echo "2. Check recent progress: \`uv run ~/.claude-plugins/jons-plan/plan.py recent-progress\`"
+        echo "3. Continue refining following the \`/jons-plan:plan\` workflow"
     else
         # No mode set - show neutral commands
         echo "---"
