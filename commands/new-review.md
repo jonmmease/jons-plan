@@ -27,10 +27,34 @@ Forbidden actions:
 ## Arguments
 
 {{#if args}}
-**PR Document Path:** `{{args}}`
+**Argument provided:** `{{args}}`
 {{else}}
-No PR document provided. Review will focus on code only.
+No argument provided.
 {{/if}}
+
+## Step 0: Determine Review Mode
+
+Check if the argument is a valid file path:
+
+```bash
+# If args provided, check if it's a file
+test -f "{{args}}" && echo "REVIEW_MODE" || echo "GENERATE_MODE"
+```
+
+**Two modes:**
+
+1. **REVIEW_MODE** (args is a valid file path):
+   - PR document exists at `{{args}}`
+   - Review tasks will read from this path
+   - No PR generation needed
+
+2. **GENERATE_MODE** (args is empty or not a file):
+   - No existing PR document
+   - Will generate a PR description from commit archaeology
+   - If args was provided but isn't a file, treat it as context (e.g., "closes #1234")
+   - Store as `PR_CONTEXT` for the draft task
+
+Set `REVIEW_MODE` or `GENERATE_MODE` and optionally `PR_CONTEXT`.
 
 ## Workflow
 
@@ -175,16 +199,37 @@ Create the task list with all review tasks. The tasks should be structured as:
 ]
 ```
 
-**If PR document was provided** ({{args}} is not empty), add these additional tasks:
+**ALWAYS add PR review tasks** (in both modes):
+
+**If GENERATE_MODE**, first add the draft task:
+
+```json
+  {
+    "id": "draft-pr-description",
+    "description": "Generate PR description from commit archaeology",
+    "model": "opus",
+    "parents": ["generate-diffs"],
+    "steps": [
+      "Read commit archaeology from generate-diffs output (commit-log.txt, commit-log-full.txt, per-commit/)",
+      "Apply Draft PR Description Prompt",
+      "Include user context if provided: [PR_CONTEXT or 'none']",
+      "Write title, body, and commit tour",
+      "Write draft-pr.md to task output"
+    ],
+    "status": "todo"
+  },
+```
+
+**Then add PR review tasks** (adjust parents and paths based on mode):
 
 ```json
   {
     "id": "pr-slop-detect",
     "description": "Scan PR description for AI-generated writing patterns",
     "model": "haiku",
-    "parents": ["generate-diffs"],
+    "parents": ["[REVIEW_MODE: generate-diffs | GENERATE_MODE: draft-pr-description]"],
     "steps": [
-      "Read PR document at: {{args}}",
+      "Read PR document at: [REVIEW_MODE: {{args}} | GENERATE_MODE: draft-pr.md from draft-pr-description task output]",
       "Apply PR slop detector prompt",
       "Report findings with confidence levels",
       "Write pr-slop-findings.md to task output"
@@ -195,9 +240,9 @@ Create the task list with all review tasks. The tasks should be structured as:
     "id": "gemini-pr-review",
     "description": "Review PR description for clarity and completeness",
     "subagent": "gemini-reviewer",
-    "parents": ["generate-diffs"],
+    "parents": ["[REVIEW_MODE: generate-diffs | GENERATE_MODE: draft-pr-description]"],
     "steps": [
-      "Read PR document at: {{args}}",
+      "Read PR document at: [REVIEW_MODE: {{args}} | GENERATE_MODE: draft-pr.md from draft-pr-description task output]",
       "Read full.diff for context",
       "Apply gruff persona to PR description",
       "Check: accurate? clear? complete?",
@@ -209,9 +254,9 @@ Create the task list with all review tasks. The tasks should be structured as:
     "id": "codex-pr-review",
     "description": "Review PR description for technical accuracy",
     "subagent": "codex-reviewer",
-    "parents": ["generate-diffs"],
+    "parents": ["[REVIEW_MODE: generate-diffs | GENERATE_MODE: draft-pr-description]"],
     "steps": [
-      "Read PR document at: {{args}}",
+      "Read PR document at: [REVIEW_MODE: {{args}} | GENERATE_MODE: draft-pr.md from draft-pr-description task output]",
       "Read full.diff for technical context",
       "Apply gruff persona to PR description",
       "Check: technically accurate? misleading claims?",
@@ -223,9 +268,9 @@ Create the task list with all review tasks. The tasks should be structured as:
     "id": "opus-pr-review",
     "description": "Review PR description for reader comprehension",
     "model": "opus",
-    "parents": ["generate-diffs"],
+    "parents": ["[REVIEW_MODE: generate-diffs | GENERATE_MODE: draft-pr-description]"],
     "steps": [
-      "Read PR document at: {{args}}",
+      "Read PR document at: [REVIEW_MODE: {{args}} | GENERATE_MODE: draft-pr.md from draft-pr-description task output]",
       "Read full.diff for context",
       "Apply gruff persona to PR description",
       "Check: would a reviewer understand the change?",
@@ -235,15 +280,17 @@ Create the task list with all review tasks. The tasks should be structured as:
   },
   {
     "id": "synthesize-pr-feedback",
-    "description": "Create actionable PR description improvements",
+    "description": "[REVIEW_MODE: Create actionable PR improvements | GENERATE_MODE: Produce final PR description]",
     "model": "opus",
     "parents": ["pr-slop-detect", "gemini-pr-review", "codex-pr-review", "opus-pr-review"],
     "steps": [
       "Read all PR review outputs",
       "Triage feedback: ACCEPT or DISCARD",
-      "For accepted items, formulate specific edits",
-      "Do NOT modify the PR document",
-      "Write pr-recommendations.md to plan directory"
+      "[REVIEW_MODE: For accepted items, formulate specific edits to recommend]",
+      "[REVIEW_MODE: Write pr-recommendations.md to plan directory]",
+      "[GENERATE_MODE: Read the draft PR from draft-pr-description task output]",
+      "[GENERATE_MODE: Apply accepted feedback to produce refined final version]",
+      "[GENERATE_MODE: Write pr-description.md to plan directory (the final PR, not recommendations)]"
     ],
     "status": "todo"
   }
@@ -513,6 +560,132 @@ Output format: code-recommendations.md with:
 - Rebase instructions
 ```
 
+### Draft PR Description Prompt
+
+```
+You are writing a PR description for a human developer. Your job is to make this look like a developer dashed it off in 2 minutes, not like AI-generated documentation.
+
+## Your Inputs
+
+1. **Commit archaeology** (commit-log.txt, commit-log-full.txt, per-commit/*.diff)
+2. **User context** (if provided): Issue references, notes, etc.
+
+## Output Format
+
+Write a markdown file with:
+
+1. **Title line**: Short, imperative. "Fix auth bug" not "This PR fixes the authentication bug"
+2. **Body**: 1-3 short paragraphs. Say why, not what (the diff shows what).
+3. **Commit Tour**: One section per commit explaining WHY that commit exists.
+
+## CRITICAL: Write Like a Human
+
+You will be reviewed by a slop detector. Avoid:
+
+**Words that scream AI:**
+- utilize, leverage, ensure, robust, comprehensive, streamlined, seamless, elegant
+- delve, navigate, showcase, facilitate, enhance, functionality
+- Just use: use, make sure, strong, complete, smooth, nice, dig into, go through, show, help, improve, feature
+
+**Phrases that scream AI:**
+- "In order to" → "to"
+- "This PR aims to" → just say what it does
+- "This change introduces" → say what changed
+- "It's worth noting" → just say it
+- "Furthermore", "Moreover", "Additionally" → new sentence or nothing
+
+**Structural tells:**
+- No em-dashes (—). Use commas or parentheses.
+- No "First... Second... Third..." unless truly needed
+- No headers in a 3-paragraph description
+- No "Summary" section that repeats the title
+- No "In conclusion" or "To summarize"
+
+**Voice:**
+- Active, not passive. "I added" not "was added"
+- First person is fine. "I fixed the bug" beats "The bug was fixed"
+- Short sentences. Choppy is human.
+- Plain technical language. Avoid idioms and informal expressions.
+  - "regex can't handle this" not "regex doesn't cut it here"
+  - "the old approach was slow" not "the old approach was a bottleneck"
+  - "this simplifies the code" not "this cleans things up"
+
+## Commit Tour Format
+
+At the end, include a commit tour. This walks through each commit and explains WHY.
+
+```markdown
+## Commits
+
+**abc1234 - Add auth middleware**
+Centralized the auth checks that were copy-pasted in every handler. Less duplication, one place to fix bugs.
+
+**def5678 - Update user model**
+Added email validation. Users were signing up with garbage emails and breaking the notification system.
+
+**ghi9012 - Fix race in token refresh**
+Two requests hitting refresh at the same time would both get new tokens. Added a lock.
+```
+
+Notes on commit tour:
+- Use the short hash and commit message as the header
+- Explain WHY, not WHAT (the commit message says what)
+- Keep it short - 1-2 sentences per commit
+- Tell the story of the branch - how it progressed
+- If a commit is just cleanup or formatting, say so briefly
+
+## Handling User Context
+
+If user provided context like "closes #1234" or "fixes the login timeout issue":
+- Mention the issue reference naturally in the body
+- Don't create a separate "Related Issues" section unless there are many
+- Incorporate the context, don't just append it
+
+## Examples
+
+### BAD (AI slop):
+```
+## Summary
+
+This PR implements comprehensive authentication middleware to ensure robust security across all API endpoints. The changes leverage a centralized approach to facilitate seamless token validation.
+
+### Changes Made
+- Implemented authentication middleware
+- Enhanced user model with email validation
+- Addressed race condition in token refresh mechanism
+
+In conclusion, these changes provide a more streamlined authentication experience.
+```
+
+### GOOD (human):
+```
+Moved auth checks into middleware instead of copy-pasting in every handler.
+
+Also fixed the token refresh race - two simultaneous requests were both generating new tokens. Added a simple lock.
+
+Closes #1234
+
+## Commits
+
+**abc1234 - Add auth middleware**
+Centralized auth. One place to maintain instead of 15.
+
+**def5678 - Update user model**
+Email validation. People were signing up with "asdf" as their email.
+
+**ghi9012 - Fix race in token refresh**
+Lock around token generation. The old code would sometimes invalidate tokens mid-request.
+```
+
+Notice:
+- No "Summary" header
+- No "comprehensive", "robust", "leverage", "facilitate", "streamlined"
+- Active voice throughout
+- Short sentences
+- Slightly informal tone
+- Commit tour tells the story
+```
+
 ### PR Slop Detector Prompt
 
 ```
@@ -581,6 +754,19 @@ SUMMARY ADDICTION:
 - "In summary", "To summarize", "In conclusion" in a PR under 200 words
 - Restating the title at the end
 
+IDIOMS AND INFORMAL EXPRESSIONS:
+- "doesn't cut it" instead of "can't handle this"
+- "bottleneck" used loosely (not about actual throughput)
+- "cleans things up" instead of "simplifies"
+- "under the hood" instead of "internally"
+- "out of the box" instead of "by default"
+- "heavy lifting" instead of "main work"
+- "low-hanging fruit" instead of "easy improvements"
+- "at the end of the day" instead of "ultimately"
+- Sports/war metaphors: "tackle", "dive into", "attack the problem"
+
+Flag these - plain technical language is clearer.
+
 QUANTITATIVE SIGNALS:
 - Sentences averaging 20+ words (humans write choppier)
 - Paragraphs of uniform length (humans vary more)
@@ -597,6 +783,10 @@ Be calibrated. Some humans do write formally. Flag patterns, but don't claim cer
 ```
 
 ### PR Feedback Synthesis Prompt
+
+**This prompt varies by mode.**
+
+#### REVIEW_MODE (user provided existing PR)
 
 ```
 You are synthesizing PR description feedback from multiple reviewers.
@@ -625,13 +815,47 @@ Output format: pr-recommendations.md with:
 - Discarded feedback with rationale
 ```
 
+#### GENERATE_MODE (PR was drafted by AI)
+
+```
+You are refining an AI-drafted PR description based on reviewer feedback.
+
+Your job:
+1. Read the draft PR from draft-pr-description task output
+2. Evaluate each piece of reviewer feedback critically
+3. DISCARD feedback that is wrong or would make the PR worse
+4. Apply ACCEPTED feedback to produce the final PR description
+
+DISCARD criteria:
+- Feedback asking for information not in the commits
+- Suggestions that would add AI slop patterns back in
+- Pedantic changes that don't improve clarity
+
+ACCEPT criteria:
+- Missing context from the commits
+- Unclear explanations that reviewers flagged
+- Slop patterns that need removal
+- Gaps in the commit tour
+
+Output: Write pr-description.md to the plan directory.
+
+This is the FINAL PR description the user will see. They never saw the draft.
+Make it good. Keep it human-sounding. Include the commit tour.
+```
+
 ---
 
 ## Important Reminders
 
 - This command creates a PLAN, it does not execute the review
 - All tasks start with `status: "todo"`
-- The 5 review tasks (slop, edge-case, gemini, codex, opus) run in parallel
-- The synthesis task waits for all reviews to complete
-- If PR document is provided, PR review tasks also run in parallel
+- The 5 code review tasks (slop, edge-case, gemini, codex, opus) run in parallel
+- PR review tasks always run (in both modes)
 - Tell user to run `/jons-plan:proceed` to execute the review
+
+**Final outputs by mode:**
+
+| Mode | Code Output | PR Output |
+|------|-------------|-----------|
+| REVIEW_MODE | `code-recommendations.md` | `pr-recommendations.md` (edits for user's PR) |
+| GENERATE_MODE | `code-recommendations.md` | `pr-description.md` (final PR to use) |
