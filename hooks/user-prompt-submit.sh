@@ -13,8 +13,8 @@ plan() {
 INPUT=$(cat)
 
 # Extract the user's message from the JSON input
-# The input format is: {"session_id": "...", "message": "..."}
-MESSAGE=$(echo "$INPUT" | grep -o '"message"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"message"[[:space:]]*:[[:space:]]*"//' | sed 's/"$//' || echo "")
+# The input format is: {"session_id": "...", "prompt": "..."}
+MESSAGE=$(echo "$INPUT" | grep -o '"prompt"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"prompt"[[:space:]]*:[[:space:]]*"//' | sed 's/"$//' || echo "")
 
 # Check for /jons-plan:* commands and set appropriate mode
 # Order matters: check new-deep and new-design before new
