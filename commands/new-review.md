@@ -98,7 +98,7 @@ Create the task list with all review tasks. The tasks should be structured as:
 [
   {
     "id": "generate-diffs",
-    "description": "Generate diff files and commit archaeology data for reviewers",
+    "description": "Generate diff files, commit archaeology, and file manifest for reviewers",
     "parents": [],
     "steps": [
       "Detect main/master branch (BASE_BRANCH)",
@@ -112,7 +112,12 @@ Create the task list with all review tasks. The tasks should be structured as:
       "  - full.diff (git diff $BASE_BRANCH..HEAD) - the actual code changes for reviewers",
       "  - commit-log.txt (git log --oneline $BASE_BRANCH..HEAD) - ONLY commits in this branch",
       "  - commit-log-full.txt (git log -p $BASE_BRANCH..HEAD) - full patches for archaeology",
-      "  - per-commit/<hash>.diff for each commit in the range"
+      "  - file-manifest.txt - structured file list for Review Tour (format below)",
+      "  - per-commit/<hash>.diff for each commit in the range",
+      "",
+      "file-manifest.txt format (tab-separated columns):",
+      "  status  adds  dels  path",
+      "Generate via: git diff $BASE_BRANCH..HEAD --numstat | while read adds dels path; do status=$(git diff --name-status $BASE_BRANCH..HEAD -- \"$path\" 2>/dev/null | head -1 | cut -f1); echo -e \"$status\\t$adds\\t$dels\\t$path\"; done"
     ],
     "status": "todo"
   },
@@ -201,19 +206,34 @@ Create the task list with all review tasks. The tasks should be structured as:
 
 **ALWAYS add PR review tasks** (in both modes):
 
-**If GENERATE_MODE**, first add the draft task:
+**If GENERATE_MODE**, first add the Review Tour and draft tasks:
 
 ```json
   {
-    "id": "draft-pr-description",
-    "description": "Generate PR description from commit archaeology",
+    "id": "generate-review-tour",
+    "description": "Create top-down file tour clustered by purpose",
     "model": "opus",
     "parents": ["generate-diffs"],
     "steps": [
+      "Read file-manifest.txt from generate-diffs output",
+      "Read full.diff for context on what each file does",
+      "Apply Review Tour Prompt to classify files into tiers",
+      "Write review-tour.md to task output"
+    ],
+    "status": "todo"
+  },
+  {
+    "id": "draft-pr-description",
+    "description": "Generate PR description from commit archaeology and review tour",
+    "model": "opus",
+    "parents": ["generate-diffs", "generate-review-tour"],
+    "steps": [
       "Read commit archaeology from generate-diffs output (commit-log.txt, commit-log-full.txt, per-commit/)",
+      "Read review-tour.md from generate-review-tour output",
       "Apply Draft PR Description Prompt",
+      "Include the Review Tour section after the Commits section",
       "Include user context if provided: [PR_CONTEXT or 'none']",
-      "Write title, body, and commit tour",
+      "Write title, body, commits, and review tour",
       "Write draft-pr.md to task output"
     ],
     "status": "todo"
@@ -560,27 +580,9 @@ Output format: code-recommendations.md with:
 - Rebase instructions
 ```
 
-### Draft PR Description Prompt
+### Anti-Slop Writing Guidelines
 
-```
-You are writing a PR description for a human developer. Your job is to make this look like a developer dashed it off in 2 minutes, not like AI-generated documentation.
-
-## Your Inputs
-
-1. **Commit archaeology** (commit-log.txt, commit-log-full.txt, per-commit/*.diff)
-2. **User context** (if provided): Issue references, notes, etc.
-
-## Output Format
-
-Write a markdown file with:
-
-1. **Title line**: Short, imperative. "Fix auth bug" not "This PR fixes the authentication bug"
-2. **Body**: 1-3 short paragraphs. Say why, not what (the diff shows what).
-3. **Commit Tour**: One section per commit explaining WHY that commit exists.
-
-## CRITICAL: Write Like a Human
-
-You will be reviewed by a slop detector. Avoid:
+These guidelines apply to all human-facing prose (PR descriptions, Review Tours, etc.). Your output will be reviewed by a slop detector.
 
 **Words that scream AI:**
 - utilize, leverage, ensure, robust, comprehensive, streamlined, seamless, elegant
@@ -600,6 +602,7 @@ You will be reviewed by a slop detector. Avoid:
 - No headers in a 3-paragraph description
 - No "Summary" section that repeats the title
 - No "In conclusion" or "To summarize"
+- No "This section introduces" or "The following files"
 
 **Voice:**
 - Active, not passive. "I added" not "was added"
@@ -609,6 +612,32 @@ You will be reviewed by a slop detector. Avoid:
   - "regex can't handle this" not "regex doesn't cut it here"
   - "the old approach was slow" not "the old approach was a bottleneck"
   - "this simplifies the code" not "this cleans things up"
+
+### Draft PR Description Prompt
+
+```
+You are writing a PR description for a human developer. Your job is to make this look like a developer dashed it off in 2 minutes, not like AI-generated documentation.
+
+## Your Inputs
+
+1. **Commit archaeology** (commit-log.txt, commit-log-full.txt, per-commit/*.diff)
+2. **Review Tour** (review-tour.md from generate-review-tour task) - top-down file clustering
+3. **User context** (if provided): Issue references, notes, etc.
+
+## Output Format
+
+Write a markdown file with:
+
+1. **Title line**: Short, imperative. "Fix auth bug" not "This PR fixes the authentication bug"
+2. **Body**: 1-3 short paragraphs. Say why, not what (the diff shows what).
+3. **Commits section**: Walk through each commit explaining WHY (bottom-up chronological tour).
+4. **Review Tour section**: Include the review-tour.md content as-is, or lightly edit for consistency (top-down by purpose).
+
+The Commits section tells the story of HOW the branch evolved. The Review Tour tells reviewers WHERE to look by purpose.
+
+## CRITICAL: Apply Anti-Slop Writing Guidelines
+
+Your output will be reviewed by a slop detector. Follow the "Anti-Slop Writing Guidelines" section above strictly.
 
 ## Commit Tour Format
 
@@ -684,6 +713,140 @@ Notice:
 - Short sentences
 - Slightly informal tone
 - Commit tour tells the story
+```
+
+### Review Tour Prompt
+
+```
+You are creating a Review Tour section for a PR description. This is a top-down guide that helps reviewers understand the change by clustering files by PURPOSE, not by commit order or alphabetically.
+
+## Your Inputs
+
+1. **file-manifest.txt**: Structured list of changed files with status and line counts
+   Format: status<tab>adds<tab>dels<tab>path
+   Example:
+   M    150    20    src/api/auth.ts
+   A    80     0     src/services/token.ts
+
+2. **full.diff**: Complete diff showing what changed in each file
+
+## Thinking About File Organization
+
+The goal is a natural guide through the changed files. Think top-down: start with what matters most to a reviewer (the "point" of the PR), then work down to implementation details.
+
+A useful mental model (adapt as needed for the specific PR):
+
+1. **Start with the public interface** - What does this PR expose to consumers?
+   - Entry points, API routes, exported types, public functions
+   - This answers "what changed from the outside"
+
+2. **Then show how it's used** - Integration/API tests demonstrate the contract in action
+   - Tests that exercise public APIs show expected behavior
+   - This answers "how do consumers use this"
+
+3. **Then the implementation** - The core logic that makes it work
+   - Business logic, handlers, services
+   - This answers "how does it work"
+
+4. **Then supporting changes** - Helpers, config, infrastructure
+   - Utilities, configuration, build changes
+   - This answers "what else changed to support this"
+
+5. **Finally, internal tests** - Unit tests of implementation details
+   - Review these last, they test internals
+
+**Use categories that fit the PR.** The categories above are suggestions. If the PR is a pure refactoring, you might use "Before/After" or "Old Module/New Module". If it's a bug fix, you might lead with the fix then show the test that catches it. Choose whatever organization helps a reviewer understand the change naturally.
+
+## Output Format
+
+Write a markdown section:
+
+## Review Tour
+
+[One sentence orienting the reviewer. Say where to start and why.]
+
+**[Category name that fits]:**
+- `path/to/file.ts` - [brief purpose, 5-10 words]
+
+**[Another category]:**
+- `path/to/file.ts` - [brief purpose]
+
+[Continue with as many categories as make sense for this PR]
+
+## Guidelines
+
+1. **Brief descriptions** - One short sentence per file. Say WHY it changed, not WHAT changed.
+2. **Skip empty categories** - Only include categories that have files.
+3. **Order by importance** - Put highest-impact files and categories first.
+4. **Group related files** - If several files serve the same purpose, group them on one line:
+   - `src/api/{auth,session,user}.ts` - New authentication endpoints
+5. **Don't list everything** - Skip trivial changes (import reordering, formatting-only). Focus on files that matter.
+6. **Each file once** - Don't repeat files across categories.
+7. **Natural categories** - Use names that fit the PR. "New Endpoints", "Database Changes", "Bug Fix", "Tests" are all fine.
+
+## Orienting Sentence Examples
+
+Good:
+- "Start with the new types to understand the data model, then look at tests for expected behavior."
+- "The API routes show what endpoints changed. Tests demonstrate the new validation rules."
+- "This is mostly a refactoring. Start with the core module to see the new structure."
+
+Bad:
+- "This Review Tour provides a comprehensive overview of the changes." (AI slop)
+- "The following sections organize the changes for efficient review." (AI slop)
+
+## CRITICAL: Apply Anti-Slop Writing Guidelines
+
+Your output will be reviewed by a slop detector. Follow the "Anti-Slop Writing Guidelines" section above strictly.
+
+## Examples
+
+### Example 1: Feature PR
+
+## Review Tour
+
+Start with the auth types to see the new session model, then check the integration tests for login flows. The middleware is where the token validation happens.
+
+**Auth Types:**
+- `src/types/auth.ts` - New Session and TokenPair types
+- `src/api/routes.ts` - Added /auth/refresh endpoint
+
+**Login Flow Tests:**
+- `tests/integration/auth.test.ts` - Login, logout, token refresh flows
+- `tests/e2e/session.test.ts` - End-to-end session management
+
+**Token Handling:**
+- `src/middleware/auth.ts` - Request authentication and token validation
+- `src/services/token.ts` - Token generation with mutex lock for refresh race
+
+**Supporting Changes:**
+- `src/utils/crypto.ts` - Hash helper extracted from token service
+- `package.json` - Added jsonwebtoken dependency
+
+### Example 2: Bug Fix PR
+
+## Review Tour
+
+The fix is in the token service. The test reproduces the race condition.
+
+**The Fix:**
+- `src/services/token.ts` - Added mutex lock around token generation
+
+**Regression Test:**
+- `tests/token.test.ts` - Concurrent refresh requests now return same token
+
+### Example 3: Refactoring PR
+
+## Review Tour
+
+Old auth logic is now split into middleware and service. Start with the new structure, then see what was removed.
+
+**New Structure:**
+- `src/middleware/auth.ts` - Extracted request validation
+- `src/services/auth.ts` - Extracted business logic
+
+**Removed:**
+- `src/handlers/auth.ts` - Logic moved to middleware and service
 ```
 
 ### PR Slop Detector Prompt
