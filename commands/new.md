@@ -217,6 +217,27 @@ Simple format:
 
 See `proceed.md` for validation task execution details and blocking criteria.
 
+## Using Multiple Choice Questions
+
+Use `AskUserQuestion` with multiple choice options when you encounter:
+
+**Ambiguous Requirements**
+- Scope is unclear (e.g., "should this also handle X?")
+- Multiple valid interpretations of the request
+- Missing information needed to proceed
+
+**Key Architectural Decisions**
+- Multiple valid approaches with different trade-offs
+- Technology/library choices that affect the plan significantly
+- Design patterns where user preference matters
+
+Example scenarios:
+- "The user asked to 'improve performance' - ask which areas to focus on"
+- "Authentication could use JWT or sessions - ask which approach they prefer"
+- "This feature could be simple or comprehensive - clarify desired scope"
+
+Do NOT use multiple choice for routine decisions or minor implementation details. Reserve it for decisions that meaningfully shape the plan.
+
 ## Important Reminders
 
 - NEVER implement code - only create the plan

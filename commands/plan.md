@@ -136,6 +136,27 @@ The `tasks.json` file is a JSON array of task objects. Each task has:
 | `subagent_prompt` | No | Additional context for the agent |
 | `model` | No | `sonnet` (default), `haiku`, `opus` |
 
+## Using Multiple Choice Questions
+
+Use `AskUserQuestion` with multiple choice options when you encounter:
+
+**Ambiguous Feedback**
+- User's intent is unclear or could mean different things
+- Feedback could apply to different parts of the plan
+- Need clarification before making changes
+
+**Multiple Resolution Approaches**
+- Several valid ways to address the feedback exist
+- Trade-offs between approaches need user input
+- Changes could be scoped differently (minimal vs comprehensive)
+
+Example scenarios:
+- "User said 'make it faster' - ask which tasks/areas to optimize"
+- "Feedback could be addressed by modifying existing tasks or adding new ones - ask preference"
+- "The change could affect related tasks - confirm scope before updating"
+
+Do NOT use multiple choice for straightforward updates or when the feedback is clear. Reserve it for decisions where user preference shapes the plan direction.
+
 ## Important Reminders
 
 - NEVER implement code - only refine the plan
