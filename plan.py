@@ -792,6 +792,10 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
             prompt_parts.append(progress_content)
             prompt_parts.append("\nContinue from where the previous work left off.")
 
+    # 5. CLI reference for task completion
+    prompt_parts.append("\n\n## When Done")
+    prompt_parts.append(f"Mark this task complete: `uv run ~/.claude-plugins/jons-plan/plan.py set-status {args.task_id} done`")
+
     # Output the complete prompt
     print("\n".join(prompt_parts))
     return 0
