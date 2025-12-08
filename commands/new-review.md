@@ -587,6 +587,7 @@ These guidelines apply to all human-facing prose (PR descriptions, Review Tours,
 **Words that scream AI:**
 - utilize, leverage, ensure, robust, comprehensive, streamlined, seamless, elegant
 - delve, navigate, showcase, facilitate, enhance, functionality
+- pivotal, tapestry, multifaceted, testament, underscore, realm, unwavering, transformative
 - Just use: use, make sure, strong, complete, smooth, nice, dig into, go through, show, help, improve, feature
 
 **Phrases that scream AI:**
@@ -595,6 +596,11 @@ These guidelines apply to all human-facing prose (PR descriptions, Review Tours,
 - "This change introduces" → say what changed
 - "It's worth noting" → just say it
 - "Furthermore", "Moreover", "Additionally" → new sentence or nothing
+- "not only... but also..." → just say both things
+
+**Significance inflation:**
+- Don't: "stands as a testament to", "underscores the importance", "a pivotal role in"
+- Just state the fact. Skip the commentary on how important it is.
 
 **Structural tells:**
 - No em-dashes (—). Use commas or parentheses.
