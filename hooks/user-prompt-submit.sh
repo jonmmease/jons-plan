@@ -28,6 +28,10 @@ elif [[ "$MESSAGE" == "/jons-plan:new-design"* ]]; then
     plan set-mode new-design 2>/dev/null || true
 elif [[ "$MESSAGE" == "/jons-plan:new"* ]]; then
     plan set-mode new 2>/dev/null || true
+elif [[ "$MESSAGE" == "/jons-plan:deactivate"* ]]; then
+    # Deactivate is deterministic - run directly from hook
+    plan clear-mode 2>/dev/null || true
+    plan deactivate
 elif [[ "$MESSAGE" == "/jons-plan:switch"* ]] || [[ "$MESSAGE" == "/jons-plan:status"* ]]; then
     # Informational commands - don't change mode
     :

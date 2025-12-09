@@ -148,6 +148,21 @@ def cmd_set_active(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_deactivate(args: argparse.Namespace) -> int:
+    """Deactivate the current plan without switching to another."""
+    project_dir = get_project_dir()
+    active_plan_file = project_dir / ".claude" / "jons-plan" / "active-plan"
+
+    if not active_plan_file.exists():
+        print("No active plan to deactivate")
+        return 0
+
+    plan_name = active_plan_file.read_text().strip()
+    active_plan_file.unlink()
+    print(f"Deactivated plan: {plan_name}")
+    return 0
+
+
 def cmd_log(args: argparse.Namespace) -> int:
     """Append message to progress log."""
     project_dir = get_project_dir()
@@ -951,6 +966,9 @@ def main() -> int:
     p_set_active = subparsers.add_parser("set-active", help="Set the active plan")
     p_set_active.add_argument("plan_name", help="Plan name to activate")
 
+    # deactivate
+    subparsers.add_parser("deactivate", help="Deactivate current plan without switching")
+
     # log
     p_log = subparsers.add_parser("log", help="Append message to progress log")
     p_log.add_argument("message", help="Message to log")
@@ -1059,6 +1077,7 @@ def main() -> int:
         "active-plan-dir": cmd_active_plan_dir,
         "list-plans": cmd_list_plans,
         "set-active": cmd_set_active,
+        "deactivate": cmd_deactivate,
         "log": cmd_log,
         "task-stats": cmd_task_stats,
         "in-progress": cmd_in_progress,

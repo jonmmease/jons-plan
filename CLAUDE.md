@@ -398,6 +398,7 @@ All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 | Command | Description |
 |---------|-------------|
 | `set-active <plan>` | Switch active plan |
+| `deactivate` | Deactivate current plan without switching to another |
 
 ### Task Management
 | Command | Description |
