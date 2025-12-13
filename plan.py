@@ -807,7 +807,15 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
             prompt_parts.append(progress_content)
             prompt_parts.append("\nContinue from where the previous work left off.")
 
-    # 5. CLI reference for task completion
+    # 5. Task output directory (for research/exploration tasks that produce artifacts)
+    output_dir = plan_dir / "tasks" / args.task_id
+    prompt_parts.append("\n\n## Task Output Directory")
+    prompt_parts.append(f"If this task produces findings, research results, or artifacts for downstream tasks:")
+    prompt_parts.append(f"- Output path: `{output_dir}/`")
+    prompt_parts.append(f"- You have FULL write access - create files as needed (e.g., findings.md, analysis.md)")
+    prompt_parts.append(f"- The directory will be created automatically when you write to it")
+
+    # 6. CLI reference for task completion
     prompt_parts.append("\n\n## When Done")
     prompt_parts.append(f"Mark this task complete: `uv run ~/.claude-plugins/jons-plan/plan.py set-status {args.task_id} done`")
 
