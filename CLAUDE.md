@@ -27,6 +27,7 @@ Use these slash commands to manage plans:
 | `/jons-plan:new [topic]` | Create new implementation plan (explores codebase, creates tasks) |
 | `/jons-plan:new-design [topic]` | Create new design plan (research, exploration, produces `design.md`) |
 | `/jons-plan:new-deep [topic]` | Create implementation plan with deep automated exploration and review |
+| `/jons-plan:new-tech-docs [topic]` | Create technical documentation plan (multi-source research, produces markdown docs) |
 | `/jons-plan:plan [feedback]` | Refine active plan |
 | `/jons-plan:proceed` | Start implementing tasks (enforces status workflow) |
 | `/jons-plan:switch [name]` | Switch to different plan |
@@ -34,22 +35,23 @@ Use these slash commands to manage plans:
 
 ## Plan Types Comparison
 
-The plugin supports three plan creation commands:
+The plugin supports four plan creation commands:
 
-| Aspect | `/new` | `/new-design` | `/new-deep` |
-|--------|--------|---------------|-------------|
-| **Purpose** | Build features, fix bugs | Research, explore, design | Complex implementation with thorough research |
-| **Naming** | `[topic]` | `[topic]-design` (enforced) | `[topic]` |
-| **Deliverable** | Code changes | `design.md` document | Code changes |
-| **Exploration** | Light exploration | Creates tasks for later | Auto-executes exploration |
-| **External review** | No | Creates review task | Auto-executes review |
-| **Synthesis** | Single-shot | Task in plan | Multi-round with feedback |
-| **User intervention** | After planning | After each /proceed | After all phases complete |
+| Aspect | `/new` | `/new-design` | `/new-deep` | `/new-tech-docs` |
+|--------|--------|---------------|-------------|------------------|
+| **Purpose** | Build features, fix bugs | Research, explore, design | Complex implementation with thorough research | Generate technical documentation |
+| **Naming** | `[topic]` | `[topic]-design` (enforced) | `[topic]` | `[topic]-docs` (enforced) |
+| **Deliverable** | Code changes | `design.md` document | Code changes | `[topic].md` documentation |
+| **Exploration** | Light exploration | Creates tasks for later | Auto-executes exploration | Multi-source research (code, web, GitHub, MCPs) |
+| **External review** | No | Creates review task | Auto-executes review | Link validation + slop detection + gemini/codex reviews |
+| **Synthesis** | Single-shot | Task in plan | Multi-round with feedback | Draft → review → final with feedback synthesis |
+| **User intervention** | After planning | After each /proceed | After all phases complete | After planning |
 
 **When to use each:**
 - **`/new`** — Simple features, bug fixes, clear requirements
 - **`/new-design`** — Research projects, design decisions, when you need `design.md`
 - **`/new-deep`** — Complex features requiring thorough exploration and external review before implementation
+- **`/new-tech-docs`** — Generating technical documentation about a codebase topic (current state, example-based, version-anchored)
 
 ## Refining Plans (`/jons-plan:plan`)
 
