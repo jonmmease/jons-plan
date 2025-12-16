@@ -16,14 +16,26 @@ from pathlib import Path
 
 
 def get_project_dir() -> Path:
-    """Get project directory (where .claude/ lives)."""
-    # Start from current directory and look for .claude/
-    current = Path.cwd()
-    while current != current.parent:
-        if (current / ".claude").is_dir():
-            return current
-        current = current.parent
-    # Fallback to cwd
+    """Get project directory (git root or cwd).
+
+    Uses git root if in a git repo, otherwise falls back to cwd.
+    Never walks up looking for .claude/ to avoid accidentally using ~/.claude/.
+    """
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            cwd=Path.cwd(),
+        )
+        if result.returncode == 0:
+            return Path(result.stdout.strip())
+    except Exception:
+        pass
+
+    # Fallback to cwd if not in a git repo
     return Path.cwd()
 
 
