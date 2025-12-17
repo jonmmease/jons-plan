@@ -325,11 +325,11 @@ Five parallel review tasks:
     "model": "opus",
     "parents": ["draft-documentation"],
     "steps": [
-      "Read all guidelines from ~/.claude-plugins/jons-plan/commands/new-tech-docs.md (sections: Target Audience through Document Structure)",
-      "Review documentation for technical accuracy and completeness",
-      "Evaluate clarity and usefulness for target audience",
-      "Identify areas needing improvement",
-      "Write review.md to task output directory"
+      "Read the review prompt at ~/.claude-plugins/jons-plan/prompts/technical-documentation-review.md",
+      "Apply the review criteria and methodology from the prompt to the documentation",
+      "Use domain-specific scrutiny levels: rigorous for auth/data model/context, pragmatic for implementation scope",
+      "For each concern, provide concrete scenarios and suggest alternatives",
+      "Write review.md to task output directory following the output format from the prompt"
     ],
     "status": "todo"
   }
