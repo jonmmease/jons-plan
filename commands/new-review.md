@@ -15,6 +15,8 @@ ultrathink
 
 **Alternative integration branches:** !`git branch -a 2>/dev/null | grep -E "origin/(develop|staging|release|trunk)$" | sed 's@.*/@@' | sort -u | tr '\n' ' ' || echo "none"`
 
+**Candidate base branches (sorted by commit distance):** !`result=$(for branch in $(git for-each-ref --format="%(refname:short)" refs/remotes/origin/ 2>/dev/null); do local_name="${branch#origin/}"; [ -z "$local_name" ] && continue; [ "$local_name" = "HEAD" ] && continue; [ "$local_name" = "$branch" ] && continue; mb=$(git merge-base "$branch" HEAD 2>/dev/null) || continue; count=$(git rev-list --count "$mb..HEAD" 2>/dev/null) || continue; [ "$count" -gt 0 ] && echo "$count $local_name"; done | sort -n | head -5); [ -z "$result" ] && echo "none" || echo "$result"`
+
 **Important:** For code review, always diff against the **merge-base commit** (where the branch forked), not the tip of the base branch. This ensures the review only shows changes made on this branch, even if the base branch has moved forward.
 
 # Create Code Review Plan
@@ -76,28 +78,36 @@ Use the **Pre-computed Context** above to determine the base branch. The git com
 
 **Decision Logic:**
 
-1. **Clear case (proceed silently)**: If ALL of the following are true:
-   - Merge-base shows a commit hash (not "NO_MERGE_BASE")
-   - Alternative integration branches shows "none" or is empty
+Parse the **Candidate base branches** from pre-computed context. The format is `commit_count branch_name` per line, sorted by commit count (ascending).
 
-   → Use the **Default branch** from pre-computed context as `BASE_BRANCH`
+1. **No candidates case**: If candidates shows "none":
+   - Error: "No remote branches found. Please push your branch and try again."
+   - Stop here.
 
-2. **Ambiguous case (ask user)**: If ANY of the following are true:
-   - Merge-base shows "NO_MERGE_BASE" (suggests feature-off-feature)
-   - Alternative integration branches exist (user may intend to merge to develop, not main)
+2. **Single candidate case**: If there is exactly ONE candidate AND it matches the **Default branch**:
+   - Use it silently as `BASE_BRANCH`
+   - This is the fast path for typical feature branches off main/master.
 
-   → Use `AskUserQuestion` tool with these options:
+3. **Multiple candidates case**: If there are multiple candidate branches:
+   - This indicates potential feature-off-feature or multiple integration branches.
+   - Use `AskUserQuestion` tool with ALL candidates as options:
 
    ```
    Question: "Which branch should this review compare against?"
    Header: "Base branch"
-   Options:
-   - label: "[Default branch from context]"
-     description: "The repository's default branch"
-   - label: "[each alternative found]"
-     description: "Alternative integration branch"
+   Options (in order of lowest commit count first):
+   - label: "[branch_name]"
+     description: "[N] commits on your branch since forking from this branch"
+   - label: "[next branch_name]"
+     description: "[N] commits..."
+   ... (up to 4 options from candidates)
    (User can also select "Other" to enter a custom branch name)
    ```
+
+   **Note:** Lower commit count usually indicates the correct base branch. If `feature-b` was branched from `feature-a` which was branched from `main`:
+   - `feature-a` might show 24 commits
+   - `main` might show 142 commits (includes all of feature-a's work)
+   - The user should choose `feature-a` to review only feature-b's changes.
 
 After user selection (or auto-detection), store the result as `BASE_BRANCH`.
 
