@@ -5,6 +5,16 @@ allowed-tools: "*"
 
 ultrathink
 
+## Pre-computed Context
+
+**Current branch:** !`git branch --show-current`
+
+**Default branch:** !`git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || (git rev-parse --verify main 2>/dev/null && echo "main") || echo "master"`
+
+**Merge-base with default:** !`DEFAULT=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || (git rev-parse --verify main 2>/dev/null && echo "main") || echo "master"); git merge-base "$DEFAULT" HEAD 2>/dev/null || echo "NO_MERGE_BASE"`
+
+**Alternative integration branches:** !`git branch -a 2>/dev/null | grep -E "origin/(develop|staging|release|trunk)$" | sed 's@.*/@@' | sort -u | tr '\n' ' ' || echo "none"`
+
 # Create Code Review Plan
 
 You are creating a **code review plan** that uses multiple specialized agents to review the diff between the current branch and main/master.
@@ -60,12 +70,34 @@ Set `REVIEW_MODE` or `GENERATE_MODE` and optionally `PR_CONTEXT`.
 
 ### Step 1: Detect Base Branch
 
-```bash
-# Check if 'main' exists, otherwise use 'master'
-git rev-parse --verify main 2>/dev/null && echo "main" || echo "master"
-```
+Use the **Pre-computed Context** above to determine the base branch. The git commands have already run.
 
-Store the result as `BASE_BRANCH`.
+**Decision Logic:**
+
+1. **Clear case (proceed silently)**: If ALL of the following are true:
+   - Merge-base shows a commit hash (not "NO_MERGE_BASE")
+   - Alternative integration branches shows "none" or is empty
+
+   → Use the **Default branch** from pre-computed context as `BASE_BRANCH`
+
+2. **Ambiguous case (ask user)**: If ANY of the following are true:
+   - Merge-base shows "NO_MERGE_BASE" (suggests feature-off-feature)
+   - Alternative integration branches exist (user may intend to merge to develop, not main)
+
+   → Use `AskUserQuestion` tool with these options:
+
+   ```
+   Question: "Which branch should this review compare against?"
+   Header: "Base branch"
+   Options:
+   - label: "[Default branch from context]"
+     description: "The repository's default branch"
+   - label: "[each alternative found]"
+     description: "Alternative integration branch"
+   (User can also select "Other" to enter a custom branch name)
+   ```
+
+After user selection (or auto-detection), store the result as `BASE_BRANCH`.
 
 ### Step 2: Validate There Are Changes
 
