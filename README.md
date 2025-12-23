@@ -36,30 +36,37 @@ Works incrementally on tasks across sessions:
 
 | Command | Purpose |
 |---------|---------|
-| `/jons-plan:new [topic]` | Create a new implementation plan |
-| `/jons-plan:new-design [topic]` | Create a new design plan (research/exploration) |
+| `/jons-plan:new [topic]` | Create new implementation plan (explores codebase, creates tasks) |
+| `/jons-plan:new-design [topic]` | Create new design plan (research, exploration, produces `design.md`) |
+| `/jons-plan:new-deep [topic]` | Create implementation plan with deep automated exploration and review |
+| `/jons-plan:new-tech-docs [topic]` | Create technical documentation plan (multi-source research, produces markdown docs) |
+| `/jons-plan:new-review` | Create multi-agent code review plan for current branch |
 | `/jons-plan:plan [feedback]` | Refine the active plan |
 | `/jons-plan:proceed` | Start/continue implementing tasks |
 | `/jons-plan:switch [name]` | Switch to a different plan |
 | `/jons-plan:status` | Show all plans and task progress |
 
-## Two Types of Plans
+## Plan Types
 
-### Implementation Plans (`/jons-plan:new`)
+The plugin supports four plan creation commands:
 
-Standard plans for building features, fixing bugs, or making code changes. The tasks produce code modifications in the repository.
+| Aspect | `/new` | `/new-design` | `/new-deep` | `/new-tech-docs` |
+|--------|--------|---------------|-------------|------------------|
+| **Purpose** | Build features, fix bugs | Research, explore, design | Complex implementation with thorough research | Generate technical documentation |
+| **Naming** | `[topic]` | `[topic]-design` (enforced) | `[topic]` | `[topic]-docs` (enforced) |
+| **Deliverable** | Code changes | `design.md` document | Code changes | `[topic].md` documentation |
+| **Exploration** | Light exploration | Creates tasks for later | Auto-executes exploration | Multi-source research (code, web, GitHub, MCPs) |
+| **External review** | No | Creates review task | Auto-executes review | Link validation + slop detection + gemini/codex reviews |
+| **Synthesis** | Single-shot | Task in plan | Multi-round with feedback | Draft → review → final with feedback synthesis |
+| **User intervention** | After planning | After each /proceed | After all phases complete | After planning |
 
-### Design Plans (`/jons-plan:new-design`)
+**When to use each:**
+- **`/new`** — Simple features, bug fixes, clear requirements
+- **`/new-design`** — Research projects, design decisions, when you need `design.md`
+- **`/new-deep`** — Complex features requiring thorough exploration and external review before implementation
+- **`/new-tech-docs`** — Generating technical documentation about a codebase topic (current state, example-based, version-anchored)
 
-Plans for research, exploration, and design work. Key differences:
-
-- **Enforced `-design` suffix**: Plan names must end with `-design` (e.g., `auth-design`)
-- **Research-focused tasks**: Codebase exploration, API research, prototyping
-- **Model strategy**: Uses `haiku` for fast exploration, `opus` for synthesis
-- **External review**: Emphasizes `gemini-reviewer` or `codex-reviewer` for outside perspective
-- **Deliverable**: Produces `design.md` document, not code changes
-
-**Two-phase workflow:**
+**Two-phase workflow (for design plans):**
 1. `/jons-plan:new-design auth` → Research and explore → `design.md`
 2. User reviews and approves the design
 3. `/jons-plan:new auth` → Implement based on the approved design
@@ -158,20 +165,72 @@ The plugin includes a Python CLI for programmatic access:
 uv run ~/.claude-plugins/jons-plan/plan.py <command>
 ```
 
+### Overview Commands
+
 | Command | Description |
 |---------|-------------|
-| `status` | Comprehensive overview of all plans and tasks |
-| `list-plans` | List all available plans |
+| `status` | Comprehensive overview - all plans, active plan stats, in-progress tasks, next available |
+| `list-plans` | List all plans (marks active) |
 | `active-plan` | Print active plan name |
+| `active-plan-dir` | Print active plan directory path |
+
+### Plan Management
+
+| Command | Description |
+|---------|-------------|
 | `set-active <plan>` | Switch active plan |
-| `task-stats` | Print task counts (done/total) |
-| `in-progress` | List in-progress tasks |
-| `next-tasks` | List available tasks |
-| `set-status <id> <status>` | Update task status |
-| `log <message>` | Append to plan-level progress log |
-| `recent-progress` | Show recent plan-level progress entries |
-| `task-log <id> <message>` | Append to task's progress.txt |
-| `task-progress <id>` | Show recent task progress entries |
+| `deactivate` | Deactivate current plan without switching to another |
+
+### Task Management
+
+| Command | Description |
+|---------|-------------|
+| `task-stats` | Print task counts (done/total, in-progress, todo) |
+| `in-progress` | List tasks currently in progress |
+| `blocked-tasks` | List blocked tasks |
+| `has-blockers` | Check if plan has blocked tasks (exit 0 if yes) |
+| `next-tasks` | List available tasks (todo with all parents done) |
+| `set-status <task-id> <status>` | Set task status |
+
+### Progress Logging
+
+| Command | Description |
+|---------|-------------|
+| `log <message>` | Append message to plan-level progress log |
+| `recent-progress [-n N]` | Show recent plan-level progress entries (default: 10) |
+
+### Task-Level Progress
+
+| Command | Description |
+|---------|-------------|
+| `task-log <task-id> <message>` | Append message to task's progress.txt |
+| `task-progress <task-id> [-n N]` | Show recent entries from task's progress.txt (default: 10) |
+| `build-task-prompt <task-id>` | Build complete prompt with all context (description, steps, parent outputs, prior progress) |
+
+### Task Outputs
+
+| Command | Description |
+|---------|-------------|
+| `task-dir <task-id>` | Print task output directory path |
+| `ensure-task-dir <task-id>` | Create task directory if needed |
+| `parent-dirs <task-id>` | List parent task directories that exist |
+| `has-outputs <task-id>` | Check if task has outputs (exit code 0/1) |
+
+### Confidence Scoring
+
+| Command | Description |
+|---------|-------------|
+| `record-confidence <task-id> <score> <rationale>` | Record confidence score (1-5) |
+| `check-confidence <task-id>` | Check recorded confidence score for a task |
+| `low-confidence-tasks` | List tasks with confidence score < 4 |
+
+### Dynamic Task Modification
+
+| Command | Description |
+|---------|-------------|
+| `add-task <json-file>` | Add task from JSON file or stdin |
+| `update-task-parents <task-id> <parent-ids...>` | Update task parent dependencies |
+| `update-task-steps <task-id> <json-file>` | Update task steps from JSON
 
 ## Installation
 
