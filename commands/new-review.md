@@ -11,9 +11,11 @@ ultrathink
 
 **Default branch:** !`git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || (git rev-parse --verify main 2>/dev/null && echo "main") || echo "master"`
 
-**Merge-base with default:** !`DEFAULT=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || (git rev-parse --verify main 2>/dev/null && echo "main") || echo "master"); git merge-base "$DEFAULT" HEAD 2>/dev/null || echo "NO_MERGE_BASE"`
+**Merge-base commit:** !`DEFAULT=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || (git rev-parse --verify main 2>/dev/null && echo "main") || echo "master"); git merge-base "$DEFAULT" HEAD 2>/dev/null || echo "NO_MERGE_BASE"`
 
 **Alternative integration branches:** !`git branch -a 2>/dev/null | grep -E "origin/(develop|staging|release|trunk)$" | sed 's@.*/@@' | sort -u | tr '\n' ' ' || echo "none"`
+
+**Important:** For code review, always diff against the **merge-base commit** (where the branch forked), not the tip of the base branch. This ensures the review only shows changes made on this branch, even if the base branch has moved forward.
 
 # Create Code Review Plan
 
@@ -99,10 +101,18 @@ Use the **Pre-computed Context** above to determine the base branch. The git com
 
 After user selection (or auto-detection), store the result as `BASE_BRANCH`.
 
+Then compute the merge-base:
+```bash
+MERGE_BASE=$(git merge-base $BASE_BRANCH HEAD)
+```
+
+Store both `BASE_BRANCH` and `MERGE_BASE` for later use.
+
 ### Step 2: Validate There Are Changes
 
 ```bash
-git diff $BASE_BRANCH..HEAD --stat
+# Use MERGE_BASE to show only changes on this branch
+git diff $MERGE_BASE..HEAD --stat
 ```
 
 If no changes, tell the user and stop.
@@ -133,23 +143,22 @@ Create the task list with all review tasks. The tasks should be structured as:
     "description": "Generate diff files, commit archaeology, and file manifest for reviewers",
     "parents": [],
     "steps": [
-      "Detect main/master branch (BASE_BRANCH)",
-      "Identify the merge-base: git merge-base $BASE_BRANCH HEAD",
-      "Count commits in scope: git rev-list --count $BASE_BRANCH..HEAD",
-      "VERIFY: The range $BASE_BRANCH..HEAD means commits reachable from HEAD but NOT from $BASE_BRANCH.",
-      "VERIFY: Run 'git log --oneline $BASE_BRANCH..HEAD' - this should ONLY show commits made on this branch.",
-      "If any commit appears that seems unrelated, check: 'git branch --contains <hash>' - if $BASE_BRANCH contains it, something is wrong with the range.",
+      "Use BASE_BRANCH and MERGE_BASE from plan.md (set during planning)",
+      "Count commits in scope: git rev-list --count $MERGE_BASE..HEAD",
+      "VERIFY: Run 'git log --oneline $MERGE_BASE..HEAD' - this should ONLY show commits made on this branch.",
       "Create task output directory via: uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir generate-diffs",
       "Write to task output directory:",
-      "  - full.diff (git diff $BASE_BRANCH..HEAD) - the actual code changes for reviewers",
-      "  - commit-log.txt (git log --oneline $BASE_BRANCH..HEAD) - ONLY commits in this branch",
-      "  - commit-log-full.txt (git log -p $BASE_BRANCH..HEAD) - full patches for archaeology",
+      "  - full.diff (git diff $MERGE_BASE..HEAD) - changes since branch forked, NOT tip of base",
+      "  - commit-log.txt (git log --oneline $MERGE_BASE..HEAD) - commits on this branch",
+      "  - commit-log-full.txt (git log -p $MERGE_BASE..HEAD) - full patches for archaeology",
       "  - file-manifest.txt - structured file list for Review Tour (format below)",
       "  - per-commit/<hash>.diff for each commit in the range",
       "",
       "file-manifest.txt format (tab-separated columns):",
       "  status  adds  dels  path",
-      "Generate via: git diff $BASE_BRANCH..HEAD --numstat | while read adds dels path; do status=$(git diff --name-status $BASE_BRANCH..HEAD -- \"$path\" 2>/dev/null | head -1 | cut -f1); echo -e \"$status\\t$adds\\t$dels\\t$path\"; done"
+      "Generate via: git diff $MERGE_BASE..HEAD --numstat | while read adds dels path; do status=$(git diff --name-status $MERGE_BASE..HEAD -- \"$path\" 2>/dev/null | head -1 | cut -f1); echo -e \"$status\\t$adds\\t$dels\\t$path\"; done",
+      "",
+      "IMPORTANT: Always use MERGE_BASE (the fork point), not BASE_BRANCH tip. This ensures the review only includes changes made on this branch."
     ],
     "status": "todo"
   },
@@ -353,7 +362,8 @@ Create the task list with all review tasks. The tasks should be structured as:
 Write a plan.md file that includes:
 - Overview of the review
 - Branch being reviewed
-- Base branch
+- Base branch (BASE_BRANCH)
+- **Merge-base commit (MERGE_BASE)** - the exact commit where branch forked; tasks use this for diffs
 - PR document path (if provided)
 - List of reviewers and their focus areas
 - Link to the prompts (reference CLAUDE.md or inline key prompts)
@@ -363,6 +373,7 @@ Write a plan.md file that includes:
 ```
 [timestamp] Plan created via /jons-plan:new-review
 [timestamp] Reviewing: [branch-name] against [base-branch]
+[timestamp] Merge-base: [MERGE_BASE commit hash]
 [timestamp] PR document: [path or "none"]
 ```
 
