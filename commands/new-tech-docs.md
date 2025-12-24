@@ -188,12 +188,12 @@ Core research tasks (always included):
 
 Conditional MCP research tasks (only include if MCP is available per Step 3):
 
+**⚠️ Important:** MCP research tasks must run in the main agent context, NOT as subagents. Subagents cannot access MCP tools. Omit the `subagent` field so these tasks execute directly.
+
 ```json
 {
   "id": "research-notion",
   "description": "Search Notion workspace for [TOPIC] documentation",
-  "subagent": "Explore",
-  "subagent_prompt": "medium exploration",
   "model": "haiku",
   "parents": [],
   "steps": [
@@ -211,8 +211,6 @@ Conditional MCP research tasks (only include if MCP is available per Step 3):
 {
   "id": "research-linear",
   "description": "Search Linear issues for [TOPIC] context",
-  "subagent": "Explore",
-  "subagent_prompt": "quick search",
   "model": "haiku",
   "parents": [],
   "steps": [

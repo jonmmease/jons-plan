@@ -177,6 +177,17 @@ Tasks can specify optional fields to control how they're executed:
 | `gemini-reviewer` | Second opinions via Gemini 3 Pro - plan reviews, code reviews, image/diagram analysis, large context synthesis |
 | `codex-reviewer` | Second opinions via GPT-5-codex - code reviews, architectural decisions, debugging assistance |
 
+### Subagent Limitations
+
+**MCP tools are not available to subagents.** When a task is executed via the Task tool, the subagent cannot access MCP servers (Notion, Linear, custom integrations, etc.). Only the main agent session has MCP access.
+
+**Implications for task planning:**
+- Don't create tasks that instruct subagents to use MCP tools - they will fail
+- If a task requires MCP access, either:
+  - Execute it directly in the main agent context (don't use Task tool)
+  - Split the work: main agent queries MCP, subagent processes results
+- Research tasks using `Explore` subagent can search files but not query external MCPs
+
 ### Subagent Prompt
 
 The `subagent_prompt` field adds context to the agent's prompt. For `Explore` agents, use it to specify thoroughness:

@@ -110,6 +110,8 @@ Honor each task's configuration when launching subagents:
 - `subagent_prompt`: Additional context for the agent
 - `model`: Which model to use (`sonnet`, `haiku`, `opus`)
 
+**Note:** Subagents do NOT have access to MCP tools. Tasks requiring MCP access must run in the main agent context. See CLAUDE.md "Subagent Limitations" for details.
+
 ### Subagent Context Injection
 
 Use `build-task-prompt` to automatically gather all context for a subagent:
