@@ -181,8 +181,11 @@ def log_progress(plan_dir: Path, message: str) -> None:
 
 
 def log_task_progress(plan_dir: Path, task_id: str, message: str) -> None:
-    """Append entry to task's progress.txt."""
-    task_dir = plan_dir / "tasks" / task_id
+    """Append entry to task's progress.txt in current phase directory."""
+    task_dir = get_task_output_dir(plan_dir, task_id)
+    if not task_dir:
+        # Fallback for non-workflow plans (legacy)
+        task_dir = plan_dir / "tasks" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
     progress_file = task_dir / "progress.txt"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
