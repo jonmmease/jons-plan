@@ -105,6 +105,8 @@ Subagents launched via the Task tool have access to:
 - MCP tools (same as parent agent)
 - Web tools (WebFetch, WebSearch)
 
+**Caution with stateful MCP servers:** Some MCP servers (e.g., browser automation, database connections) maintain state and cannot be safely used by parallel subagents. Only one agent should interact with stateful MCP servers at a time.
+
 ## Hook Files
 
 | Hook | File | Purpose |

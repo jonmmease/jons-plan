@@ -187,7 +187,7 @@ Honor each task's configuration when launching subagents:
 - `subagent_prompt`: Additional context for the agent
 - `model`: Which model to use (`sonnet`, `haiku`, `opus`)
 
-**Note:** Subagents have access to all tools including MCP tools, file tools, and web tools.
+**Note:** Subagents have access to all tools including MCP tools, file tools, and web tools. However, stateful MCP servers (browser automation, database connections) cannot be safely used by parallel subagents.
 
 ### Subagent Context Injection
 
