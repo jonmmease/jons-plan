@@ -179,7 +179,7 @@ Example task:
 Tasks can run in parallel ONLY if they won't conflict:
 
 **Safe to parallelize** (no parent dependency needed):
-- Research tasks that only write to their phase's `tasks/[task-id]/` output directory (use `ensure-task-dir`)
+- Research tasks that only write to their task output directory: `.claude/jons-plan/plans/[plan]/phases/[phase]/tasks/[task-id]/` (use `ensure-task-dir` CLI to get path)
 - Monorepo tasks that modify separate packages (e.g., `packages/foo/` vs `packages/bar/`)
 - Tasks that only read from the codebase without writing
 
@@ -223,8 +223,10 @@ validate-* (late)          → Run tests, verify criteria
 
 ### Test Specification Output
 
-Test definition tasks write to the task output directory (use `ensure-task-dir <task-id>` to get the path):
-`phases/[phase]/tasks/[task-id]/test-spec.md`
+Test definition tasks write to the task output directory:
+`.claude/jons-plan/plans/[plan]/phases/[phase]/tasks/[task-id]/test-spec.md`
+
+Use `ensure-task-dir <task-id>` CLI to get the path.
 
 Simple format:
 ```markdown
