@@ -7,6 +7,7 @@ description = "Create technical documentation with multi-source research and rev
 
 [[phases]]
 id = "research"
+use_tasks = true
 prompt = """
 # Research Phase
 

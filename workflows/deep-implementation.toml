@@ -52,6 +52,7 @@ suggested_next = ["research"]
 
 [[phases]]
 id = "research"
+use_tasks = true
 prompt = """
 # Research Phase
 
