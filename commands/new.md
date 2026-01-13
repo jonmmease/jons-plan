@@ -34,41 +34,79 @@ Forbidden actions:
 No topic provided. Ask the user what they want to build.
 {{/if}}
 
-## Workflow
+## Workflow Selection
+
+All plans use workflow-based execution. The workflow defines the phases of work.
+
+### Explicit Workflow
+If args start with `--workflow <name>` (e.g., `/jons-plan:new --workflow implementation add feature`), use the specified workflow template.
+
+### Auto-Selection
+If no `--workflow` is specified, analyze the user's request and suggest a workflow based on the heuristics below.
+
+### Auto-Selection Heuristics
+
+When no `--workflow` is specified, analyze the user's request and suggest a workflow:
+
+| Pattern | Suggested Workflow | Examples |
+|---------|-------------------|----------|
+| Bug fix, error, issue | `implementation` | "fix the login bug", "resolve crash", "handle edge case" |
+| Design, architecture, RFC | `design` | "design auth system", "plan API structure", "evaluate options" |
+| Implement, add, build feature | `implementation` | "add dark mode", "implement caching", "build search" |
+| Review code changes, create PR | `code-review` | "review my changes", "audit security", "analyze branch" |
+| Review PR description | `pr-review` | "review this PR description", "improve my PR writeup" |
+| Review RFC, design doc, proposal | `tech-docs-review` | "review this RFC", "give feedback on design doc", "review proposal" |
+| Document, explain, write docs | `tech-docs` | "document the API", "explain how X works", "write guide" |
+| Complex, thorough, research | `deep-implementation` | "thoroughly research and implement", "complex feature with review" |
+| Design then implement | `design-and-implementation` | "design and optionally implement", "explore then build" |
+
+**Process:**
+1. Parse the request for keywords
+2. Match against patterns above
+3. Use `AskUserQuestion` to confirm or let user override:
+   - "Based on your request, I suggest the **{workflow}** workflow. This will {brief description}."
+   - Options: Use suggested workflow, Choose different workflow
+4. If user chooses "different workflow", present all available options
+
+### Available Workflows
+Built-in workflows in `~/.claude-plugins/jons-plan/workflows/`:
+- `implementation` - Feature implementation with research and validation
+- `design` - Research and produce a design document
+- `design-and-implementation` - Design first, optionally implement after approval
+- `deep-implementation` - Complex features with thorough research and review
+- `code-review` - Review code changes + generate PR description
+- `pr-review` - Review existing PR description
+- `tech-docs` - Technical documentation creation
+- `tech-docs-review` - Review RFCs, design docs, proposals
+
+## Plan Creation Steps
 
 ### Step 1: Derive Plan Name
 Convert topic to kebab-case (e.g., "add user authentication" → "add-user-authentication")
 
-### Step 2: Initial Understanding
-Launch up to 3 Explore agents IN PARALLEL to understand the codebase:
-- Each focuses on different aspect (existing patterns, related code, test structure)
-- Use appropriate thoroughness ("quick search", "medium exploration", or "very thorough analysis")
-- Clarify requirements with AskUserQuestion
-- Quality over quantity - use fewer agents for simpler tasks
-
-### Step 3: Multi-Agent Planning
-Launch up to 3 Plan agents IN PARALLEL with different perspectives:
-- Example perspectives: simplicity vs performance, minimal change vs clean architecture
-- Each returns a detailed approach
-- Quality over quantity - use fewer agents for simpler tasks
-
-### Step 4: Synthesis
-- Combine agent perspectives, identify trade-offs
-- Ask user about preferences using AskUserQuestion
-- Converge on recommended approach
-
-### Step 5: Create Plan Infrastructure
+### Step 2: Create Plan Infrastructure
 1. Ensure `.claude/jons-plan/` is in `.git/info/exclude` (do NOT modify `.gitignore`)
 2. Create directory: `.claude/jons-plan/plans/[name]/`
-3. Create `plan.md` with the implementation plan
-4. Create `tasks.json` with task list (all tasks start with `status: "todo"`)
+3. Copy workflow.toml to plan directory:
+   ```bash
+   cp ~/.claude-plugins/jons-plan/workflows/<name>.toml .claude/jons-plan/plans/<plan-name>/workflow.toml
+   ```
+4. Create `request.md` with the user's request
 5. Create `claude-progress.txt` with initial entry
 6. Write plan name to `.claude/jons-plan/active-plan`
 
-### Step 6: Present Summary
-- Show plan name and task count
-- List tasks with their dependencies
-- Tell user: "Type `/jons-plan:proceed` to implement, or `/jons-plan:plan [feedback]` to refine."
+### Step 3: Initialize State Machine
+1. Initialize state.json with first phase
+2. Create first phase directory:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <first-phase-id>
+   ```
+
+### Step 4: Present Summary
+Show:
+- Workflow diagram (phases and transitions)
+- Current phase and its prompt
+- Instruction: "Type `/jons-plan:proceed` to start, or `/jons-plan:plan` to refine the request."
 
 ## Task Schema
 
@@ -240,8 +278,7 @@ Do NOT use multiple choice for routine decisions or minor implementation details
 
 ## Important Reminders
 
-- NEVER implement code - only create the plan
-- Keep `plan.md` and `tasks.json` in sync
+- NEVER implement code - only create the plan infrastructure
 - Use appropriate subagent types for each task
 - All tasks start with `status: "todo"`
 - Ensure task dependencies prevent file conflicts

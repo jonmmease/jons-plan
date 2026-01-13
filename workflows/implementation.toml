@@ -1,0 +1,113 @@
+# Implementation Workflow
+# A straightforward workflow for implementing features with research and planning
+
+[workflow]
+name = "implementation"
+description = "Build features, fix bugs, implement changes with research and validation"
+
+[[phases]]
+id = "explore"
+prompt = """
+# Explore Phase
+
+Your goal is to understand the codebase and requirements before implementation.
+
+## Tasks
+1. Explore the codebase to understand existing patterns and architecture
+2. Identify files and components relevant to this request
+3. Look for similar implementations to follow as examples
+4. Note any constraints, dependencies, or potential blockers
+
+## Outputs
+Write your findings to `findings.md` in this phase directory:
+- Key files and their purposes
+- Existing patterns to follow
+- Potential challenges or considerations
+- Recommended approach summary
+"""
+suggested_next = ["plan"]
+
+[[phases]]
+id = "plan"
+use_tasks = true
+prompt = """
+# Plan Phase
+
+Create a detailed implementation plan based on exploration findings.
+
+## Inputs
+Review the findings.md from the explore phase.
+
+## Tasks
+1. Create tasks.json with a task dependency graph
+2. Break down the work into atomic, testable tasks
+3. Identify which tasks can be parallelized
+4. Consider test-first tasks if acceptance criteria are clear
+
+## Outputs
+- tasks.json in this phase directory
+- Updated findings with any additional discoveries
+"""
+suggested_next = ["implement"]
+
+[[phases]]
+id = "implement"
+prompt = """
+# Implement Phase
+
+Execute the implementation plan.
+
+## Inputs
+- tasks.json from the plan phase
+- findings.md from explore phase
+
+## Tasks
+1. Work through tasks in dependency order
+2. Set each task to in-progress before starting
+3. Mark tasks done immediately after completion
+4. Log progress for each significant step
+
+## Guidelines
+- Follow existing code patterns identified in explore
+- Make minimal, focused changes
+- Don't over-engineer or add unnecessary features
+- Test changes as you go
+"""
+suggested_next = ["validate"]
+
+[[phases]]
+id = "validate"
+prompt = """
+# Validate Phase
+
+Verify the implementation meets requirements.
+
+## Tasks
+1. Run tests (if applicable)
+2. Verify the feature works as expected
+3. Check for regressions
+4. Review code quality
+
+## Outputs
+If all validations pass, transition to complete.
+If issues found, either fix them or transition back to implement.
+"""
+suggested_next = ["complete", "implement"]
+on_blocked = "implement"
+
+[[phases]]
+id = "complete"
+prompt = """
+# Complete Phase
+
+Finalize the implementation.
+
+## Tasks
+1. Review all changes made
+2. Ensure tests pass
+3. Prepare commit message summarizing changes
+4. Note any follow-up work needed
+
+This is a terminal phase. The workflow is complete.
+"""
+terminal = true

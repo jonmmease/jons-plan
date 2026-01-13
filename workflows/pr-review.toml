@@ -1,0 +1,234 @@
+# PR Review Workflow
+# Review and improve an existing PR description
+
+[workflow]
+name = "pr-review"
+description = "Review an existing PR description for quality and accuracy"
+
+[[phases]]
+id = "gather"
+prompt = """
+# Gather Phase
+
+Collect the PR document and code context for review.
+
+## Inputs
+
+The user should provide a path to the PR document to review.
+
+## Base Branch Detection
+
+To verify the PR accurately describes the changes, we need the actual diff.
+
+**Important:** Always diff against the **merge-base commit** (where the branch forked), not the tip of the base branch.
+
+Determine the base branch:
+1. Check for the default branch (main/master)
+2. If multiple candidate branches exist (feature-off-feature scenario), ask the user
+
+Compute the merge-base:
+```bash
+MERGE_BASE=$(git merge-base $BASE_BRANCH HEAD)
+```
+
+## Tasks
+
+1. Locate and read the PR document to review
+2. Determine base branch and compute merge-base
+3. Generate diff for context:
+   - `full.diff` (git diff $MERGE_BASE..HEAD)
+   - `commit-log.txt` (git log --oneline $MERGE_BASE..HEAD)
+   - `file-manifest.txt` with structured file list
+
+## File Manifest Format
+
+Tab-separated columns: status, adds, dels, path
+
+Generate via:
+```bash
+git diff $MERGE_BASE..HEAD --numstat | while read adds dels path; do
+  status=$(git diff --name-status $MERGE_BASE..HEAD -- "$path" 2>/dev/null | head -1 | cut -f1)
+  echo -e "$status\t$adds\t$dels\t$path"
+done
+```
+
+## Outputs
+
+Write `review-context.md` with:
+- Path to PR document being reviewed
+- Branch being reviewed
+- Base branch and merge-base commit
+- Files changed summary
+"""
+suggested_next = ["review"]
+
+[[phases]]
+id = "review"
+prompt = """
+# Review Phase
+
+Review the PR description from multiple perspectives.
+
+## Inputs
+
+- review-context.md for context
+- The PR document (path from review-context.md)
+- full.diff for verifying accuracy
+
+## PR Review Tasks
+
+### 1. PR Slop Detection (haiku)
+Scan for AI-generated writing patterns:
+- Marketing speak ("cutting-edge", "seamless")
+- Vague claims ("various improvements")
+- Unnecessary hedging
+- Overly formal tone
+- Filler phrases ("It's worth noting", "In order to")
+
+### 2. Accuracy Check (haiku)
+Verify PR claims against the actual diff:
+- Are all major changes mentioned?
+- Are any claims inaccurate or misleading?
+- Does the summary match what the code actually does?
+- Are file references correct?
+
+### 3. Gemini Editorial Review (gemini-reviewer)
+Check for:
+- Clarity and completeness
+- Logical organization
+- Appropriate level of detail
+- Missing context a reviewer would need
+- Whether the motivation is clear
+
+### 4. Codex Technical Review (codex-reviewer)
+Check for:
+- Technical accuracy of descriptions
+- Correct terminology
+- Missing important implementation details
+- Whether testing section is adequate
+- Consistency between summary and detailed changes
+
+### 5. Reader Comprehension (opus)
+Check for:
+- Would a reviewer unfamiliar with the codebase understand the change?
+- Is the review tour helpful (if present)?
+- Are there unanswered questions a reviewer would have?
+- Is the PR self-contained or does it assume too much context?
+
+## Outputs
+
+Write `review-feedback.md` with feedback from all reviewers, organized by source.
+"""
+suggested_next = ["synthesize"]
+
+[[phases]]
+id = "synthesize"
+prompt = """
+# Synthesize Phase
+
+Combine feedback into actionable recommendations.
+
+## Inputs
+
+- review-context.md for context
+- review-feedback.md for all reviewer feedback
+- The original PR document
+
+## Feedback Synthesis
+
+For each finding:
+1. Categorize as ACCEPT or DISCARD
+
+**ACCEPT criteria:**
+- Factual inaccuracy
+- Missing important information
+- Slop patterns that hurt readability
+- Clarity issues that would confuse reviewers
+
+**DISCARD criteria:**
+- Style preferences without clear benefit
+- Pedantic corrections
+- Already addressed in another section
+
+## Output Format
+
+Write `pr-recommendations.md` with:
+
+```markdown
+## PR Review Summary
+
+**Document:** [path]
+**Branch:** [branch-name]
+
+### Critical Issues
+[Must fix - inaccuracies, missing critical info]
+
+### Suggested Improvements
+[Should consider - clarity, organization, completeness]
+
+### Minor Nits
+[Optional - style, wording tweaks]
+
+### What's Good
+[Positive observations - what the PR does well]
+
+---
+
+## Specific Edits
+
+For each recommended change:
+
+### [Issue Title]
+**Location:** [Section or line reference]
+**Current:** [What it says now]
+**Suggested:** [What it should say]
+**Rationale:** [Why this change improves the PR]
+```
+
+Include specific, actionable edit suggestions.
+"""
+suggested_next = ["complete"]
+
+[[phases]]
+id = "complete"
+prompt = """
+# Complete Phase
+
+Finalize and present the PR review.
+
+## Inputs
+
+- pr-recommendations.md
+
+## Tasks
+
+1. Present the review summary to the user
+2. Highlight critical issues that need addressing
+3. Offer to help implement suggested edits
+
+## Presentation Format
+
+```markdown
+## PR Review Complete
+
+**Document reviewed:** [path]
+
+### Summary
+
+[Brief overview of PR quality]
+
+### Action Items
+
+1. [Critical issues to fix]
+2. [Suggested improvements]
+
+### Next Steps
+
+- Review recommendations in `pr-recommendations.md`
+- Apply suggested edits to improve the PR
+- Re-run review if significant changes are made
+```
+
+This is a terminal phase. The PR review is complete.
+"""
+terminal = true

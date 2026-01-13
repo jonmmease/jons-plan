@@ -1,0 +1,390 @@
+# Deep Implementation Workflow
+# Complex implementation with thorough research, external review, and feedback synthesis
+
+[workflow]
+name = "deep-implementation"
+description = "Complex features requiring thorough exploration and multi-round feedback"
+
+[[phases]]
+id = "research-planning"
+prompt = """
+# Research Planning Phase
+
+Plan the research before diving in.
+
+## Tasks
+
+1. Identify what needs to be researched for this specific topic
+2. List specific questions to answer
+3. Identify potential sources (codebase, web, docs)
+4. Create research task list
+
+## Exploration Angles to Consider
+
+**Determine what needs exploration** for this specific topic. Common angles include:
+- **Codebase patterns** — Existing implementations, architectural conventions, file organization
+- **External approaches** — Web research on best practices, libraries, how others solve this
+- **Requirements analysis** — Constraints, edge cases, acceptance criteria
+- **Prototyping** — Quick spikes to validate assumptions (write to plan directory only)
+- **API/library research** — Documentation, capabilities, integration patterns
+- **Performance considerations** — Bottlenecks, scaling concerns, benchmarks
+
+## Example Research Patterns
+
+**Simple feature** (2-3 areas):
+- Codebase patterns + requirements analysis
+
+**Integration feature** (3-4 areas):
+- Codebase patterns + external API docs + requirements + compatibility research
+
+**Architectural change** (4-6 areas):
+- Current architecture analysis + alternative approaches research + performance implications + migration patterns + requirements
+
+## Outputs
+
+Write `research-plan.md` with:
+- Questions to answer (grouped by domain)
+- Sources to consult for each
+- Expected findings
+- Research task assignments
+"""
+suggested_next = ["research"]
+
+[[phases]]
+id = "research"
+prompt = """
+# Research Phase
+
+Execute the research plan with multiple parallel investigations.
+
+## Inputs
+
+Review research-plan.md for questions to answer.
+
+## Tasks
+
+Launch exploration agents using `haiku` model. **You decide** how many agents to launch based on the topic's complexity.
+
+1. Launch Explore agents for codebase investigation
+2. Use WebSearch/WebFetch for external research
+3. Check documentation and examples
+4. Synthesize findings from all sources
+
+**Launch agents appropriately:**
+- Run independent explorations in parallel for speed
+- Chain explorations that depend on each other (e.g., "research library X" → "prototype with library X")
+- Use more agents for complex topics with many angles
+- Use fewer for focused topics with clear scope
+
+## Model Selection
+
+| Task Type | Model |
+|-----------|-------|
+| Quick file lookup | `haiku` |
+| Thorough codebase research | `haiku` |
+| External API/library research | `haiku` |
+| Prototyping spike | `sonnet` |
+
+## Outputs
+
+Write `research-findings.md` with:
+- Answers to each question from research-plan
+- Code patterns found
+- External references
+- Remaining unknowns
+"""
+suggested_next = ["synthesize"]
+
+[[phases]]
+id = "synthesize"
+prompt = """
+# Synthesize Phase
+
+Create implementation plan from research.
+
+## Inputs
+
+Review research-findings.md from research phase.
+
+## Tasks
+
+1. Identify key insights from each exploration
+2. Determine implementation approach
+3. Draft task breakdown with dependencies
+4. Assess confidence (1-5 scale)
+
+## Confidence Assessment Format
+
+Include this section in `implementation-plan.md`:
+
+```markdown
+## Confidence Assessment
+
+**Overall Score: [1-5]**
+
+| Dimension | Score | Explanation |
+|-----------|-------|-------------|
+| Feasibility | [1-5] | Can this be implemented with the current codebase? |
+| Scope | [1-5] | Is the scope well-defined and achievable? |
+| Technical Risk | [1-5] | Are there unknowns or risky assumptions? |
+
+**Areas of Uncertainty:**
+- [List specific uncertainties to resolve via review]
+
+**Questions for Reviewers:**
+- [Specific questions you want external reviewers to address]
+```
+
+## Parallelization Rules
+
+Tasks without parent dependencies can run in parallel, but **only if they won't mutate files in the same directories**.
+
+**Safe to parallelize** (no parent dependency needed):
+- Research tasks that only write to their own `tasks/[task-id]/` output directory
+- Monorepo tasks that modify separate packages
+- Tasks that only read from the codebase without writing
+
+**Must be sequential** (add parent dependency):
+- Multiple tasks editing `src/` files
+- Tasks that both modify config files
+- Implementation tasks that build on each other's code
+
+## Checkpoint
+
+**If overall confidence score is below 4**, STOP and discuss concerns with the user before proceeding:
+- Present the confidence assessment
+- List specific concerns and dimensions
+- Ask for guidance: proceed anyway, investigate further, or pivot
+
+## Outputs
+
+Write `implementation-plan.md` with:
+- Recommended approach and rationale
+- Task breakdown with dependencies (as markdown, not tasks.json yet)
+- Confidence assessment
+"""
+suggested_next = ["external-review"]
+
+[[phases]]
+id = "external-review"
+prompt = """
+# External Review Phase
+
+Get multiple external perspectives on the plan.
+
+## Tasks
+
+1. Launch gemini-reviewer for plan review
+2. Launch codex-reviewer for second opinion
+3. Collect all feedback
+
+**Important for reviewer tasks:**
+- Do NOT include `model` field (reviewers use their own external models)
+- Do NOT include `subagent_prompt` field (not used for reviewers)
+
+**Reviewer prompts should focus on:**
+
+**gemini-reviewer:**
+- Is the plan complete? Any missing steps?
+- Are there blind spots or unconsidered edge cases?
+- Is the task breakdown logical and well-sequenced?
+- Are dependencies correctly identified?
+- Any structural improvements to suggest?
+
+**codex-reviewer:**
+- Is the technical approach sound?
+- Are there better architectural choices?
+- Any potential implementation pitfalls?
+- Are the tasks appropriately scoped?
+- Any code organization concerns?
+
+## Outputs
+
+Write `external-feedback.md` with all reviewer feedback, organized by source.
+"""
+suggested_next = ["process-feedback"]
+
+[[phases]]
+id = "process-feedback"
+prompt = """
+# Process Feedback Phase
+
+Categorize and act on reviewer feedback.
+
+## Inputs
+
+- implementation-plan.md from synthesize
+- external-feedback.md from review
+
+## Tasks
+
+1. Categorize each feedback item:
+   - **ACCEPT** — Valid feedback that should be incorporated into the plan
+   - **INVESTIGATE** — Raises a question that needs exploration before deciding
+   - **REJECT** — Doesn't apply to this context or is based on misunderstanding
+2. If INVESTIGATE items exist, launch exploration
+3. Update plan based on accepted feedback
+4. Re-assess confidence
+
+## Categorized Feedback Format
+
+Write `categorized-feedback.md`:
+
+```markdown
+# Categorized Feedback
+
+## Confidence: [1-5]
+[Brief rationale for the confidence score]
+
+## Source: gemini-reviewer
+
+### ACCEPT
+- [Feedback point]: [How this will be addressed in the plan]
+
+### INVESTIGATE
+- [Feedback point]: [Question that needs exploration]
+  - Domain: codebase|technical|requirements
+  - Specific question: "[Precise question for an explore agent]"
+
+### REJECT
+- [Feedback point]: [Why this doesn't apply or is incorrect]
+
+## Source: codex-reviewer
+
+[Same structure]
+
+## Investigation Questions Summary
+
+**Codebase questions:**
+- [Question 1]
+
+**Technical questions:**
+- [Question 1]
+
+**Requirements questions:**
+- [Question 1]
+```
+
+## Investigation Findings Format
+
+If investigations were needed, write `investigation-findings.md`:
+
+```markdown
+# Investigation Findings
+
+## Question: [Original question from categorized-feedback.md]
+**Domain:** codebase|technical|requirements
+**Finding:** [What was discovered]
+**Impact on Plan:** [How this affects the implementation plan]
+**Recommendation:** accept-feedback|reject-feedback|modify-approach
+```
+
+## Checkpoint
+
+**If confidence score is below 4**, STOP and discuss with the user:
+- Present the categorized feedback
+- List unresolved INVESTIGATE items
+- Ask: proceed anyway, investigate further, or pivot
+
+## Branching
+
+If confidence >= 4: proceed to implement
+If confidence < 4: back to synthesize with new info
+"""
+suggested_next = ["implement"]
+on_blocked = "synthesize"
+
+[[phases]]
+id = "implement"
+use_tasks = true
+prompt = """
+# Implement Phase
+
+Execute the validated implementation plan.
+
+## Inputs
+
+- implementation-plan.md from synthesize phase (with task breakdown)
+- categorized-feedback.md from process-feedback phase
+- All research context
+
+## Setup
+
+1. Read the task breakdown from implementation-plan.md
+2. Create tasks.json in this phase directory based on the plan
+3. All tasks start with `status: "todo"`
+
+## Tasks
+
+1. Work through tasks in dependency order
+2. Follow patterns from research
+3. Log progress throughout
+4. Handle blockers by recording dead-ends
+
+## Task Execution Guidelines
+
+- Set tasks to `in-progress` BEFORE starting work
+- Mark `done` IMMEDIATELY on completion (no batching)
+- Use dead-end tracking for failed approaches
+
+## Model Selection for Tasks
+
+| Task Type | Model |
+|-----------|-------|
+| Simple file changes | `sonnet` (default) |
+| Complex implementation | `opus` |
+| Architecture decisions | `opus` |
+| Boilerplate/scaffolding | `haiku` |
+| Test writing | `sonnet` |
+| Documentation | `haiku` |
+"""
+suggested_next = ["validate"]
+
+[[phases]]
+id = "validate"
+prompt = """
+# Validate Phase
+
+Thoroughly verify the implementation.
+
+## Tasks
+
+1. Run all tests
+2. Verify against original requirements
+3. Check edge cases identified in research
+4. Review code quality
+
+## Outputs
+
+If valid, proceed to complete.
+If issues found, either fix or document in dead-ends.
+"""
+suggested_next = ["complete"]
+on_blocked = "implement"
+
+[[phases]]
+id = "complete"
+prompt = """
+# Complete Phase
+
+Finalize the deep implementation.
+
+## Tasks
+
+1. Review all changes made
+2. Verify tests pass
+3. Prepare comprehensive commit message
+4. Document lessons learned
+
+## Clean Up
+
+Remove intermediate artifacts if no longer needed:
+- Draft plans
+- Categorized feedback
+- Investigation findings
+
+(Or keep them for audit trail)
+
+This is a terminal phase. The workflow is complete.
+"""
+terminal = true

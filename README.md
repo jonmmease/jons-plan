@@ -12,6 +12,9 @@ When AI agents work on complex projects that span multiple context windows, each
 - **Automatic session resumption** when tasks were interrupted
 - **PreCompact hook** to preserve state during context compaction
 - **Parallel task execution** via subagents for independent work
+- **Workflow-based execution** with phase transitions and state machine
+
+For detailed architecture documentation, see [docs/architecture.md](docs/architecture.md).
 
 ## How It Works
 
@@ -19,83 +22,64 @@ The plugin uses a two-agent architecture:
 
 ### Planning Agent (`/jons-plan:new`)
 
-Creates the infrastructure for a new implementation plan:
-- Explores the codebase to understand existing patterns
-- Creates a structured plan with tasks and dependencies
-- All tasks start with `status: "todo"`
+Creates the infrastructure for a new plan:
+- Analyzes your request and suggests an appropriate workflow
+- Sets up the plan structure and initial phase
+- Creates `request.md` with the refined/approved request
 
 ### Coding Agent (`/jons-plan:proceed`)
 
 Works incrementally on tasks across sessions:
 - Reads progress log to understand current state
 - Resumes any `in-progress` tasks first
-- Picks from available tasks (status `todo`, all parents `done`)
+- Handles phase transitions automatically
 - Updates task status and logs progress for the next session
 
 ## Slash Commands
 
 | Command | Purpose |
 |---------|---------|
-| `/jons-plan:new [topic]` | Create new implementation plan (explores codebase, creates tasks) |
-| `/jons-plan:new-design [topic]` | Create new design plan (research, exploration, produces `design.md`) |
-| `/jons-plan:new-deep [topic]` | Create implementation plan with deep automated exploration and review |
-| `/jons-plan:new-tech-docs [topic]` | Create technical documentation plan (multi-source research, produces markdown docs) |
-| `/jons-plan:new-review` | Create multi-agent code review plan for current branch |
+| `/jons-plan:new [topic]` | Create new plan (auto-suggests workflow type) |
 | `/jons-plan:plan [feedback]` | Refine the active plan |
 | `/jons-plan:proceed` | Start/continue implementing tasks |
 | `/jons-plan:switch [name]` | Switch to a different plan |
 | `/jons-plan:status` | Show all plans and task progress |
 
-## Plan Types
+Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 
-The plugin supports four plan creation commands:
+## Workflow Types
 
-| Aspect | `/new` | `/new-design` | `/new-deep` | `/new-tech-docs` |
-|--------|--------|---------------|-------------|------------------|
-| **Purpose** | Build features, fix bugs | Research, explore, design | Complex implementation with thorough research | Generate technical documentation |
-| **Naming** | `[topic]` | `[topic]-design` (enforced) | `[topic]` | `[topic]-docs` (enforced) |
-| **Deliverable** | Code changes | `design.md` document | Code changes | `[topic].md` documentation |
-| **Exploration** | Light exploration | Creates tasks for later | Auto-executes exploration | Multi-source research (code, web, GitHub, MCPs) |
-| **External review** | No | Creates review task | Auto-executes review | Link validation + slop detection + gemini/codex reviews |
-| **Synthesis** | Single-shot | Task in plan | Multi-round with feedback | Draft → review → final with feedback synthesis |
-| **User intervention** | After planning | After each /proceed | After all phases complete | After planning |
+| Workflow | Purpose |
+|----------|---------|
+| `implementation` | Build features, fix bugs with research and validation |
+| `design` | Research, explore, produce design.md |
+| `design-and-implementation` | Design first, optionally implement after approval |
+| `deep-implementation` | Thorough research + external review before implementation |
+| `code-review` | Review code changes + generate PR description |
+| `pr-review` | Review existing PR description for quality |
+| `tech-docs` | Technical documentation with multi-source research |
+| `tech-docs-review` | Review RFCs, design docs, proposals with structured criteria |
 
-**When to use each:**
-- **`/new`** — Simple features, bug fixes, clear requirements
-- **`/new-design`** — Research projects, design decisions, when you need `design.md`
-- **`/new-deep`** — Complex features requiring thorough exploration and external review before implementation
-- **`/new-tech-docs`** — Generating technical documentation about a codebase topic (current state, example-based, version-anchored)
-
-**Two-phase workflow (for design plans):**
-1. `/jons-plan:new-design auth` → Research and explore → `design.md`
-2. User reviews and approves the design
-3. `/jons-plan:new auth` → Implement based on the approved design
+**Auto-selection:** When no `--workflow` is specified, the plugin analyzes your request and suggests the most appropriate workflow.
 
 ## Plan Directory Structure
-
-Plans are stored in `.claude/jons-plan/` within your project:
 
 ```
 .claude/jons-plan/
 ├── active-plan              # Name of the currently active plan
+├── session-mode             # Current command mode
 └── plans/
     └── [plan-name]/
-        ├── plan.md              # Implementation plan document
-        ├── tasks.json           # Task list with dependencies and status
-        ├── claude-progress.txt  # Log of agent actions across sessions
-        └── tasks/
-            └── [task-id]/       # Output directory for tasks (created on demand)
-                └── output.md    # Task artifacts for downstream tasks
+        ├── workflow.toml        # Phase definitions
+        ├── state.json           # Current phase state
+        ├── request.md           # Refined/approved request
+        ├── dead-ends.json       # Failed approaches (for learning)
+        ├── claude-progress.txt  # Plan-level progress log
+        └── phases/
+            └── NN-{phase-id}/
+                ├── tasks.json   # Phase-specific tasks
+                └── tasks/       # Task outputs
 ```
-
-### File Descriptions
-
-| File | Purpose |
-|------|---------|
-| `plan.md` | Human-readable implementation plan with design decisions and approach |
-| `tasks.json` | Machine-readable task list with `id`, `description`, `parents`, `steps`, and `status` |
-| `claude-progress.txt` | Timestamped log of session starts, file modifications, and task completions |
-| `tasks/[id]/` | Output directory for research/planning tasks that produce artifacts needed by child tasks |
 
 ### Task Schema
 
@@ -125,8 +109,8 @@ The plugin uses five hooks to manage session lifecycle:
 Runs at the beginning of each Claude Code session:
 - Shows the active plan and working directory
 - Displays recent git commits and uncommitted changes
-- Shows recent progress log entries
-- Lists in-progress and available tasks with their task-level progress
+- Shows workflow phase context (for workflow plans)
+- Lists in-progress and available tasks
 - Prompts for auto-resume if tasks were interrupted
 
 ### PreCompact Hook
@@ -134,26 +118,25 @@ Runs at the beginning of each Claude Code session:
 Runs before context compaction:
 - Injects jons-plan state into the compaction summary
 - Includes session mode, active plan, and in-progress tasks
-- Shows recent task-level progress entries
+- Shows phase context for workflow plans
 - Provides pointers to progress files for post-compaction resumption
 
 ### UserPromptSubmit Hook
 
 Runs when user submits a message:
-- Clears session mode for non-jons-plan commands
-- Ensures fresh sessions show neutral state
+- Sets session mode based on command type
+- Preserves planning modes on regular messages
 
 ### PostToolUse Hook
 
 Runs after `Write` and `Edit` operations:
 - Logs file modifications to `claude-progress.txt`
 - Skips files in `.claude/` to avoid recursive logging
-- Creates an audit trail for the next session
 
 ### Stop Hook
 
 Runs when the session ends:
-- Logs `SESSION_STOP` to progress file
+- Auto-continue behavior in proceed mode
 - Shows session summary (files modified, task progress)
 - Warns about uncommitted changes
 
@@ -165,72 +148,7 @@ The plugin includes a Python CLI for programmatic access:
 uv run ~/.claude-plugins/jons-plan/plan.py <command>
 ```
 
-### Overview Commands
-
-| Command | Description |
-|---------|-------------|
-| `status` | Comprehensive overview - all plans, active plan stats, in-progress tasks, next available |
-| `list-plans` | List all plans (marks active) |
-| `active-plan` | Print active plan name |
-| `active-plan-dir` | Print active plan directory path |
-
-### Plan Management
-
-| Command | Description |
-|---------|-------------|
-| `set-active <plan>` | Switch active plan |
-| `deactivate` | Deactivate current plan without switching to another |
-
-### Task Management
-
-| Command | Description |
-|---------|-------------|
-| `task-stats` | Print task counts (done/total, in-progress, todo) |
-| `in-progress` | List tasks currently in progress |
-| `blocked-tasks` | List blocked tasks |
-| `has-blockers` | Check if plan has blocked tasks (exit 0 if yes) |
-| `next-tasks` | List available tasks (todo with all parents done) |
-| `set-status <task-id> <status>` | Set task status |
-
-### Progress Logging
-
-| Command | Description |
-|---------|-------------|
-| `log <message>` | Append message to plan-level progress log |
-| `recent-progress [-n N]` | Show recent plan-level progress entries (default: 10) |
-
-### Task-Level Progress
-
-| Command | Description |
-|---------|-------------|
-| `task-log <task-id> <message>` | Append message to task's progress.txt |
-| `task-progress <task-id> [-n N]` | Show recent entries from task's progress.txt (default: 10) |
-| `build-task-prompt <task-id>` | Build complete prompt with all context (description, steps, parent outputs, prior progress) |
-
-### Task Outputs
-
-| Command | Description |
-|---------|-------------|
-| `task-dir <task-id>` | Print task output directory path |
-| `ensure-task-dir <task-id>` | Create task directory if needed |
-| `parent-dirs <task-id>` | List parent task directories that exist |
-| `has-outputs <task-id>` | Check if task has outputs (exit code 0/1) |
-
-### Confidence Scoring
-
-| Command | Description |
-|---------|-------------|
-| `record-confidence <task-id> <score> <rationale>` | Record confidence score (1-5) |
-| `check-confidence <task-id>` | Check recorded confidence score for a task |
-| `low-confidence-tasks` | List tasks with confidence score < 4 |
-
-### Dynamic Task Modification
-
-| Command | Description |
-|---------|-------------|
-| `add-task <json-file>` | Add task from JSON file or stdin |
-| `update-task-parents <task-id> <parent-ids...>` | Update task parent dependencies |
-| `update-task-steps <task-id> <json-file>` | Update task steps from JSON
+See `CLAUDE.md` for complete CLI reference.
 
 ## Installation
 

@@ -1,0 +1,342 @@
+# Code Review Workflow
+# Multi-perspective code review with commit archaeology and PR generation
+
+[workflow]
+name = "code-review"
+description = "Review code changes on a branch and generate a PR description"
+
+[[phases]]
+id = "gather"
+prompt = """
+# Gather Phase
+
+Collect the code changes to review and determine the review scope.
+
+## Base Branch Detection
+
+**Important:** For code review, always diff against the **merge-base commit** (where the branch forked), not the tip of the base branch. This ensures the review only shows changes made on this branch, even if the base branch has moved forward.
+
+Determine the base branch:
+1. Check for the default branch (main/master)
+2. If multiple candidate branches exist (feature-off-feature scenario), ask the user
+
+Compute the merge-base:
+```bash
+MERGE_BASE=$(git merge-base $BASE_BRANCH HEAD)
+```
+
+**Hint:** Lower commit count usually indicates the correct base branch. If `feature-b` was branched from `feature-a` which was branched from `main`:
+- `feature-a` might show 24 commits
+- `main` might show 142 commits (includes all of feature-a's work)
+- The user should choose `feature-a` to review only feature-b's changes.
+
+## Tasks
+
+1. Identify the changes to review (branch diff)
+2. Determine base branch and compute merge-base
+3. Generate diff files for reviewers:
+   - `full.diff` (git diff $MERGE_BASE..HEAD)
+   - `commit-log.txt` (git log --oneline $MERGE_BASE..HEAD)
+   - `commit-log-full.txt` (git log -p $MERGE_BASE..HEAD) for archaeology
+   - `file-manifest.txt` with structured file list
+   - Per-commit diffs in `per-commit/<hash>.diff`
+
+## File Manifest Format
+
+Tab-separated columns: status, adds, dels, path
+
+Generate via:
+```bash
+git diff $MERGE_BASE..HEAD --numstat | while read adds dels path; do
+  status=$(git diff --name-status $MERGE_BASE..HEAD -- "$path" 2>/dev/null | head -1 | cut -f1)
+  echo -e "$status\t$adds\t$dels\t$path"
+done
+```
+
+## Outputs
+
+Write `review-scope.md` with:
+- Branch being reviewed
+- Base branch and merge-base commit
+- Files changed with summary
+- Context/purpose of changes
+"""
+suggested_next = ["analyze"]
+
+[[phases]]
+id = "analyze"
+prompt = """
+# Analyze Phase
+
+Perform multi-perspective analysis of the changes using specialized reviewer personas.
+
+## Inputs
+
+Review review-scope.md for context and read the generated diffs.
+
+## Reviewer Personas
+
+Each reviewer should adopt a "gruff senior developer" persona - direct, slightly impatient, but ultimately helpful.
+
+### 1. Slop Detection (haiku)
+Scan for LLM-generated code patterns:
+- Overly verbose variable names
+- Excessive comments explaining obvious code
+- Generic error messages
+- Copy-paste patterns
+- Inconsistent style with surrounding code
+
+### 2. Edge Case Adversary (haiku)
+Identify assumptions in code that could be violated:
+- Null/undefined inputs
+- Empty collections
+- Concurrent access
+- Network failures
+- Resource exhaustion
+- Invalid state transitions
+
+### 3. The Architect (gemini-reviewer)
+Architectural review focusing on:
+- System-level fit
+- Architectural drift from existing patterns
+- Coupling and cohesion
+- API design
+- Scalability implications
+
+### 4. The Bug Hunter (codex-reviewer)
+Bug hunting review focusing on:
+- Edge cases and boundary conditions
+- Race conditions
+- Error handling paths
+- Resource leaks
+- Security vulnerabilities
+
+### 5. The Maintainer (opus)
+Maintainability review focusing on:
+- Code clarity and readability
+- The "6-month comprehension test" - will this make sense later?
+- Documentation adequacy
+- Test coverage
+- Naming and organization
+
+## Outputs
+
+Write `analysis.md` with all perspectives:
+- Slop detection findings
+- Edge case concerns
+- Architectural feedback (gemini)
+- Bug hunting results (codex)
+- Maintainability assessment (opus)
+"""
+suggested_next = ["generate-pr"]
+
+[[phases]]
+id = "generate-pr"
+prompt = """
+# Generate PR Phase
+
+Create a PR description from commit archaeology.
+
+## Review Tour Generation
+
+Create a top-down file tour clustered by purpose using the file manifest:
+
+**Tier 1: Entry Points** - Where reviewers should start
+**Tier 2: Core Changes** - The meat of the PR
+**Tier 3: Supporting Changes** - Tests, configs, types
+**Tier 4: Generated/Trivial** - Can skim or skip
+
+## Commit Archaeology
+
+Analyze the commit history to understand:
+- The evolution of the changes
+- Design decisions revealed by commit sequence
+- Any course corrections or reverts
+
+## PR Description Format
+
+```markdown
+## Summary
+
+[1-3 sentences describing the change]
+
+## Motivation
+
+[Why this change is needed]
+
+## Changes
+
+[Bulleted list of key changes]
+
+## Commits
+
+[Summary of commit history]
+
+## Review Tour
+
+[File tour organized by tiers]
+
+## Testing
+
+[How this was tested]
+```
+
+## Outputs
+
+Write `draft-pr.md` with the generated PR description.
+"""
+suggested_next = ["review-draft"]
+
+[[phases]]
+id = "review-draft"
+prompt = """
+# Review Draft Phase
+
+Review the generated PR description for quality before finalizing.
+
+## Inputs
+
+- draft-pr.md from generate-pr phase
+- full.diff for verifying accuracy
+
+## PR Review Tasks
+
+### 1. PR Slop Detection (haiku)
+Scan for AI-generated writing patterns:
+- Marketing speak ("cutting-edge", "seamless")
+- Vague claims ("various improvements")
+- Unnecessary hedging
+- Overly formal tone
+
+### 2. Gemini PR Review
+Check for:
+- Clarity and completeness
+- Accurate summary of changes
+- Appropriate level of detail
+- Missing context
+
+### 3. Codex PR Review
+Check for:
+- Technical accuracy
+- Misleading claims
+- Missing important details
+- Consistency with actual diff
+
+### 4. Opus PR Review
+Check for:
+- Reader comprehension
+- Would a reviewer understand the change?
+- Appropriate organization
+- Actionable review guidance
+
+## Outputs
+
+Write `pr-review-feedback.md` with feedback from all reviewers.
+"""
+suggested_next = ["synthesize"]
+
+[[phases]]
+id = "synthesize"
+prompt = """
+# Synthesize Phase
+
+Combine all perspectives into cohesive, actionable feedback.
+
+## Inputs
+
+- review-scope.md for context
+- analysis.md for code review perspectives
+- draft-pr.md for PR draft
+- pr-review-feedback.md for PR review feedback
+
+## Code Feedback Synthesis
+
+For each code review finding:
+1. Triage as ACCEPT or DISCARD
+2. For ACCEPT items, determine target commit for fixup
+3. Handle reviewer disagreements explicitly
+
+**ACCEPT criteria:**
+- Bug or potential bug
+- Security issue
+- Significant maintainability concern
+- Clear architectural violation
+
+**DISCARD criteria:**
+- Style preference without clear benefit
+- Hypothetical concerns with low probability
+- Already addressed elsewhere
+
+## PR Feedback Synthesis
+
+For PR review findings:
+1. Categorize as ACCEPT or DISCARD
+2. Apply accepted feedback to produce final PR description
+
+## Outputs
+
+Write to plan directory:
+
+**code-recommendations.md:**
+- Critical issues (must fix)
+- Suggestions (should consider)
+- Nits (minor style/preference)
+- Positive observations (what's done well)
+
+**pr-description.md:**
+Final PR description ready to submit (incorporates review feedback).
+
+Include specific file:line references where possible.
+"""
+suggested_next = ["complete"]
+
+[[phases]]
+id = "complete"
+prompt = """
+# Complete Phase
+
+Finalize and present the review.
+
+## Inputs
+
+- code-recommendations.md
+- pr-description.md
+
+## Tasks
+
+1. Format the review for presentation
+2. Ensure actionable items are clear
+3. Organize by severity/priority
+4. Present to user
+
+## Review Summary Format
+
+```markdown
+## Code Review Summary
+
+**Branch:** [branch-name]
+**Base:** [base-branch] (merge-base: [commit])
+**Files Changed:** [count]
+
+### Critical Issues
+[Must fix before merge]
+
+### Suggestions
+[Should consider addressing]
+
+### Nits
+[Minor style/preference items]
+
+### Positive Notes
+[What's done well]
+
+---
+
+## PR Description
+
+PR description ready at `pr-description.md`.
+```
+
+This is a terminal phase. The review is complete.
+"""
+terminal = true

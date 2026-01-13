@@ -32,6 +32,14 @@ If the file is empty or missing:
 - Tell user: "No active plan. Use `/jons-plan:new [topic]` to create one."
 - Stop here - do not proceed further.
 
+## Set Session Mode
+
+Set the session mode to `plan` so hooks know we're planning:
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py set-mode plan
+```
+
 ## Check for Blocked Tasks
 
 Before processing user feedback, check for blocked tasks:
@@ -95,31 +103,32 @@ If user provides feedback, consider how it relates to any blockers before procee
 {{#if args}}
 {{args}}
 {{else}}
-No feedback provided. Read the current `plan.md` and `tasks.json`, show a summary, and ask what the user wants to change.
+No feedback provided. Read the current `request.md` and phase context, show a summary, and ask what the user wants to change.
 {{/if}}
 
 ## Workflow
 
-1. **Read current state**: Load `plan.md` and `tasks.json` from the active plan directory
+1. **Get phase context**: Run `uv run ~/.claude-plugins/jons-plan/plan.py phase-context` to see current phase and its prompt
 
-2. **Interpret user feedback**: Understand what changes the user wants
+2. **Read current state**: Load `request.md` from the plan directory
 
-3. **Check if feedback fits the plan**: If the feedback seems like a completely different topic/feature than the active plan:
+3. **Interpret user feedback**: Understand what changes the user wants
+
+4. **Check if feedback fits the plan**: If the feedback seems like a completely different topic/feature than the active plan:
    - Ask user: "This seems like a different project than '[active-plan-name]'. Would you like to:
      1. Update the current plan to include this
      2. Create a new plan with `/jons-plan:new [topic]`"
    - Wait for user response before proceeding
 
-4. **Explore if needed**: If the feedback requires understanding new parts of the codebase, launch Explore agents
+5. **Explore if needed**: If the feedback requires understanding new parts of the codebase, launch Explore agents
 
-5. **Update plan files**:
-   - Edit `plan.md` to reflect changes in approach/design
-   - Edit `tasks.json` to add/remove/modify tasks
-   - Keep both files in sync
+6. **Update plan files**:
+   - Edit `request.md` for scope/requirement changes
+   - Edit phase `tasks.json` for execution changes (get location with `phase-tasks-file`)
 
-6. **Present summary**: Show what was changed (tasks added, removed, modified)
+7. **Present summary**: Show what was changed
 
-7. **Next steps**: Tell user: "Type `/jons-plan:proceed` to implement, or `/jons-plan:plan [more feedback]` to continue refining."
+8. **Next steps**: Tell user: "Type `/jons-plan:proceed` to continue, or `/jons-plan:plan [more feedback]` to refine further."
 
 ## Task Schema Reference
 
@@ -160,7 +169,34 @@ Do NOT use multiple choice for straightforward updates or when the feedback is c
 ## Important Reminders
 
 - NEVER implement code - only refine the plan
-- Keep `plan.md` and `tasks.json` in sync
 - New tasks should start with `status: "todo"`
 - Don't change status of existing tasks (that happens during implementation)
 - Preserve task IDs when modifying existing tasks (to maintain dependency references)
+
+---
+
+## What Can Be Refined
+
+1. **request.md** (plan root): The refined/approved request that drives all phases
+2. **tasks.json** (current phase directory): Tasks specific to the current phase
+
+### Refining request.md
+
+Location: `.claude/jons-plan/plans/[plan-name]/request.md`
+
+Update when:
+- User wants to clarify scope
+- User adds constraints or preferences
+- User provides additional context
+
+### Refining Phase Tasks
+
+Get the current phase's tasks file with:
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py phase-tasks-file
+```
+
+Update when:
+- User wants to adjust how the current phase executes
+- Phase needs additional research or exploration
+- Phase steps need to be broken down further

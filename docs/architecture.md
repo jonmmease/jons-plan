@@ -31,13 +31,11 @@ Key insights from the post:
 │                         Claude Code                              │
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │                    Slash Commands                            ││
-│  │  /jons-plan:new    Create implementation plan                ││
-│  │  /jons-plan:new-design  Create design/research plan          ││
-│  │  /jons-plan:new-deep  Deep exploration + implementation plan ││
-│  │  /jons-plan:plan   Refine active plan                        ││
-│  │  /jons-plan:proceed  Execute tasks                           ││
-│  │  /jons-plan:status   Show all plans                          ││
-│  │  /jons-plan:switch   Change active plan                      ││
+│  │  /jons-plan:new     Create plan (auto-selects workflow)      ││
+│  │  /jons-plan:plan    Refine active plan                       ││
+│  │  /jons-plan:proceed Execute tasks                            ││
+│  │  /jons-plan:status  Show all plans                           ││
+│  │  /jons-plan:switch  Change active plan                       ││
 │  └─────────────────────────────────────────────────────────────┘│
 │                              │                                   │
 │                              ▼                                   │
@@ -65,12 +63,15 @@ Key insights from the post:
 │  ├── session-mode          # Current command mode                │
 │  └── plans/                                                      │
 │      └── [plan-name]/                                            │
-│          ├── plan.md              # Human-readable plan          │
-│          ├── tasks.json           # Machine-readable tasks       │
-│          ├── claude-progress.txt  # Plan-level timestamped log   │
-│          └── tasks/[task-id]/                                    │
-│              ├── progress.txt     # Task-level progress log      │
-│              └── output.md        # Task artifacts (optional)    │
+│          ├── request.md          # Refined/approved request      │
+│          ├── workflow.toml       # Workflow definition           │
+│          ├── state.json          # Phase state machine           │
+│          ├── claude-progress.txt # Plan-level timestamped log    │
+│          └── phases/[phase-id]/                                  │
+│              ├── tasks.json      # Phase tasks (if use_tasks)    │
+│              └── tasks/[task-id]/                                │
+│                  ├── progress.txt # Task-level progress log      │
+│                  └── output.md    # Task artifacts (optional)    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -81,7 +82,7 @@ Key insights from the post:
 The system conceptually uses two agent "roles" that the same Claude instance plays at different times:
 
 ### Planning Agent
-Activated by: `/jons-plan:new`, `/jons-plan:new-design`, `/jons-plan:plan`
+Activated by: `/jons-plan:new`, `/jons-plan:plan`
 
 Responsibilities:
 - Explore the codebase to understand existing patterns
@@ -179,13 +180,12 @@ To handle compaction correctly, we track which command is currently active:
     ┌────┴────┐
     │  Value  │
     ├─────────┤
-    │ new         │  → Creating implementation plan
-    │ new-design  │  → Creating design plan
-    │ new-deep    │  → Deep exploration + implementation plan
-    │ plan        │  → Refining plan
-    │ proceed     │  → Implementing tasks
-    │ (empty)     │  → No active jons-plan command
-    └─────────────┘
+    │ new              │  → Creating new plan
+    │ plan             │  → Refining plan
+    │ proceed          │  → Implementing tasks
+    │ awaiting-feedback│  → Waiting for user decision
+    │ (empty)          │  → No active jons-plan command
+    └──────────────────┘
 ```
 
 **Flow:**
@@ -193,7 +193,8 @@ To handle compaction correctly, we track which command is currently active:
 2. If compaction occurs, SessionStart hook reads mode
 3. Hook adjusts behavior based on mode:
    - `proceed`: Auto-resume implementation
-   - `new`/`new-design`/`plan`: Continue planning (no auto-resume)
+   - `new`/`plan`: Continue planning (no auto-resume)
+   - `awaiting-feedback`: Wait for user decision on workflow phase
    - (empty): Show neutral commands
 4. UserPromptSubmit hook clears mode when user sends non-jons-plan message
 
@@ -202,7 +203,7 @@ To handle compaction correctly, we track which command is currently active:
 Each task can have its own progress log for fine-grained resumption context:
 
 ```
-.claude/jons-plan/plans/[plan]/tasks/[task-id]/
+.claude/jons-plan/plans/[plan]/phases/[phase]/tasks/[task-id]/
 ├── progress.txt    # Timestamped progress entries
 └── output.md       # Task artifacts (optional)
 ```
@@ -252,6 +253,7 @@ uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "message"
 | `general-purpose` | Default. Implementation, complex multi-step work |
 | `Explore` | Fast codebase exploration, file finding |
 | `Plan` | Same as Explore |
+| `claude-code-guide` | Questions about Claude Code features, hooks, MCP |
 | `gemini-reviewer` | External review via Gemini 3 Pro |
 | `codex-reviewer` | External review via GPT-5-codex |
 
@@ -398,8 +400,9 @@ The session mode determines how the agent behaves after compaction:
 | Mode | After Compaction |
 |------|------------------|
 | `proceed` | Auto-resume: immediately continue implementation |
-| `new`/`new-design`/`new-deep` | Continue creating plan (no auto-resume) |
+| `new` | Continue creating plan (no auto-resume) |
 | `plan` | Continue refining plan (no auto-resume) |
+| `awaiting-feedback` | Wait for user decision on workflow phase |
 | (empty) | Show neutral command options |
 
 ---
@@ -437,34 +440,37 @@ for task in available:
 
 ---
 
-## Plan Types
+## Workflows
 
-### Implementation Plans (`/jons-plan:new`)
+All plans use a workflow-based execution model. The `/jons-plan:new` command auto-selects an appropriate workflow based on the user's request.
 
-- **Purpose:** Build features, fix bugs
-- **Deliverable:** Code changes in repository
-- **Naming:** `[topic]` (e.g., `add-auth`)
+### Available Workflows
 
-### Design Plans (`/jons-plan:new-design`)
+| Workflow | Purpose | Deliverable |
+|----------|---------|-------------|
+| `implementation` | Build features, fix bugs | Code changes |
+| `design` | Research, explore, design | `design.md` document |
+| `design-and-implementation` | Design first, optionally implement | Design doc + code |
+| `deep-implementation` | Complex features with thorough research | Code changes |
+| `code-review` | Review code changes + generate PR | Code recommendations + PR description |
+| `pr-review` | Review existing PR description | PR recommendations |
+| `tech-docs` | Technical documentation | Markdown docs |
+| `tech-docs-review` | Review RFCs, design docs, proposals | `review-summary.md` |
 
-- **Purpose:** Research, explore, design
-- **Deliverable:** `design.md` document
-- **Naming:** `[topic]-design` (enforced suffix)
-- **Model strategy:** haiku for exploration, opus for synthesis
-- **Workflow:** design.md → user review → implementation plan
+### Workflow Structure
 
-### Deep Exploration Plans (`/jons-plan:new-deep`)
+Each workflow is defined in a TOML file (`~/.claude-plugins/jons-plan/workflows/`) with:
+- **Phases:** Named stages with prompts, agent types, and model selections
+- **Transitions:** Valid next phases from each phase
+- **Artifacts:** Outputs that accumulate across phases (last write wins)
 
-- **Purpose:** Complex features requiring thorough exploration
-- **Deliverable:** Code changes in repository
-- **Naming:** `[topic]` (e.g., `add-auth`)
-- **Workflow:** Auto-executes 5 phases within a single command:
-  1. Parallel Exploration (3 haiku agents)
-  2. Draft Plan Synthesis (opus)
-  3. External Review (gemini + codex in parallel)
-  4. Final Synthesis (opus)
-  5. Create Plan Infrastructure
-- **Use when:** Complex features, unclear architecture, benefits from external review
+### Workflow Execution
+
+1. `/jons-plan:new` creates plan infrastructure and selects workflow
+2. `/jons-plan:proceed` executes the current phase
+3. Phase outputs become artifacts for downstream phases
+4. User feedback gates (if defined) pause for decisions
+5. `/jons-plan:plan` allows refinement between phases
 
 ---
 
@@ -580,7 +586,11 @@ uv run ~/.claude-plugins/jons-plan/plan.py <command>
 | `~/.claude-plugins/jons-plan/plan.py` | CLI tool |
 | `~/.claude-plugins/jons-plan/commands/` | Slash command definitions |
 | `~/.claude-plugins/jons-plan/hooks/` | Lifecycle hook scripts |
+| `~/.claude-plugins/jons-plan/workflows/` | Workflow TOML definitions |
 | `[project]/.claude/jons-plan/` | Project-specific plan data |
 | `[project]/.claude/jons-plan/active-plan` | Current plan name |
 | `[project]/.claude/jons-plan/session-mode` | Current command mode |
 | `[project]/.claude/jons-plan/plans/[name]/` | Individual plan directories |
+| `[project]/.claude/jons-plan/plans/[name]/workflow.toml` | Plan's workflow definition |
+| `[project]/.claude/jons-plan/plans/[name]/state.json` | Phase state machine |
+| `[project]/.claude/jons-plan/plans/[name]/phases/` | Phase directories |

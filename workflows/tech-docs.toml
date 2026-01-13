@@ -1,0 +1,316 @@
+# Technical Documentation Workflow
+# Generate documentation about a codebase topic with multi-source research
+
+[workflow]
+name = "tech-docs"
+description = "Create technical documentation with multi-source research and review"
+
+[[phases]]
+id = "research"
+prompt = """
+# Research Phase
+
+Gather information from multiple sources about the topic.
+
+## Target Audience
+
+Write for developers who:
+- Know the programming language and framework basics
+- Have not used this specific codebase before
+- Will search for specific answers, not read front-to-back
+
+Do NOT write for beginners, experts, or managers.
+
+## Source Hierarchy (Code is Truth)
+
+| Priority | Source | Role | Validation |
+|----------|--------|------|------------|
+| 1 | Current source code | Ground truth | None needed |
+| 2 | Official documentation | Design intent | Verify against code |
+| 3 | GitHub issues/PRs (recent, closed) | Historical context | Verify current state |
+| 4 | GitHub issues/PRs (old, open) | Low confidence | Likely stale |
+| 5 | External resources | Background | Always verify |
+
+**Core principle:** If documentation contradicts code, code wins. Claims from sources 2-5 must be verified.
+
+## Tasks
+
+1. Explore the codebase for relevant code
+2. Search for existing documentation
+3. Check comments and docstrings
+4. Look for examples and tests
+5. Optionally search web for related concepts
+6. Check GitHub PRs/issues for context (use `gh` CLI)
+
+## Version Anchoring
+
+Record the current git commit for version anchoring:
+```bash
+git rev-parse HEAD
+```
+
+This commit hash will appear in the generated documentation.
+
+## Outputs
+
+Write `research.md` with:
+- Code locations and patterns found
+- Existing documentation snippets
+- Example usages
+- External references
+- Questions that need answers
+- Git commit hash for version anchor
+"""
+suggested_next = ["draft"]
+
+[[phases]]
+id = "draft"
+prompt = """
+# Draft Phase
+
+Create the initial documentation following strict guidelines.
+
+## Inputs
+
+Review research.md for gathered information.
+
+## Document Structure
+
+1. **Purpose** - One sentence
+2. **Quick Start** - Minimal working example
+3. **Examples** - 2-3 common patterns
+4. **Details** - Deeper explanation
+5. **See Also** - Cross-references
+
+Skip empty sections.
+
+## Example-Based Documentation Pattern
+
+**Bad (exhaustive list):**
+```markdown
+## Hooks
+Available hooks: PreToolUse, PostToolUse, Stop, PreCompact, SessionStart, Notification, SubagentStop, SubagentStart
+```
+
+**Good (example + search):**
+```markdown
+## Hooks
+
+The SessionStart hook runs at conversation start:
+
+```python
+def session_start_hook():
+    print("Session started")
+```
+
+To find all hooks, search for `hook_type` in hooks.py.
+```
+
+## Cross-Reference Guidelines
+
+To source code:
+```markdown
+See [`src/parser.py:45-60`](../src/parser.py) for tokenization.
+```
+
+To related documentation:
+```markdown
+For configuration, see [config.md](./config.md).
+```
+
+To external resources:
+```markdown
+For regex syntax, see [Python re module](https://docs.python.org/3/library/re.html).
+```
+
+## Durable Documentation
+
+Write documentation that survives code changes:
+
+**Fragile:**
+```markdown
+The third argument controls buffering.
+```
+
+**Durable:**
+```markdown
+Pass `buffer_size` to control memory. Search for "buffer_size" in file_processor.py.
+```
+
+Principles:
+- Reference by name, not position
+- Include search terms for discovery
+- Point to source for exhaustive details
+
+## Negative Space Documentation
+
+Document what the system does NOT do only when:
+- A developer would reasonably assume it does
+- The misconception leads to bugs or wasted debugging
+- It's a deliberate design choice, not missing feature
+
+**Good:** Note: The cache does not persist across restarts.
+**Bad:** Note: This function does not make coffee.
+
+## Version Anchoring
+
+Include at top of generated documentation:
+```markdown
+---
+generated_from_commit: [full SHA]
+generated_date: [YYYY-MM-DD]
+---
+```
+
+## Outputs
+
+Write draft documentation file (e.g., `topic.md`):
+- Overview/introduction
+- Core concepts
+- Usage examples
+- API reference (if applicable)
+- Troubleshooting/FAQ
+"""
+suggested_next = ["review"]
+
+[[phases]]
+id = "review"
+prompt = """
+# Review Phase
+
+Get comprehensive feedback on documentation quality.
+
+## Tasks
+
+Run these reviews in parallel:
+
+### 1. Link Validation
+Verify all source file links resolve:
+- Extract all markdown links from draft
+- Verify source file links exist
+- Check line number references are valid
+- Report broken links with suggested fixes
+
+### 2. Slop Detection
+Scan for AI-generated writing patterns using anti-slop guidelines.
+
+**Forbidden Words:**
+utilize, leverage, ensure, robust, comprehensive, streamlined, seamless, elegant, delve, navigate, showcase, facilitate, enhance, functionality, pivotal, tapestry, multifaceted, testament, underscore, realm, embark, unwavering, transformative, holistic, intricate
+
+**Forbidden Phrases:**
+- "In order to" → "to"
+- "It's worth noting" → just say it
+- "Furthermore", "Moreover" → new sentence
+- "not only... but also..." → say both directly
+- "In conclusion" → omit
+- "Let's dive in" → omit
+- "Let's get started" → omit
+
+**Forbidden Patterns:**
+- Em-dashes (—)
+- Headers without content
+- Rhetorical questions
+- "In this section, we will explore..."
+- "This code does X" → prefer "Code X"
+- Lists > 7 items (link to source instead)
+
+**Voice:**
+- Active: "The parser reads" not "is read by"
+- Short sentences
+- Plain words: "use" not "utilize"
+
+### 3. Gemini Editorial Review
+Launch gemini-reviewer for content review:
+- Evaluate document structure and navigation
+- Check logical flow between sections
+- Identify gaps (unanswered reader questions)
+- Verify examples appear before explanations
+
+### 4. Codex Accuracy Review
+Launch codex-reviewer for technical accuracy:
+- Verify code examples compile/parse
+- Check function signatures match code
+- Verify claimed behavior matches implementation
+- Check configuration options exist
+- Flag unverifiable claims
+
+## Outputs
+
+Write `review-feedback.md` with:
+- Link validation results
+- Slop detection findings
+- Content feedback from gemini-reviewer
+- Technical accuracy issues from codex-reviewer
+- Suggestions for improvement
+"""
+suggested_next = ["finalize"]
+
+[[phases]]
+id = "finalize"
+prompt = """
+# Finalize Phase
+
+Incorporate feedback and complete documentation.
+
+## Inputs
+
+- Draft documentation from draft phase
+- review-feedback.md from review phase
+
+## Feedback Synthesis
+
+Categorize each finding as ACCEPT or DISCARD:
+
+**ACCEPT (apply these):**
+- Broken links
+- Inaccuracies
+- Missing critical info
+- High-severity slop
+
+**DISCARD (skip these):**
+- Style preferences
+- Short lists flagged as exhaustive
+- Pedantic changes
+
+Priority order: correctness > broken links > completeness > clarity > style
+
+## Tasks
+
+1. Apply all ACCEPT feedback items
+2. Fix any broken links
+3. Remove slop patterns
+4. Verify version anchor is present
+5. Add final polish
+
+## Outputs
+
+Final documentation ready for publication.
+"""
+suggested_next = ["complete"]
+
+[[phases]]
+id = "complete"
+prompt = """
+# Complete Phase
+
+Finalize the documentation.
+
+## Tasks
+
+1. Final review of documentation
+2. Verify formatting is consistent
+3. Note where to publish/commit
+4. Document any follow-up work
+
+## Documentation Checklist
+
+- [ ] Version anchor present (commit hash + date)
+- [ ] All links verified
+- [ ] No slop patterns
+- [ ] Examples before explanations
+- [ ] Cross-references to source code
+- [ ] Target audience appropriate
+
+This is a terminal phase. The documentation is complete.
+"""
+terminal = true

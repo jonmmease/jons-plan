@@ -42,27 +42,48 @@ if [[ -f "$SESSION_MODE_FILE" ]]; then
 fi
 
 # Auto-continue logic: Block stop if in proceed mode with work remaining
+# Also handle awaiting-feedback mode for workflow phases requiring user input
 if [[ "$SESSION_MODE" == "proceed" ]]; then
     # Check for blocked tasks first - need human intervention
     if plan has-blockers 2>/dev/null; then
         # Don't auto-continue if there are blocked tasks
         :
     else
-        # Check for available tasks (todo with parents done)
-        NEXT_TASKS=$(plan next-tasks 2>/dev/null || echo "")
-        if [[ -n "$NEXT_TASKS" ]]; then
-            TASK_COUNT=$(echo "$NEXT_TASKS" | wc -l | tr -d ' ')
-            echo '{"decision": "block", "reason": "Session mode is proceed and there are '"$TASK_COUNT"' available tasks. Continue working on the next task. Run: uv run ~/.claude-plugins/jons-plan/plan.py next-tasks"}'
-            exit 2
-        fi
+        # Get current phase info from phase-context --json
+        PHASE_JSON=$(plan phase-context --json 2>/dev/null || echo "{}")
 
-        # Check for in-progress tasks (might be blocked waiting on subagents or need resumption)
-        IN_PROGRESS=$(plan in-progress 2>/dev/null || echo "")
-        if [[ -n "$IN_PROGRESS" ]]; then
-            echo '{"decision": "block", "reason": "Session mode is proceed and there are in-progress tasks that need to be completed. Run: uv run ~/.claude-plugins/jons-plan/plan.py in-progress"}'
-            exit 2
+        # Check if current phase is terminal - allow stop at terminal phases
+        IS_TERMINAL=$(echo "$PHASE_JSON" | grep -o '"terminal": *true' || echo "")
+        if [[ -n "$IS_TERMINAL" ]]; then
+            # At terminal phase - allow stop
+            :
+        else
+            # Check if phase requires user input
+            REQUIRES_USER=$(echo "$PHASE_JSON" | grep -o '"requires_user_input": *true' || echo "")
+            if [[ -n "$REQUIRES_USER" ]]; then
+                # Phase needs user input - allow stop (user will review and proceed)
+                :
+            else
+                # Check for phase tasks
+                PHASE_TASKS=$(plan phase-next-tasks 2>/dev/null || echo "")
+                if [[ -n "$PHASE_TASKS" && "$PHASE_TASKS" != "No tasks in current phase" && "$PHASE_TASKS" != "All phase tasks complete" ]]; then
+                    TASK_COUNT=$(echo "$PHASE_TASKS" | wc -l | tr -d ' ')
+                    echo '{"decision": "block", "reason": "Phase has '"$TASK_COUNT"' available tasks. Continue working on the next task. Run: uv run ~/.claude-plugins/jons-plan/plan.py phase-next-tasks"}'
+                    exit 2
+                fi
+
+                # Check if there are suggested next phases (workflow not complete)
+                SUGGESTED_NEXT=$(echo "$PHASE_JSON" | grep -o '"suggested_next": *\[[^]]*\]' | grep -v '\[\]' || echo "")
+                if [[ -n "$SUGGESTED_NEXT" ]]; then
+                    echo '{"decision": "block", "reason": "Current phase complete but workflow continues. Check suggested_next phases and transition. Run: uv run ~/.claude-plugins/jons-plan/plan.py suggested-next"}'
+                    exit 2
+                fi
+            fi
         fi
     fi
+elif [[ "$SESSION_MODE" == "awaiting-feedback" ]]; then
+    # In awaiting-feedback mode - user review required, allow stop
+    :
 fi
 
 # If we get here, allow the stop - log it

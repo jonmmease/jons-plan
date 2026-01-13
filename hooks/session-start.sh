@@ -153,9 +153,12 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
 
     # Check for reference materials (files other than the standard ones)
     REFERENCE_FILES=$(find "$ACTIVE_PLAN_DIR" -type f \
-        ! -name "plan.md" \
+        ! -name "request.md" \
+        ! -name "workflow.toml" \
+        ! -name "state.json" \
         ! -name "tasks.json" \
         ! -name "claude-progress.txt" \
+        ! -name "dead-ends.json" \
         2>/dev/null)
     if [[ -n "$REFERENCE_FILES" ]]; then
         echo "### Reference Materials"
@@ -202,8 +205,33 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
         done
     fi
 
+    # Phase context
+    echo "### Workflow Phase Context"
+    echo ""
+    plan phase-summary 2>/dev/null || echo "_No current phase_"
+    echo ""
+
+    # Show input artifacts if any
+    INPUT_ARTIFACTS=$(plan input-artifacts --json 2>/dev/null || echo "")
+    if [[ -n "$INPUT_ARTIFACTS" && "$INPUT_ARTIFACTS" != "{}" ]]; then
+        FOUND_COUNT=$(echo "$INPUT_ARTIFACTS" | grep -c '"found":\s*\[' 2>/dev/null || echo "0")
+        echo "**Input Artifacts:** Available from upstream phases"
+        echo ""
+    fi
+
+    # Show recent dead-ends (last 3)
+    DEAD_ENDS=$(plan get-dead-ends --recent 3 2>/dev/null || echo "")
+    if [[ -n "$DEAD_ENDS" ]]; then
+        echo "### Recent Dead Ends"
+        echo ""
+        echo "These approaches have been tried and failed:"
+        echo ""
+        echo "$DEAD_ENDS"
+        echo ""
+    fi
+
     # Only auto-resume if we're in "proceed" mode AND no blocked tasks
-    # Other modes (new, new-design, plan) are read-only planning modes
+    # Other modes (new, plan) are read-only planning modes
     if [[ "$SESSION_MODE" == "proceed" ]]; then
         if [[ "$HAS_BLOCKERS" == "true" ]]; then
             # Blocked tasks exist - do NOT auto-resume, require replanning
@@ -235,7 +263,7 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
             echo "---"
             echo "**Commands:** \`/jons-plan:plan [feedback]\` to refine | \`/jons-plan:status\` to see all | \`/jons-plan:proceed\` to implement"
         fi
-    elif [[ "$SESSION_MODE" == "new" || "$SESSION_MODE" == "new-design" || "$SESSION_MODE" == "new-deep" ]]; then
+    elif [[ "$SESSION_MODE" == "new" ]]; then
         # In planning mode - continue creating the plan
         echo "---"
         echo "### Session Mode: Creating Plan"
@@ -243,7 +271,7 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
         echo "You were creating a new plan. **Do NOT execute tasks or modify code outside the plan directory.**"
         echo ""
         echo "To continue:"
-        echo "1. Read \`plan.md\` and \`tasks.json\` from the plan directory (if they exist)"
+        echo "1. Read \`request.md\` and check phase context from the plan directory"
         echo "2. Check recent progress: \`uv run ~/.claude-plugins/jons-plan/plan.py recent-progress\`"
         echo "3. Continue developing the plan following the \`/jons-plan:new\` workflow"
     elif [[ "$SESSION_MODE" == "plan" ]]; then
@@ -254,7 +282,7 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
         echo "You were refining the plan. **Do NOT execute tasks or modify code outside the plan directory.**"
         echo ""
         echo "To continue:"
-        echo "1. Read \`plan.md\` and \`tasks.json\` from the plan directory"
+        echo "1. Read \`request.md\` and check phase context from the plan directory"
         echo "2. Check recent progress: \`uv run ~/.claude-plugins/jons-plan/plan.py recent-progress\`"
         echo "3. Continue refining following the \`/jons-plan:plan\` workflow"
     else

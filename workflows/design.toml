@@ -1,0 +1,252 @@
+# Design Workflow
+# For research projects, design decisions, and exploratory work
+
+[workflow]
+name = "design"
+description = "Research, explore, and produce a design document"
+
+[[phases]]
+id = "research"
+prompt = """
+# Research Phase
+
+Thoroughly investigate the problem space before designing.
+
+## Tasks
+
+Launch exploration agents using `haiku` model to understand the problem space. **You decide** how many agents to launch and what each explores based on the topic's complexity.
+
+Common exploration angles:
+- **Codebase patterns** — Existing implementations, architectural conventions, file organization
+- **External approaches** — Web research on best practices, libraries, how others solve this
+- **Requirements analysis** — Constraints, edge cases, acceptance criteria
+- **Prototyping** — Quick spikes to validate assumptions (write to plan directory only)
+- **API/library research** — Documentation, capabilities, integration patterns
+
+Launch agents appropriately:
+- Run independent explorations in parallel for speed
+- Chain explorations that depend on each other
+- Use more agents for complex topics with many angles
+- Use fewer for focused topics with clear scope
+
+## Model Selection
+
+| Task Type | Model |
+|-----------|-------|
+| Quick codebase lookup | `haiku` |
+| Thorough codebase research | `haiku` |
+| External API/library research | `haiku` |
+| Prototyping spike | `sonnet` |
+| Trade-off analysis | `opus` |
+
+## Outputs
+
+Write findings to `research.md`:
+- Current state of the codebase
+- External resources and references
+- Identified constraints
+- Potential approaches with pros/cons
+"""
+suggested_next = ["draft"]
+
+[[phases]]
+id = "draft"
+prompt = """
+# Draft Phase
+
+Create the initial design document with confidence assessment.
+
+## Inputs
+
+Review research.md from the research phase.
+
+## Tasks
+
+1. Synthesize research findings into a coherent design
+2. Choose an approach and justify the decision
+3. Document the proposed architecture/solution
+4. Identify risks and mitigation strategies
+5. Assess confidence (1-5 scale)
+
+## Confidence Assessment Format
+
+Include this section at the end of `design.md`:
+
+```markdown
+## Confidence Assessment
+
+**Overall Score: [1-5]**
+
+| Dimension | Score | Explanation |
+|-----------|-------|-------------|
+| Feasibility | [1-5] | Can this be implemented with the current codebase? |
+| Scope | [1-5] | Is the scope well-defined and achievable? |
+| Technical Risk | [1-5] | Are there unknowns or risky assumptions? |
+
+**Areas of Uncertainty:**
+- [List specific uncertainties to resolve via review]
+
+**Questions for Reviewers:**
+- [Specific questions you want external reviewers to address]
+```
+
+## Checkpoint
+
+**If overall confidence score is below 4**, STOP and discuss concerns with the user before proceeding:
+- Present the confidence assessment
+- List specific concerns and dimensions
+- Ask for guidance: proceed anyway, investigate further, or pivot
+
+## Outputs
+
+Write `design.md` with:
+- Problem statement
+- Proposed solution
+- Architecture/design details
+- Implementation considerations
+- Risk assessment
+- Confidence assessment
+"""
+suggested_next = ["review"]
+
+[[phases]]
+id = "review"
+prompt = """
+# Review Phase
+
+Get external feedback on the design.
+
+## Tasks
+
+1. Launch gemini-reviewer agent to review design.md
+2. Launch codex-reviewer agent for second opinion
+3. Collect and organize feedback
+
+**Important for reviewer tasks:**
+- Do NOT include `model` field (reviewers use their own external models)
+- Do NOT include `subagent_prompt` field (not used for reviewers)
+
+## Outputs
+
+Write `review-feedback.md` using this format:
+
+```markdown
+# Review Feedback
+
+## Source: gemini-reviewer
+
+### ACCEPT
+- [Feedback point]: [How this will be addressed]
+
+### INVESTIGATE
+- [Feedback point]: [Question that needs exploration]
+  - Domain: codebase|technical|requirements
+  - Specific question: "[Precise question for an explore agent]"
+
+### REJECT
+- [Feedback point]: [Why this doesn't apply or is incorrect]
+
+## Source: codex-reviewer
+
+### ACCEPT
+- [...]
+
+### INVESTIGATE
+- [...]
+
+### REJECT
+- [...]
+
+## Investigation Questions Summary
+
+**Codebase questions:**
+- [Question 1]
+
+**Technical questions:**
+- [Question 1]
+
+**Requirements questions:**
+- [Question 1]
+```
+"""
+suggested_next = ["revise"]
+
+[[phases]]
+id = "revise"
+prompt = """
+# Revise Phase
+
+Incorporate feedback and finalize the design.
+
+## Inputs
+
+- design.md from draft phase
+- review-feedback.md from review phase
+
+## Tasks
+
+1. Address all ACCEPT items by updating design.md
+2. For INVESTIGATE items:
+   - Launch `haiku` exploration agents for each question
+   - Write findings to `investigation-findings.md`
+   - Update design based on findings
+3. Document rationale for REJECT items (brief note is fine)
+4. Update confidence assessment
+
+## Investigation Findings Format
+
+If investigations were needed:
+
+```markdown
+# Investigation Findings
+
+## Question: [Original question]
+**Domain:** codebase|technical|requirements
+**Finding:** [What was discovered]
+**Impact on Design:** [How this affects the design]
+**Recommendation:** accept-feedback|reject-feedback|modify-approach
+```
+
+## Final Confidence Check
+
+After incorporating feedback, re-assess confidence (1-5).
+
+**If final confidence score is below 4**, STOP and discuss with the user:
+- Present updated confidence assessment
+- Explain what concerns remain
+- Ask: create design anyway, discuss concerns, or abandon
+
+## Outputs
+
+Updated design.md with:
+- Addressed feedback
+- Investigation findings (if any)
+- Final confidence score (1-5) with rationale
+"""
+suggested_next = ["complete"]
+
+[[phases]]
+id = "complete"
+prompt = """
+# Complete Phase
+
+Finalize the design document.
+
+## Tasks
+
+1. Review final design.md
+2. Ensure all feedback is addressed
+3. Document next steps if implementation is desired
+
+## Design Document Checklist
+
+- [ ] Problem statement is clear
+- [ ] Proposed solution is fully described
+- [ ] Trade-offs are documented
+- [ ] Risks and mitigations are identified
+- [ ] Confidence assessment is included
+- [ ] Feedback has been addressed
+
+This is a terminal phase. The design workflow is complete.
+"""
+terminal = true

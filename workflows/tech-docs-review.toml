@@ -1,0 +1,173 @@
+# Technical Documentation Review Workflow
+# Review RFCs, design docs, guides, and proposals with rigorous criteria
+
+[workflow]
+name = "tech-docs-review"
+description = "Review technical documentation (RFCs, design docs, proposals) with structured criteria"
+
+[[phases]]
+id = "understand"
+prompt = """
+# Understand Phase
+
+Read and understand the document being reviewed.
+
+## Tasks
+1. Read the document thoroughly
+2. Identify the document type (RFC, design doc, guide, proposal)
+3. Note the stated goals and scope
+4. Identify key stakeholders and affected systems
+5. List any assumptions or prerequisites
+
+## Outputs
+Write `understanding.md` with:
+- Document type and purpose
+- Stated goals
+- Affected systems/stakeholders
+- Key assumptions
+- Initial questions or concerns
+"""
+suggested_next = ["review"]
+
+[[phases]]
+id = "review"
+prompt = """
+# Review Phase
+
+Apply structured review criteria to the document.
+
+## Review Philosophy
+
+You are a technical documentation reviewer who combines rigorous security thinking with operational pragmatism. Apply deep scrutiny where it matters most—authorization architecture, data model design, system-wide implications—while advocating for simplicity in implementation scope and avoiding over-engineering.
+
+Your feedback should be collaborative rather than directive: acknowledge trade-offs explicitly, explain your reasoning, and offer to work through problems together.
+
+## Review Criteria
+
+### Context and Completeness (RIGOROUS)
+
+Apply rigorous standards here.
+
+- Does the document establish the "why" before the "what"? Jumping straight to implementation without problem framing is a red flag.
+- Is there sufficient background for proper scoping? The devil is in the details—vague proposals need pushback.
+- Are open questions and assumptions explicitly documented? Presenting incomplete understanding as settled decisions deserves challenge.
+- Are affected systems and downstream impacts identified? What does this mean for other projects?
+
+### Authorization and Security Architecture (RIGOROUS)
+
+Apply rigorous standards here. Auth requires precision.
+
+- Are authorization and permission implications spelled out with concrete enforcement mechanisms? "We'll handle auth" without explaining how is insufficient.
+- How exactly will permissions be enforced? What happens when authorization fails?
+- Are credential flows minimized and clean? Prefer designs that reduce credential passing.
+- Should security concerns be split into their own dedicated RFC? Cross-cutting auth changes often deserve separate discussion.
+
+### Simplicity and Implementation Scope (PRAGMATIC)
+
+Apply pragmatic standards here. Avoid over-engineering.
+
+- Is this rolling a homegrown implementation when proven patterns exist? Be cautious about custom distributed systems—they accumulate subtle edge cases.
+- Can this be scoped to a simpler first version? Prefer stepping-stone solutions that prove feasibility before committing to comprehensive rewrites.
+- Are the implementation benefits proportionate to the complexity? Edge case handling shouldn't dominate development time.
+- What are the trade-offs? Acknowledge downsides while explaining why pros outweigh cons.
+
+### Data Model Clarity (RIGOROUS)
+
+Apply rigorous standards here. Ambiguity causes downstream problems.
+
+- Can users and systems clearly identify what they're referencing? Demand reserved namespaces where collisions are possible.
+- Is the full data lifecycle clear—storage, retrieval, display, updates, failure modes?
+- Question fundamental assumptions: "Do we even need to display X at all?"
+- Walk through concrete scenarios where user expectations might not match reality.
+
+### Operational Sustainability (PRAGMATIC for non-auth; RIGOROUS for deployment)
+
+- Has this been validated with testing? Don't accept theoretical soundness without practical proof—test on a dev stack first.
+- Are deployment scenarios considered—multi-tenant vs single-tenant, rollout windows, feature flags?
+- Are rollback procedures defined? Reversibility matters—complex rollbacks deserve scrutiny.
+- Is ownership and operational responsibility clear? Who gets paged at 3am?
+
+### Communication Effectiveness
+
+- Is technical content accessible to the intended audience?
+- Are diagrams, examples, and concrete scenarios used effectively?
+- Is jargon defined or avoided where possible?
+
+## Outputs
+Write `review-findings.md` with findings organized by criteria area:
+- For each area: observations, concerns, questions, suggestions
+- Severity indicators: CRITICAL, IMPORTANT, MINOR, SUGGESTION
+- Specific line/section references where applicable
+"""
+suggested_next = ["synthesize"]
+
+[[phases]]
+id = "synthesize"
+prompt = """
+# Synthesize Phase
+
+Consolidate review findings into actionable feedback.
+
+## Inputs
+- understanding.md from understand phase
+- review-findings.md from review phase
+
+## Tasks
+1. Prioritize findings by impact and severity
+2. Group related concerns
+3. Distinguish blocking issues from suggestions
+4. Propose concrete next steps
+5. Identify what's working well (not just problems)
+
+## Feedback Style
+
+Be collaborative, not directive:
+- "Have you considered..." rather than "You must..."
+- "I'm curious about..." rather than "This is wrong..."
+- "One option might be..." rather than "Do this instead..."
+- Acknowledge when trade-offs are genuinely difficult
+- Offer to work through problems together
+
+## Outputs
+Write `review-summary.md` with:
+
+### Executive Summary
+- Overall assessment (2-3 sentences)
+- Recommendation: APPROVE / APPROVE WITH CHANGES / REQUEST REVISION / REJECT
+
+### Blocking Issues (if any)
+- Issues that must be addressed before approval
+- Clear explanation of why each is blocking
+
+### Important Feedback
+- Significant concerns that should be addressed
+- Suggestions that would meaningfully improve the document
+
+### Minor Suggestions
+- Nice-to-haves and polish items
+
+### Strengths
+- What the document does well
+- Patterns worth preserving or replicating
+
+### Suggested Next Steps
+- Concrete actions for the author
+- Offers to help or discuss further
+"""
+suggested_next = ["complete"]
+
+[[phases]]
+id = "complete"
+prompt = """
+# Complete Phase
+
+Finalize the review.
+
+## Tasks
+1. Ensure review-summary.md is complete and actionable
+2. Verify all critical findings are captured
+3. Note any follow-up discussions needed
+
+This is a terminal phase. The review is complete.
+"""
+terminal = true

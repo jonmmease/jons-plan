@@ -37,6 +37,12 @@ echo "**Mode:** ${SESSION_MODE:-not set}"
 echo "**Active Plan:** \`${ACTIVE_PLAN}\`"
 echo ""
 
+# Include workflow phase context
+echo "### Workflow Phase"
+echo ""
+plan phase-summary 2>/dev/null || echo "_No current phase_"
+echo ""
+
 if [[ -n "$IN_PROGRESS" ]]; then
     echo "### Current Task(s)"
     echo ""
@@ -60,13 +66,10 @@ if [[ -n "$IN_PROGRESS" ]]; then
 
     echo "### After Compaction"
     echo ""
-    echo "Read task progress file(s) for full context:"
-    echo "$IN_PROGRESS" | while IFS=':' read -r task_id task_desc; do
-        task_id=$(echo "$task_id" | tr -d ' ')
-        if [[ -n "$task_id" ]]; then
-            echo "- \`.claude/jons-plan/plans/${ACTIVE_PLAN}/tasks/${task_id}/progress.txt\`"
-        fi
-    done
+    echo "Read task progress for full context:"
+    echo "\`\`\`bash"
+    echo "uv run ~/.claude-plugins/jons-plan/plan.py task-progress <task-id>"
+    echo "\`\`\`"
 else
     echo "_No tasks currently in progress_"
 fi

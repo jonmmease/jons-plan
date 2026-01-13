@@ -15,6 +15,48 @@ If the file is empty or missing:
 - Tell user: "No active plan. Use `/jons-plan:new [topic]` to create one."
 - Stop here - do not proceed further.
 
+## Set Session Mode
+
+Set the session mode to `proceed` so hooks know we're implementing:
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py set-mode proceed
+```
+
+## Phase-Based Execution
+
+Tasks are scoped to the **current phase** of the workflow:
+
+1. **Get current phase context**:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py phase-context
+   ```
+   This shows the phase prompt, input artifacts, and any re-entry context.
+
+2. **Check phase tasks**:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py phase-tasks
+   uv run ~/.claude-plugins/jons-plan/plan.py phase-next-tasks
+   ```
+   Execute tasks from the current phase's tasks.json.
+
+3. **After phase tasks complete**:
+   - Check `suggested-next` for the next phase
+   - If phase has `requires_user_input: true`, set mode to `awaiting-feedback` and stop
+   - Otherwise, transition to the next phase:
+     ```bash
+     uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <next-phase-id>
+     ```
+
+4. **On terminal phase**:
+   The workflow is complete. Show summary and allow stop.
+
+5. **Recording dead-ends**:
+   If an approach fails, record it so it's not repeated:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py add-dead-end --task-id <id> --what-failed "..." --why-failed "..." --type WRONG_ASSUMPTION
+   ```
+
 ## Check for Blocked Tasks
 
 Before proceeding, check if any tasks are blocked:

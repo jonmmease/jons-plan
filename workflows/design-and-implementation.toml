@@ -1,0 +1,171 @@
+# Design-and-Implementation Workflow
+# Design first, then optionally implement after user approval
+
+[workflow]
+name = "design-and-implementation"
+description = "Design a solution, get user approval, then optionally implement"
+
+[[phases]]
+id = "research"
+prompt = """
+# Research Phase
+
+Investigate the problem space before designing.
+
+## Tasks
+1. Explore the existing codebase
+2. Research potential approaches
+3. Identify constraints and requirements
+4. Document trade-offs
+
+## Outputs
+Write `research.md` with findings.
+"""
+suggested_next = ["draft"]
+
+[[phases]]
+id = "draft"
+prompt = """
+# Draft Phase
+
+Create the design document.
+
+## Inputs
+Review research.md from research phase.
+
+## Tasks
+1. Synthesize research into a design
+2. Document the proposed solution
+3. Include implementation plan preview
+
+## Outputs
+Write `design.md` with the complete design.
+"""
+suggested_next = ["review"]
+
+[[phases]]
+id = "review"
+prompt = """
+# Review Phase
+
+Get external feedback on the design.
+
+## Tasks
+1. Launch reviewer agents (gemini-reviewer, codex-reviewer)
+2. Collect and categorize feedback
+
+## Outputs
+Write `review-feedback.md` with categorized feedback.
+"""
+suggested_next = ["revise"]
+
+[[phases]]
+id = "revise"
+prompt = """
+# Revise Phase
+
+Incorporate feedback and finalize design.
+
+## Tasks
+1. Address feedback in design.md
+2. Update confidence assessment
+
+## Outputs
+Final design.md ready for user review.
+"""
+suggested_next = ["user-decision"]
+
+[[phases]]
+id = "user-decision"
+prompt = """
+# User Decision Phase
+
+Present the design to the user for approval.
+
+## User Review
+The user should review:
+- design.md - The proposed solution
+- review-feedback.md - External feedback received
+
+## Options
+The user can choose to:
+1. **Implement** - Proceed with implementation
+2. **Complete design only** - End workflow with design document
+3. **Revise** - Go back to revise phase with feedback
+
+This phase requires user input. Stop and await user feedback.
+"""
+requires_user_input = true
+user_review_artifacts = ["design.md", "review-feedback.md"]
+suggested_next = ["implement", "complete-design-only"]
+
+[[phases]]
+id = "implement"
+use_tasks = true
+prompt = """
+# Implement Phase
+
+Execute the design.
+
+## Inputs
+- design.md with approved design
+- research.md for context
+
+## Tasks
+1. Create tasks.json with implementation plan
+2. Execute tasks following the design
+3. Validate implementation matches design
+
+## Outputs
+Working implementation of the design.
+"""
+suggested_next = ["validate"]
+
+[[phases]]
+id = "validate"
+prompt = """
+# Validate Phase
+
+Verify implementation matches the design.
+
+## Tasks
+1. Run tests
+2. Verify feature works as designed
+3. Check for regressions
+
+## Outputs
+If valid, proceed to complete. Otherwise, back to implement.
+"""
+suggested_next = ["complete"]
+on_blocked = "implement"
+
+[[phases]]
+id = "complete"
+prompt = """
+# Complete Phase
+
+Finalize the implementation.
+
+## Tasks
+1. Review all changes
+2. Prepare commit message
+3. Document any follow-up work
+
+This is a terminal phase.
+"""
+terminal = true
+
+[[phases]]
+id = "complete-design-only"
+prompt = """
+# Complete Design Only
+
+Finalize without implementation.
+
+The design document is complete. Implementation can be done
+separately using the `/jons-plan:new` command with this design
+as reference.
+
+This is a terminal phase.
+"""
+terminal = true
