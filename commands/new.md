@@ -81,10 +81,33 @@ Built-in workflows in `~/.claude-plugins/jons-plan/workflows/`:
 
 ## Plan Creation Steps
 
-### Step 1: Derive Plan Name
+### Step 1: Clarify Requirements
+
+**Before creating any files**, use `AskUserQuestion` to clarify the request. This is MANDATORY for non-trivial requests.
+
+**Ask about:**
+1. **Scope boundaries** - What's in/out of scope?
+2. **Technical choices** - Libraries, patterns, approaches with trade-offs
+3. **Ambiguous terms** - Anything that could be interpreted multiple ways
+4. **Constraints** - Performance, compatibility, timeline considerations
+5. **Preferences** - When multiple valid approaches exist
+
+**Format:** Use 2-4 questions per `AskUserQuestion` call. Continue asking until requirements are clear enough to create a concrete plan.
+
+**Example questions:**
+- "What database approach would you prefer?" → Options: SQLite, Realm, Hive, Research alternatives
+- "How should priorities be represented?" → Options: Simple (High/Med/Low), Numeric (1-10), Custom labels
+- "Should the app support..." → Options for scope clarification
+
+**Skip this step only if:**
+- Request is extremely specific with no ambiguity
+- It's a simple bug fix with clear reproduction steps
+- User explicitly says "just do it, don't ask questions"
+
+### Step 2: Derive Plan Name
 Convert topic to kebab-case (e.g., "add user authentication" → "add-user-authentication")
 
-### Step 2: Create Plan Infrastructure
+### Step 3: Create Plan Infrastructure
 1. Ensure `.claude/jons-plan/` is in `.git/info/exclude` (do NOT modify `.gitignore`)
 2. Create directory: `.claude/jons-plan/plans/[name]/`
 3. Copy workflow.toml to plan directory:
@@ -98,14 +121,14 @@ Convert topic to kebab-case (e.g., "add user authentication" → "add-user-authe
    uv run ~/.claude-plugins/jons-plan/plan.py set-active <plan-name>
    ```
 
-### Step 3: Initialize State Machine
+### Step 4: Initialize State Machine
 1. Initialize state.json with first phase
 2. Create first phase directory:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <first-phase-id>
    ```
 
-### Step 4: Present Summary
+### Step 5: Present Summary
 1. Display workflow diagram:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py workflow-diagram --flow east
@@ -259,27 +282,6 @@ Simple format:
 ```
 
 See `proceed.md` for validation task execution details and blocking criteria.
-
-## Using Multiple Choice Questions
-
-Use `AskUserQuestion` with multiple choice options when you encounter:
-
-**Ambiguous Requirements**
-- Scope is unclear (e.g., "should this also handle X?")
-- Multiple valid interpretations of the request
-- Missing information needed to proceed
-
-**Key Architectural Decisions**
-- Multiple valid approaches with different trade-offs
-- Technology/library choices that affect the plan significantly
-- Design patterns where user preference matters
-
-Example scenarios:
-- "The user asked to 'improve performance' - ask which areas to focus on"
-- "Authentication could use JWT or sessions - ask which approach they prefer"
-- "This feature could be simple or comprehensive - clarify desired scope"
-
-Do NOT use multiple choice for routine decisions or minor implementation details. Reserve it for decisions that meaningfully shape the plan.
 
 ## Important Reminders
 
