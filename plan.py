@@ -2923,6 +2923,53 @@ def cmd_cache_stats(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cache_suggest(args: argparse.Namespace) -> int:
+    """Suggest cache reference tasks for a task description.
+
+    Searches the cache for matches and returns JSON with suggestions
+    for creating cache-reference tasks.
+    """
+    project_dir = get_project_dir()
+    cache = ResearchCache(project_dir)
+
+    # Search with top-3 results
+    hits = cache.search(args.description, limit=3, include_expired=False)
+
+    # Filter by relevance threshold (lower BM25 score = more relevant)
+    # Note: BM25 scores are typically small negative numbers for good matches
+    # A threshold of 0.0 means "any match is relevant" (using <= to include -0.00)
+    RELEVANCE_THRESHOLD = 0.0
+    relevant_hits = [h for h in hits if h.score is not None and h.score <= RELEVANCE_THRESHOLD]
+
+    # Build suggestions
+    suggestions = []
+    for hit in relevant_hits:
+        ref_task = {
+            "id": f"ref-{hit.id}",
+            "type": "cache-reference",
+            "cache_id": hit.id,
+            "description": f"Cached: {hit.query[:50]}{'...' if len(hit.query) > 50 else ''}",
+            "parents": [],
+            "steps": [],
+            "status": "todo",
+        }
+        suggestions.append({
+            "cache_id": hit.id,
+            "query": hit.query,
+            "score": round(hit.score, 2) if hit.score else None,
+            "ref_task": ref_task,
+        })
+
+    output = {
+        "has_hits": len(suggestions) > 0,
+        "threshold": RELEVANCE_THRESHOLD,
+        "suggestions": suggestions,
+    }
+
+    print(json.dumps(output, indent=2))
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     """Show comprehensive status overview."""
     project_dir = get_project_dir()
@@ -3220,6 +3267,10 @@ def main() -> int:
     p_cache_stats = subparsers.add_parser("cache-stats", help="Show cache statistics")
     p_cache_stats.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # cache-suggest
+    p_cache_suggest = subparsers.add_parser("cache-suggest", help="Suggest cache references for a task")
+    p_cache_suggest.add_argument("--description", "-d", required=True, help="Task description to search for")
+
     args = parser.parse_args()
 
     commands = {
@@ -3286,6 +3337,7 @@ def main() -> int:
         "cache-clear": cmd_cache_clear,
         "cache-gc": cmd_cache_gc,
         "cache-stats": cmd_cache_stats,
+        "cache-suggest": cmd_cache_suggest,
     }
 
     return commands[args.command](args)

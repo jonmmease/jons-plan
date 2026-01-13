@@ -122,13 +122,19 @@ No feedback provided. Read the current `request.md` and phase context, show a su
 
 5. **Explore if needed**: If the feedback requires understanding new parts of the codebase, launch Explore agents
 
-6. **Update plan files**:
+6. **Cache check**: When adding research tasks, run `cache-suggest` to check for cached findings:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py cache-suggest --description "task description"
+   ```
+   If `has_hits` is true, add the suggested reference task and make the research task depend on it.
+
+7. **Update plan files**:
    - Edit `request.md` for scope/requirement changes
    - Edit phase `tasks.json` for execution changes (get location with `phase-tasks-file`)
 
-7. **Present summary**: Show what was changed
+8. **Present summary**: Show what was changed
 
-8. **Next steps**: Tell user: "Type `/jons-plan:proceed` to continue, or `/jons-plan:plan [more feedback]` to refine further."
+9. **Next steps**: Tell user: "Type `/jons-plan:proceed` to continue, or `/jons-plan:plan [more feedback]` to refine further."
 
 ## Task Schema Reference
 

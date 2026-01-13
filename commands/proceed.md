@@ -209,6 +209,35 @@ uv run ~/.claude-plugins/jons-plan/plan.py set-status ref-sqlite-fts5 done
 - **Downstream tasks**: Tasks that depend on a cache-reference task receive the findings via `build-task-prompt` just like any other parent task output
 - **Zero cost execution**: These tasks are essentially instant - just reading from local cache
 
+## Caching Research Findings
+
+After completing research tasks that produce valuable external findings, consider caching them for future reuse.
+
+### When to Cache
+
+Cache findings when:
+- Web search produced useful documentation or patterns
+- Documentation lookup found relevant best practices
+- External research could benefit future similar tasks
+
+Do NOT cache:
+- Codebase exploration results (changes with code)
+- Temporary or context-specific findings
+- Very short findings (< 100 chars)
+
+### How to Cache
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py cache-add \
+  --query "the search query or question" \
+  --findings-file path/to/findings.md \
+  --source-type web_search \
+  --source-url "https://source.url" \
+  --plan-id "current-plan-name"
+```
+
+This is a manual process - use your judgment about what's worth caching.
+
 ## When to Use Subagents vs Execute Directly
 
 **Execute directly (no subagent) when:**

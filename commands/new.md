@@ -286,6 +286,58 @@ Simple format:
 
 See `proceed.md` for validation task execution details and blocking criteria.
 
+## Cache Integration (Research Tasks)
+
+Before creating research tasks (web search, documentation lookup), check the research cache for relevant cached findings that could be reused.
+
+### When to Check Cache
+
+Check the cache when creating tasks that:
+- Have keywords: "research", "investigate", "explore", "find", "lookup", "search"
+- Use subagent type `Explore`
+- Involve external sources (web, documentation, APIs)
+
+### How to Check
+
+For each research-type task, run:
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py cache-suggest --description "task description here"
+```
+
+### If Cache Has Hits
+
+When `has_hits` is true and suggestions are returned:
+
+1. **Add the reference task** from the suggestion to tasks.json:
+   ```json
+   {
+     "id": "ref-42",
+     "type": "cache-reference",
+     "cache_id": 42,
+     "description": "Cached: Original query...",
+     "parents": [],
+     "steps": [],
+     "status": "todo"
+   }
+   ```
+
+2. **Make the research task depend on the reference task**:
+   ```json
+   {
+     "id": "research-sqlite-fts5",
+     "description": "Research SQLite FTS5 patterns",
+     "parents": ["ref-42"],
+     "steps": ["Review cached findings", "Supplement with additional research if needed"],
+     "status": "todo"
+   }
+   ```
+
+This allows cached research to be injected via the parent task output flow.
+
+### If No Cache Hits
+
+Proceed with creating a normal research task. After the research completes (during implementation), consider caching valuable findings using `cache-add`.
+
 ## Important Reminders
 
 - NEVER implement code - only create the plan infrastructure
