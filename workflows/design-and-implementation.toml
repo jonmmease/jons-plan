@@ -140,6 +140,36 @@ Execute the design.
 ## Setup
 1. Create tasks.json with implementation plan based on design.md
 2. All tasks start with `status: "todo"`
+3. Create `verification-plan.md` documenting how to verify the implementation
+
+### verification-plan.md
+Analyze the project and document available verification methods:
+
+```markdown
+# Verification Plan
+
+## Available Verification Methods
+- Test suite? (`npm test`, `pytest`, `go test`, etc.)
+- Type checking? (`tsc`, `mypy`, `pyright`, etc.)
+- Linting? (`eslint`, `ruff`, etc.)
+- Build? (`npm run build`, `make`, etc.)
+- MCP tools? (browser automation, API testing, etc.)
+
+## Automated Checks
+- [ ] `<command>` - <what it verifies>
+
+## Interactive Verification (if MCP available)
+- [ ] Navigate to <url>, verify <expected behavior>
+
+## Acceptance Criteria (from design.md)
+- <criterion 1>
+- <criterion 2>
+```
+
+Record the artifact:
+```bash
+uv run plan.py record-artifact verification-plan <path>
+```
 
 ## Task Schema - context_artifacts
 
@@ -178,15 +208,37 @@ id = "validate"
 prompt = """
 # Validate Phase
 
-Verify implementation matches the design.
+Verify implementation matches the design using the verification plan.
 
-## Tasks
-1. Run tests
-2. Verify feature works as designed
-3. Check for regressions
+## Inputs
+The verification-plan artifact contains the checks to run.
 
-## Outputs
-If valid, proceed to complete. Otherwise, back to implement.
+## Execution
+
+### 1. Run Automated Checks
+Execute each command from the verification plan:
+- Run test suite
+- Run type checker
+- Run linter
+- Run build
+
+Log results for each check.
+
+### 2. Interactive Verification (if applicable)
+If the verification plan includes MCP-based checks:
+- Execute browser automation steps
+- Verify UI behavior matches design
+
+### 3. Acceptance Criteria
+Verify each criterion from the verification plan (derived from design.md) is met.
+
+## Outcomes
+
+**All checks pass:** Transition to complete.
+
+**Checks fail:**
+- If fixable: Fix and re-run checks
+- If needs rework: Transition back to implement
 """
 suggested_next = ["complete"]
 on_blocked = "implement"

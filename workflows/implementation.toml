@@ -46,13 +46,46 @@ Create tasks in this phase to:
 4. Consider test-first tasks if acceptance criteria are clear
 
 ## Outputs
-Write `implementation-plan.md` with:
+
+### implementation-plan.md
 - Recommended approach and rationale
 - Task breakdown (descriptions, dependencies, steps)
 - Parallelization strategy
 - Risk assessment
 
-Note: The implement phase will create its own tasks.json from this plan.
+### verification-plan.md
+Create a verification plan based on what's available in the project:
+
+```markdown
+# Verification Plan
+
+## Available Verification Methods
+Analyze and document what verification is possible:
+- Test suite? (`npm test`, `pytest`, `go test`, etc.)
+- Type checking? (`tsc`, `mypy`, `pyright`, etc.)
+- Linting? (`eslint`, `ruff`, etc.)
+- Build verification? (`npm run build`, `make`, etc.)
+- MCP tools? (browser automation, API testing, etc.)
+
+## Automated Checks
+List specific commands to run:
+- [ ] `<command>` - <what it verifies>
+
+## Interactive Verification (if MCP available)
+If browser/UI MCP servers are available, list verification steps:
+- [ ] Navigate to <url>, verify <expected behavior>
+
+## Acceptance Criteria
+What must be true for implementation to be complete?
+```
+
+Record both artifacts:
+```bash
+uv run plan.py record-artifact implementation-plan <path>
+uv run plan.py record-artifact verification-plan <path>
+```
+
+Note: The implement phase will create its own tasks.json from the implementation plan.
 """
 suggested_next = ["implement"]
 
@@ -115,17 +148,43 @@ id = "validate"
 prompt = """
 # Validate Phase
 
-Verify the implementation meets requirements.
+Verify the implementation meets requirements using the verification plan.
 
-## Tasks
-1. Run tests (if applicable)
-2. Verify the feature works as expected
-3. Check for regressions
-4. Review code quality
+## Inputs
+Retrieve the verification plan:
+```bash
+uv run plan.py get-user-guidance  # Check for any user-provided focus areas
+```
 
-## Outputs
-If all validations pass, transition to complete.
-If issues found, either fix them or transition back to implement.
+The verification-plan artifact contains the checks to run.
+
+## Execution
+
+### 1. Run Automated Checks
+Execute each command from the verification plan's "Automated Checks" section:
+- Run test suite
+- Run type checker
+- Run linter
+- Run build
+
+Log results for each check.
+
+### 2. Interactive Verification (if applicable)
+If the verification plan includes MCP-based checks:
+- Execute browser automation steps
+- Verify UI behavior
+- Test API endpoints
+
+### 3. Acceptance Criteria
+Verify each criterion from the verification plan is met.
+
+## Outcomes
+
+**All checks pass:** Transition to complete.
+
+**Checks fail:**
+- If fixable: Fix and re-run checks
+- If needs significant work: Transition back to implement with notes on what failed
 """
 suggested_next = ["complete", "implement"]
 on_blocked = "implement"

@@ -159,10 +159,40 @@ Tasks without parent dependencies can run in parallel, but **only if they won't 
 
 ## Outputs
 
-Write `implementation-plan.md` with:
+### implementation-plan.md
 - Recommended approach and rationale
 - Task breakdown with dependencies (as markdown, not tasks.json yet)
 - Confidence assessment
+
+### verification-plan.md
+Create a verification plan based on what's available:
+
+```markdown
+# Verification Plan
+
+## Available Verification Methods
+Analyze and document:
+- Test suite? (`npm test`, `pytest`, `go test`, etc.)
+- Type checking? (`tsc`, `mypy`, `pyright`, etc.)
+- Linting? (`eslint`, `ruff`, etc.)
+- Build? (`npm run build`, `make`, etc.)
+- MCP tools? (browser automation, API testing, etc.)
+
+## Automated Checks
+- [ ] `<command>` - <what it verifies>
+
+## Interactive Verification (if MCP available)
+- [ ] Navigate to <url>, verify <expected behavior>
+
+## Acceptance Criteria
+- <criterion from request>
+```
+
+Record both artifacts:
+```bash
+uv run plan.py record-artifact implementation-plan <path>
+uv run plan.py record-artifact verification-plan <path>
+```
 """
 suggested_next = ["external-review"]
 
@@ -362,19 +392,42 @@ id = "validate"
 prompt = """
 # Validate Phase
 
-Thoroughly verify the implementation.
+Thoroughly verify the implementation using the verification plan.
 
-## Tasks
+## Inputs
+The verification-plan artifact contains the checks to run.
 
-1. Run all tests
-2. Verify against original requirements
-3. Check edge cases identified in research
-4. Review code quality
+## Execution
 
-## Outputs
+### 1. Run Automated Checks
+Execute each command from the verification plan:
+- Run test suite
+- Run type checker
+- Run linter
+- Run build
 
-If valid, proceed to complete.
-If issues found, either fix or document in dead-ends.
+Log results for each check.
+
+### 2. Interactive Verification (if applicable)
+If the verification plan includes MCP-based checks:
+- Execute browser automation steps
+- Verify UI behavior
+- Test API endpoints
+
+### 3. Edge Cases
+Check edge cases identified during research phase.
+
+### 4. Acceptance Criteria
+Verify each criterion from the verification plan is met.
+
+## Outcomes
+
+**All checks pass:** Transition to complete.
+
+**Checks fail:**
+- If fixable: Fix and re-run checks
+- If needs rework: Transition back to implement
+- If fundamental issue: Record in dead-ends
 """
 suggested_next = ["complete"]
 on_blocked = "implement"
