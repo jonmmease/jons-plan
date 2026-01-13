@@ -156,6 +156,22 @@ uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "message"
 
 This is **best effort** - log what you think is important for resumption.
 
+## When to Use Subagents vs Execute Directly
+
+**Execute directly (no subagent) when:**
+- Task needs MCP tools (subagents don't have MCP access)
+- Task is simple (1-3 steps, quick to complete)
+- Task requires interactive decisions or user feedback
+- You need to see results before deciding next steps
+
+**Use subagents (Task tool) when:**
+- Task is self-contained with clear inputs/outputs
+- Multiple independent tasks can run in parallel
+- Task is complex enough to benefit from isolated context
+- Task has `subagent` or `model` specified in its config
+
+**Default behavior:** Execute tasks directly unless parallelization benefits are clear or task config specifies subagent settings.
+
 ## Parallelization
 
 Tasks without shared parents can run in parallel via subagents, but ONLY if they won't edit files in the same directories.
