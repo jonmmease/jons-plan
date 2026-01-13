@@ -97,9 +97,13 @@ Tasks in `tasks.json` support these fields:
 
 The `context_artifacts` field lets tasks selectively request artifacts from phase history. Use `build-task-prompt` to resolve them.
 
-## Subagent Limitations
+## Subagent Capabilities
 
-**MCP tools are not available to subagents.** Tasks requiring MCP access must run in the main agent context.
+Subagents launched via the Task tool have access to:
+- All file tools (Read, Write, Edit, Glob, Grep)
+- Bash commands
+- MCP tools (same as parent agent)
+- Web tools (WebFetch, WebSearch)
 
 ## Hook Files
 

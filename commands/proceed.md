@@ -159,10 +159,10 @@ This is **best effort** - log what you think is important for resumption.
 ## When to Use Subagents vs Execute Directly
 
 **Execute directly (no subagent) when:**
-- Task needs MCP tools (subagents don't have MCP access)
 - Task is simple (1-3 steps, quick to complete)
 - Task requires interactive decisions or user feedback
 - You need to see results before deciding next steps
+- Task output affects what you do next
 
 **Use subagents (Task tool) when:**
 - Task is self-contained with clear inputs/outputs
@@ -187,7 +187,7 @@ Honor each task's configuration when launching subagents:
 - `subagent_prompt`: Additional context for the agent
 - `model`: Which model to use (`sonnet`, `haiku`, `opus`)
 
-**Note:** Subagents do NOT have access to MCP tools. Tasks requiring MCP access must run in the main agent context. See CLAUDE.md "Subagent Limitations" for details.
+**Note:** Subagents have access to all tools including MCP tools, file tools, and web tools.
 
 ### Subagent Context Injection
 
