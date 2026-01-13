@@ -67,6 +67,36 @@ uv run plan.py set-status <task-id> in-progress
 uv run plan.py set-status <task-id> done
 ```
 
+## Task Schema
+
+Tasks in `tasks.json` support these fields:
+
+```json
+{
+  "id": "implement-auth",
+  "description": "Implement authentication middleware",
+  "steps": ["Create middleware", "Add JWT validation"],
+  "parents": ["design-auth"],
+  "context_artifacts": ["request", "design"],
+  "subagent": "general-purpose",
+  "subagent_prompt": "Focus on security",
+  "model": "sonnet"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `id` | Unique task identifier |
+| `description` | What the task accomplishes |
+| `steps` | Ordered list of steps |
+| `parents` | Task IDs that must complete first |
+| `context_artifacts` | Artifact names to include (e.g., `["request", "design"]`) |
+| `subagent` | Agent type for execution |
+| `subagent_prompt` | Additional context for subagent |
+| `model` | Model override (`sonnet`, `haiku`, `opus`) |
+
+The `context_artifacts` field lets tasks selectively request artifacts from phase history. Use `build-task-prompt` to resolve them.
+
 ## Subagent Limitations
 
 **MCP tools are not available to subagents.** Tasks requiring MCP access must run in the main agent context.
@@ -135,6 +165,7 @@ All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 | `current-phase` | Print current phase ID |
 | `current-phase-dir` | Print current phase directory |
 | `enter-phase <phase-id> [--reason]` | Enter/re-enter a phase |
+| `enter-phase-by-number <n> [guidance]` | Enter phase by option number |
 | `suggested-next` | List possible transitions |
 | `phase-history` | Show all phase entries |
 | `phase-context [--json]` | Show full phase context |
@@ -162,6 +193,8 @@ All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 | `set-mode <mode>` | Set session mode |
 | `get-mode` | Get current mode |
 | `clear-mode` | Clear session mode |
+| `get-user-guidance` | Get guidance from user decision |
+| `clear-user-guidance` | Clear guidance after processing |
 
 Valid modes: `new`, `plan`, `proceed`, `awaiting-feedback`
 

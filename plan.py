@@ -1297,7 +1297,29 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
         for step in steps:
             prompt_parts.append(f"- {step}")
 
-    # 3. Parent task outputs
+    # 3. Context artifacts (from phase history)
+    context_artifacts = task.get("context_artifacts", [])
+    if context_artifacts:
+        resolver = ArtifactResolver(plan_dir)
+        all_artifacts = resolver.resolve_all(exclude_current=False)
+
+        artifact_contents = []
+        for artifact_name in context_artifacts:
+            if artifact_name in all_artifacts:
+                artifact_path = all_artifacts[artifact_name]
+                if artifact_path.exists():
+                    content = artifact_path.read_text().strip()
+                    if content:
+                        artifact_contents.append((artifact_name, artifact_path, content))
+
+        if artifact_contents:
+            prompt_parts.append("\n\n## Context Artifacts")
+            for name, path, content in artifact_contents:
+                prompt_parts.append(f"\n### {name}")
+                prompt_parts.append(f"_Source: {path.relative_to(plan_dir)}_")
+                prompt_parts.append(content)
+
+    # 4. Parent task outputs
     parents = task.get("parents", [])
     parent_outputs = []
     for parent_id in parents:
@@ -1318,7 +1340,7 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
             prompt_parts.append(f"\n### {parent_id}/{filename}")
             prompt_parts.append(content)
 
-    # 4. Prior progress (for resumption)
+    # 5. Prior progress (for resumption)
     task_dir = get_task_output_dir(plan_dir, args.task_id)
     if task_dir:
         progress_file = task_dir / "progress.txt"
@@ -1329,7 +1351,7 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
                 prompt_parts.append(progress_content)
                 prompt_parts.append("\nContinue from where the previous work left off.")
 
-    # 5. Task output directory (for research/exploration tasks that produce artifacts)
+    # 6. Task output directory (for research/exploration tasks that produce artifacts)
     output_dir = get_task_output_dir(plan_dir, args.task_id)
     if output_dir:
         prompt_parts.append("\n\n## Task Output Directory")
@@ -1338,7 +1360,7 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
         prompt_parts.append(f"- You have FULL write access - create files as needed (e.g., findings.md, analysis.md)")
         prompt_parts.append(f"- The directory will be created automatically when you write to it")
 
-    # 6. CLI reference for task completion
+    # 7. CLI reference for task completion
     prompt_parts.append("\n\n## When Done")
     prompt_parts.append(f"Mark this task complete: `uv run ~/.claude-plugins/jons-plan/plan.py set-status {args.task_id} done`")
 
