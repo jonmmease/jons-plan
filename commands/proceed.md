@@ -7,6 +7,25 @@ allowed-tools: "*"
 
 You are implementing tasks from the active jons-plan.
 
+## Arguments
+
+{{#if args}}
+Arguments provided: `{{args}}`
+{{/if}}
+
+### Numeric Phase Selection
+
+If the arguments start with a number (e.g., `/jons-plan:proceed 1` or `/jons-plan:proceed 2 focus on error handling`):
+
+1. Parse the number and optional guidance text
+2. Call the CLI to transition to that phase:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py enter-phase-by-number <number> "<guidance>"
+   ```
+3. Continue with normal phase execution below
+
+This is used when a phase presents numbered options (like `suggested_next` transitions) and the user selects one.
+
 ## Check Active Plan
 
 First, read `.claude/jons-plan/active-plan` to get the active plan name.

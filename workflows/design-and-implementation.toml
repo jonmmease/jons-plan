@@ -89,10 +89,13 @@ The user should review:
 - review-feedback.md - External feedback received
 
 ## Options
-The user can choose to:
-1. **Implement** - Proceed with implementation
-2. **Complete design only** - End workflow with design document
-3. **Revise** - Go back to revise phase with feedback
+Present these numbered options to the user:
+1. **implement** - Proceed with implementation
+2. **complete-design-only** - End workflow with design document only
+
+After listing options, show: `Use /jons-plan:proceed <number> [optional guidance]` to select.
+
+Example: `/jons-plan:proceed 1` or `/jons-plan:proceed 2 good enough for now`
 
 This phase requires user input. Stop and await user feedback.
 """

@@ -1648,6 +1648,65 @@ def cmd_suggested_next(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_enter_phase_by_number(args: argparse.Namespace) -> int:
+    """Enter a phase by its number in the suggested_next list."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    workflow_mgr = WorkflowManager(plan_dir)
+    if not workflow_mgr.exists():
+        print("No workflow.toml in plan", file=sys.stderr)
+        return 1
+
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    current_phase = state.get("current_phase")
+
+    if not current_phase:
+        print("No current phase", file=sys.stderr)
+        return 1
+
+    suggested = workflow_mgr.get_suggested_next(current_phase)
+    if not suggested:
+        if workflow_mgr.is_terminal(current_phase):
+            print("Current phase is terminal, no transitions available", file=sys.stderr)
+        else:
+            print("No suggested transitions from current phase", file=sys.stderr)
+        return 1
+
+    number = args.number
+    if number < 1 or number > len(suggested):
+        print(f"Invalid option: {number}. Valid range: 1-{len(suggested)}", file=sys.stderr)
+        print("Options:", file=sys.stderr)
+        for i, phase_id in enumerate(suggested, 1):
+            print(f"  {i}. {phase_id}", file=sys.stderr)
+        return 1
+
+    target_phase = suggested[number - 1]
+
+    # Store guidance in state if provided
+    guidance = args.guidance.strip() if args.guidance else ""
+    if guidance:
+        state["user_guidance"] = guidance
+        state_mgr.save(state)
+        log_progress(plan_dir, f"USER_GUIDANCE: {guidance}")
+
+    # Build reason string
+    reason = f"User selected option {number}"
+    if guidance:
+        reason += f": {guidance}"
+
+    # Simulate args for enter-phase
+    class EnterPhaseArgs:
+        phase_id = target_phase
+        reason = reason
+
+    return cmd_enter_phase(EnterPhaseArgs())
+
+
 def cmd_phase_history(args: argparse.Namespace) -> int:
     """Show all phase entries in chronological order."""
     project_dir = get_project_dir()
@@ -2375,6 +2434,10 @@ def main() -> int:
 
     subparsers.add_parser("suggested-next", help="List possible phase transitions")
 
+    p_enter_by_num = subparsers.add_parser("enter-phase-by-number", help="Enter phase by number from suggested_next")
+    p_enter_by_num.add_argument("number", type=int, help="Option number (1-indexed)")
+    p_enter_by_num.add_argument("guidance", nargs="?", default="", help="Optional guidance text")
+
     subparsers.add_parser("phase-history", help="Show all phase entries")
 
     # Artifact commands
@@ -2445,6 +2508,7 @@ def main() -> int:
         "current-phase-dir": cmd_current_phase_dir,
         "enter-phase": cmd_enter_phase,
         "suggested-next": cmd_suggested_next,
+        "enter-phase-by-number": cmd_enter_phase_by_number,
         "phase-history": cmd_phase_history,
         # Artifact commands
         "record-artifact": cmd_record_artifact,
