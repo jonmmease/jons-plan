@@ -10,7 +10,9 @@ Usage: uv run ~/.claude-plugins/jons-plan/plan.py <subcommand> [args]
 
 import argparse
 import json
+import sqlite3
 import sys
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -579,6 +581,456 @@ class ArtifactResolver:
                 for filename, rel_path in latest_entry["artifacts"].items()
             }
         return {}
+
+
+# --- Research Cache ---
+
+
+@dataclass
+class CacheEntry:
+    """A cached research entry."""
+
+    id: int
+    query: str
+    query_normalized: str
+    findings: str
+    created_at: int
+    expires_at: int
+    source_type: str
+    source_url: str | None
+    plan_id: str | None
+    supersedes_id: int | None
+    is_expired: bool
+    score: float | None = None  # BM25 score (only when from search)
+
+
+@dataclass
+class CacheStats:
+    """Research cache statistics."""
+
+    total_entries: int
+    active_entries: int
+    expired_entries: int
+    total_size_kb: float
+    oldest_entry: int | None
+    newest_entry: int | None
+    entries_by_source: dict[str, int]
+
+
+class ResearchCache:
+    """SQLite FTS5-based research cache for storing and searching research results."""
+
+    BUSY_TIMEOUT_MS = 5000  # 5 second timeout for locked database
+    MAX_FINDINGS_SIZE = 1_000_000  # 1MB max
+    WARN_FINDINGS_SIZE = 100_000  # 100KB warning threshold
+    GC_THRESHOLD = 100  # Run auto-GC when this many expired entries exist
+    DEFAULT_TTL_DAYS = 30
+
+    # Schema for external-content FTS5 with triggers
+    SCHEMA = """
+    -- Main storage table (single source of truth)
+    CREATE TABLE IF NOT EXISTS research_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        query TEXT NOT NULL,
+        query_normalized TEXT NOT NULL,
+        findings TEXT NOT NULL,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        expires_at INTEGER NOT NULL,
+        source_type TEXT NOT NULL DEFAULT 'web_search',
+        source_url TEXT,
+        plan_id TEXT,
+        supersedes_id INTEGER REFERENCES research_entries(id)
+    );
+
+    -- Indexes for common queries
+    CREATE INDEX IF NOT EXISTS idx_expires ON research_entries(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_query_norm ON research_entries(query_normalized);
+    CREATE INDEX IF NOT EXISTS idx_source_type ON research_entries(source_type);
+    CREATE INDEX IF NOT EXISTS idx_plan_id ON research_entries(plan_id);
+
+    -- FTS5 table for full-text search (external content mode)
+    CREATE VIRTUAL TABLE IF NOT EXISTS research_fts USING fts5(
+        query,
+        findings,
+        content='research_entries',
+        content_rowid='id',
+        tokenize='porter unicode61'
+    );
+
+    -- Triggers to keep FTS in sync with main table
+    CREATE TRIGGER IF NOT EXISTS research_ai AFTER INSERT ON research_entries BEGIN
+        INSERT INTO research_fts(rowid, query, findings)
+        VALUES (new.id, new.query, new.findings);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS research_ad AFTER DELETE ON research_entries BEGIN
+        INSERT INTO research_fts(research_fts, rowid, query, findings)
+        VALUES ('delete', old.id, old.query, old.findings);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS research_au AFTER UPDATE ON research_entries BEGIN
+        INSERT INTO research_fts(research_fts, rowid, query, findings)
+        VALUES ('delete', old.id, old.query, old.findings);
+        INSERT INTO research_fts(rowid, query, findings)
+        VALUES (new.id, new.query, new.findings);
+    END;
+    """
+
+    def __init__(self, project_dir: Path):
+        self.project_dir = project_dir
+        self.cache_dir = project_dir / ".claude" / "jons-plan" / "research-cache"
+        self.db_path = self.cache_dir / "cache.db"
+        self._ensure_schema()
+
+    def _ensure_schema(self) -> None:
+        """Create database and schema if needed."""
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        with self._connect() as conn:
+            conn.executescript(self.SCHEMA)
+            # Set BM25 weights (query 10x, findings 1x)
+            # Note: This may fail if already set, which is fine
+            try:
+                conn.execute(
+                    "INSERT INTO research_fts(research_fts, rank) "
+                    "VALUES('rank', 'bm25(10.0, 1.0)')"
+                )
+            except sqlite3.OperationalError:
+                pass  # Already configured
+
+    def _connect(self) -> sqlite3.Connection:
+        """Create connection with appropriate settings."""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(f"PRAGMA busy_timeout = {self.BUSY_TIMEOUT_MS}")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA auto_vacuum = incremental")
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    @staticmethod
+    def normalize_query(query: str) -> str:
+        """Normalize query for duplicate detection: lowercase, trim, collapse whitespace."""
+        return " ".join(query.lower().split())
+
+    def add(
+        self,
+        query: str,
+        findings: str,
+        ttl_days: int | None = None,
+        source_type: str = "web_search",
+        source_url: str | None = None,
+        plan_id: str | None = None,
+        replace: bool = False,
+    ) -> int:
+        """
+        Add research to cache. Returns entry id.
+
+        Args:
+            query: The research query/question
+            findings: The research findings/answer
+            ttl_days: Days until expiration (default 30)
+            source_type: Type of source (web_search, documentation, etc.)
+            source_url: URL of the source if applicable
+            plan_id: ID of the plan that created this entry
+            replace: If True, delete existing entry with same normalized query
+
+        Returns:
+            The ID of the new entry
+
+        Raises:
+            ValueError: If findings exceed MAX_FINDINGS_SIZE
+        """
+        if ttl_days is None:
+            ttl_days = self.DEFAULT_TTL_DAYS
+
+        # Size check
+        if len(findings) > self.MAX_FINDINGS_SIZE:
+            raise ValueError(
+                f"Findings too large ({len(findings)} bytes). "
+                f"Maximum is {self.MAX_FINDINGS_SIZE} bytes."
+            )
+        if len(findings) > self.WARN_FINDINGS_SIZE:
+            print(
+                f"Warning: Large findings ({len(findings)} bytes). "
+                f"Consider summarizing.",
+                file=sys.stderr,
+            )
+
+        query_normalized = self.normalize_query(query)
+        expires_at = int(datetime.now().timestamp()) + (ttl_days * 86400)
+
+        with self._connect() as conn:
+            # Check for existing entry with same normalized query
+            existing = conn.execute(
+                "SELECT id FROM research_entries WHERE query_normalized = ?",
+                (query_normalized,),
+            ).fetchone()
+
+            supersedes_id = None
+            if existing:
+                if replace:
+                    # Delete existing entry
+                    conn.execute(
+                        "DELETE FROM research_entries WHERE id = ?", (existing["id"],)
+                    )
+                else:
+                    # Track supersession
+                    supersedes_id = existing["id"]
+
+            # Insert new entry
+            cursor = conn.execute(
+                """
+                INSERT INTO research_entries
+                (query, query_normalized, findings, expires_at, source_type,
+                 source_url, plan_id, supersedes_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    query,
+                    query_normalized,
+                    findings,
+                    expires_at,
+                    source_type,
+                    source_url,
+                    plan_id,
+                    supersedes_id,
+                ),
+            )
+            entry_id = cursor.lastrowid
+            conn.commit()
+
+            # Opportunistic GC
+            self._maybe_gc(conn)
+
+            return entry_id
+
+    def search(
+        self, query: str, limit: int = 5, include_expired: bool = False
+    ) -> list[CacheEntry]:
+        """
+        Search cache using FTS5. Returns ranked results.
+
+        Note: Lower BM25 scores indicate higher relevance.
+        Results are sorted by score ascending (most relevant first).
+
+        Args:
+            query: Search query
+            limit: Maximum number of results
+            include_expired: If True, include expired entries
+
+        Returns:
+            List of CacheEntry objects sorted by relevance
+        """
+        now = int(datetime.now().timestamp())
+
+        with self._connect() as conn:
+            # Build query with optional expiry filter
+            sql = """
+                SELECT
+                    e.id, e.query, e.query_normalized, e.findings,
+                    e.created_at, e.expires_at, e.source_type,
+                    e.source_url, e.plan_id, e.supersedes_id,
+                    bm25(research_fts) as score
+                FROM research_fts f
+                JOIN research_entries e ON f.rowid = e.id
+                WHERE research_fts MATCH ?
+            """
+            params: list = [query]
+
+            if not include_expired:
+                sql += " AND e.expires_at > ?"
+                params.append(now)
+
+            # Only return latest version of each normalized query
+            sql += """
+                AND e.id = (
+                    SELECT MAX(e2.id) FROM research_entries e2
+                    WHERE e2.query_normalized = e.query_normalized
+                )
+            """
+
+            sql += " ORDER BY score ASC LIMIT ?"
+            params.append(limit)
+
+            rows = conn.execute(sql, params).fetchall()
+
+            # Opportunistic GC (less frequent for searches)
+            self._maybe_gc(conn)
+
+            return [
+                CacheEntry(
+                    id=row["id"],
+                    query=row["query"],
+                    query_normalized=row["query_normalized"],
+                    findings=row["findings"],
+                    created_at=row["created_at"],
+                    expires_at=row["expires_at"],
+                    source_type=row["source_type"],
+                    source_url=row["source_url"],
+                    plan_id=row["plan_id"],
+                    supersedes_id=row["supersedes_id"],
+                    is_expired=row["expires_at"] <= now,
+                    score=row["score"],
+                )
+                for row in rows
+            ]
+
+    def get(self, entry_id: int, allow_expired: bool = False) -> CacheEntry | None:
+        """
+        Get specific cache entry by ID.
+
+        Args:
+            entry_id: The entry ID
+            allow_expired: If True, return even if expired
+
+        Returns:
+            CacheEntry if found (and not expired unless allow_expired), None otherwise
+        """
+        now = int(datetime.now().timestamp())
+
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, query, query_normalized, findings, created_at,
+                       expires_at, source_type, source_url, plan_id, supersedes_id
+                FROM research_entries WHERE id = ?
+                """,
+                (entry_id,),
+            ).fetchone()
+
+            if not row:
+                return None
+
+            is_expired = row["expires_at"] <= now
+            if is_expired and not allow_expired:
+                return None
+
+            return CacheEntry(
+                id=row["id"],
+                query=row["query"],
+                query_normalized=row["query_normalized"],
+                findings=row["findings"],
+                created_at=row["created_at"],
+                expires_at=row["expires_at"],
+                source_type=row["source_type"],
+                source_url=row["source_url"],
+                plan_id=row["plan_id"],
+                supersedes_id=row["supersedes_id"],
+                is_expired=is_expired,
+            )
+
+    def clear(
+        self,
+        entry_id: int | None = None,
+        query: str | None = None,
+        all_entries: bool = False,
+    ) -> int:
+        """
+        Clear entries. Returns count deleted.
+
+        Args:
+            entry_id: Delete specific entry by ID
+            query: Delete entries matching exact normalized query
+            all_entries: Delete all entries (requires explicit flag)
+
+        Returns:
+            Number of entries deleted
+
+        Raises:
+            ValueError: If no targeting argument provided
+        """
+        if not any([entry_id, query, all_entries]):
+            raise ValueError(
+                "Must specify --id, --query, or --all to clear entries"
+            )
+
+        with self._connect() as conn:
+            if all_entries:
+                cursor = conn.execute("DELETE FROM research_entries")
+            elif entry_id:
+                cursor = conn.execute(
+                    "DELETE FROM research_entries WHERE id = ?", (entry_id,)
+                )
+            elif query:
+                query_normalized = self.normalize_query(query)
+                cursor = conn.execute(
+                    "DELETE FROM research_entries WHERE query_normalized = ?",
+                    (query_normalized,),
+                )
+            else:
+                return 0
+
+            count = cursor.rowcount
+            conn.commit()
+            return count
+
+    def gc(self) -> int:
+        """Delete expired entries. Returns count deleted."""
+        now = int(datetime.now().timestamp())
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM research_entries WHERE expires_at <= ?", (now,)
+            )
+            count = cursor.rowcount
+            conn.commit()
+            # Reclaim space
+            conn.execute("PRAGMA incremental_vacuum")
+            return count
+
+    def _maybe_gc(self, conn: sqlite3.Connection) -> None:
+        """Run GC if expired count exceeds threshold."""
+        result = conn.execute(
+            "SELECT COUNT(*) as cnt FROM research_entries WHERE expires_at <= unixepoch()"
+        ).fetchone()
+        if result and result["cnt"] > self.GC_THRESHOLD:
+            conn.execute(
+                "DELETE FROM research_entries WHERE expires_at <= unixepoch()"
+            )
+            conn.commit()
+
+    def stats(self) -> CacheStats:
+        """Return cache statistics."""
+        now = int(datetime.now().timestamp())
+
+        with self._connect() as conn:
+            # Total entries
+            total = conn.execute(
+                "SELECT COUNT(*) as cnt FROM research_entries"
+            ).fetchone()["cnt"]
+
+            # Active vs expired
+            active = conn.execute(
+                "SELECT COUNT(*) as cnt FROM research_entries WHERE expires_at > ?",
+                (now,),
+            ).fetchone()["cnt"]
+
+            # Oldest and newest
+            times = conn.execute(
+                "SELECT MIN(created_at) as oldest, MAX(created_at) as newest "
+                "FROM research_entries"
+            ).fetchone()
+
+            # Entries by source type
+            by_source = {}
+            for row in conn.execute(
+                "SELECT source_type, COUNT(*) as cnt FROM research_entries "
+                "GROUP BY source_type"
+            ):
+                by_source[row["source_type"]] = row["cnt"]
+
+            # Database size
+            size_kb = 0.0
+            if self.db_path.exists():
+                size_kb = self.db_path.stat().st_size / 1024
+
+            return CacheStats(
+                total_entries=total,
+                active_entries=active,
+                expired_entries=total - active,
+                total_size_kb=size_kb,
+                oldest_entry=times["oldest"],
+                newest_entry=times["newest"],
+                entries_by_source=by_source,
+            )
 
 
 # --- Subcommand handlers ---
@@ -2276,6 +2728,201 @@ def _render_horizontal_diagram(phases: list[dict], phase_map: dict, current_phas
     print("\n  Legend: * = current, ! = terminal, ? = user-input")
 
 
+# --- Research Cache Commands ---
+
+
+def cmd_cache_add(args: argparse.Namespace) -> int:
+    """Add an entry to the research cache."""
+    project_dir = get_project_dir()
+
+    # Get findings from various sources
+    if args.findings_file:
+        if args.findings_file == "-":
+            findings = sys.stdin.read()
+        else:
+            findings_path = Path(args.findings_file)
+            if not findings_path.exists():
+                print(f"Findings file not found: {args.findings_file}", file=sys.stderr)
+                return 1
+            findings = findings_path.read_text()
+    elif args.findings:
+        findings = args.findings
+    else:
+        print("Must specify --findings, --findings-file, or --findings -", file=sys.stderr)
+        return 1
+
+    try:
+        cache = ResearchCache(project_dir)
+        entry_id = cache.add(
+            query=args.query,
+            findings=findings,
+            ttl_days=args.ttl_days,
+            source_type=args.source_type,
+            source_url=args.source_url,
+            plan_id=args.plan_id,
+            replace=args.replace,
+        )
+        print(f"Added cache entry: {entry_id}")
+        return 0
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_cache_search(args: argparse.Namespace) -> int:
+    """Search the research cache."""
+    project_dir = get_project_dir()
+
+    cache = ResearchCache(project_dir)
+    results = cache.search(
+        query=args.query,
+        limit=args.limit,
+        include_expired=args.include_expired,
+    )
+
+    if not results:
+        if args.json:
+            print("[]")
+        else:
+            print("No results found")
+        return 0
+
+    if args.json:
+        output = [
+            {
+                "id": r.id,
+                "query": r.query,
+                "findings": r.findings,
+                "score": r.score,
+                "source_type": r.source_type,
+                "source_url": r.source_url,
+                "is_expired": r.is_expired,
+                "created_at": r.created_at,
+                "expires_at": r.expires_at,
+            }
+            for r in results
+        ]
+        print(json.dumps(output, indent=2))
+    else:
+        for r in results:
+            expired_marker = " [EXPIRED]" if r.is_expired else ""
+            print(f"\n## Entry {r.id} (score: {r.score:.2f}){expired_marker}")
+            print(f"Query: {r.query}")
+            print(f"Source: {r.source_type}")
+            if r.source_url:
+                print(f"URL: {r.source_url}")
+            print(f"Findings preview: {r.findings[:200]}...")
+
+    return 0
+
+
+def cmd_cache_get(args: argparse.Namespace) -> int:
+    """Get a specific cache entry by ID."""
+    project_dir = get_project_dir()
+
+    cache = ResearchCache(project_dir)
+    entry = cache.get(entry_id=args.id, allow_expired=args.allow_expired)
+
+    if not entry:
+        print(f"Entry {args.id} not found (or expired)", file=sys.stderr)
+        return 1
+
+    if args.json:
+        output = {
+            "id": entry.id,
+            "query": entry.query,
+            "findings": entry.findings,
+            "source_type": entry.source_type,
+            "source_url": entry.source_url,
+            "is_expired": entry.is_expired,
+            "created_at": entry.created_at,
+            "expires_at": entry.expires_at,
+            "plan_id": entry.plan_id,
+            "supersedes_id": entry.supersedes_id,
+        }
+        print(json.dumps(output, indent=2))
+    else:
+        expired_marker = " [EXPIRED]" if entry.is_expired else ""
+        print(f"## Entry {entry.id}{expired_marker}")
+        print(f"Query: {entry.query}")
+        print(f"Source: {entry.source_type}")
+        if entry.source_url:
+            print(f"URL: {entry.source_url}")
+        if entry.plan_id:
+            print(f"Plan: {entry.plan_id}")
+        if entry.supersedes_id:
+            print(f"Supersedes: {entry.supersedes_id}")
+        print(f"\n### Findings\n{entry.findings}")
+
+    return 0
+
+
+def cmd_cache_clear(args: argparse.Namespace) -> int:
+    """Clear cache entries."""
+    project_dir = get_project_dir()
+
+    try:
+        cache = ResearchCache(project_dir)
+        count = cache.clear(
+            entry_id=args.id,
+            query=args.query,
+            all_entries=args.all,
+        )
+        print(f"Cleared {count} entries")
+        return 0
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_cache_gc(args: argparse.Namespace) -> int:
+    """Run garbage collection on expired cache entries."""
+    project_dir = get_project_dir()
+
+    cache = ResearchCache(project_dir)
+    count = cache.gc()
+    print(f"Removed {count} expired entries")
+    return 0
+
+
+def cmd_cache_stats(args: argparse.Namespace) -> int:
+    """Show cache statistics."""
+    project_dir = get_project_dir()
+
+    cache = ResearchCache(project_dir)
+    stats = cache.stats()
+
+    if args.json:
+        output = {
+            "total_entries": stats.total_entries,
+            "active_entries": stats.active_entries,
+            "expired_entries": stats.expired_entries,
+            "total_size_kb": round(stats.total_size_kb, 2),
+            "oldest_entry": stats.oldest_entry,
+            "newest_entry": stats.newest_entry,
+            "entries_by_source": stats.entries_by_source,
+        }
+        print(json.dumps(output, indent=2))
+    else:
+        print("## Research Cache Stats")
+        print(f"  Total entries: {stats.total_entries}")
+        print(f"  Active entries: {stats.active_entries}")
+        print(f"  Expired entries: {stats.expired_entries}")
+        print(f"  Database size: {stats.total_size_kb:.1f} KB")
+
+        if stats.entries_by_source:
+            print("\n  By source type:")
+            for source, count in stats.entries_by_source.items():
+                print(f"    {source}: {count}")
+
+        if stats.oldest_entry:
+            oldest = datetime.fromtimestamp(stats.oldest_entry).strftime("%Y-%m-%d")
+            newest = datetime.fromtimestamp(stats.newest_entry).strftime("%Y-%m-%d")
+            print(f"\n  Date range: {oldest} to {newest}")
+
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     """Show comprehensive status overview."""
     project_dir = get_project_dir()
@@ -2534,6 +3181,45 @@ def main() -> int:
     p_diagram = subparsers.add_parser("workflow-diagram", help="Display ASCII diagram of workflow")
     p_diagram.add_argument("--flow", choices=["east", "south"], default="south", help="Direction (default: south)")
 
+    # --- Research Cache Commands ---
+
+    # cache-add
+    p_cache_add = subparsers.add_parser("cache-add", help="Add entry to research cache")
+    p_cache_add.add_argument("--query", "-q", required=True, help="The research query/question")
+    p_cache_add.add_argument("--findings", "-f", help="The research findings (direct text)")
+    p_cache_add.add_argument("--findings-file", help="Path to file with findings, or '-' for stdin")
+    p_cache_add.add_argument("--ttl-days", type=int, default=30, help="Days until expiration (default: 30)")
+    p_cache_add.add_argument("--source-type", default="web_search", help="Source type (default: web_search)")
+    p_cache_add.add_argument("--source-url", help="URL of the source")
+    p_cache_add.add_argument("--plan-id", help="ID of the plan creating this entry")
+    p_cache_add.add_argument("--replace", action="store_true", help="Replace existing entry with same query")
+
+    # cache-search
+    p_cache_search = subparsers.add_parser("cache-search", help="Search research cache")
+    p_cache_search.add_argument("query", help="Search query")
+    p_cache_search.add_argument("--limit", "-n", type=int, default=5, help="Max results (default: 5)")
+    p_cache_search.add_argument("--include-expired", action="store_true", help="Include expired entries")
+    p_cache_search.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # cache-get
+    p_cache_get = subparsers.add_parser("cache-get", help="Get cache entry by ID")
+    p_cache_get.add_argument("id", type=int, help="Entry ID")
+    p_cache_get.add_argument("--allow-expired", action="store_true", help="Return even if expired")
+    p_cache_get.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # cache-clear
+    p_cache_clear = subparsers.add_parser("cache-clear", help="Clear cache entries")
+    p_cache_clear.add_argument("--id", type=int, help="Delete specific entry by ID")
+    p_cache_clear.add_argument("--query", help="Delete entries matching normalized query")
+    p_cache_clear.add_argument("--all", action="store_true", help="Delete all entries")
+
+    # cache-gc
+    subparsers.add_parser("cache-gc", help="Remove expired cache entries")
+
+    # cache-stats
+    p_cache_stats = subparsers.add_parser("cache-stats", help="Show cache statistics")
+    p_cache_stats.add_argument("--json", action="store_true", help="Output as JSON")
+
     args = parser.parse_args()
 
     commands = {
@@ -2593,6 +3279,13 @@ def main() -> int:
         "phase-next-tasks": cmd_phase_next_tasks,
         # Workflow diagram
         "workflow-diagram": cmd_workflow_diagram,
+        # Research cache commands
+        "cache-add": cmd_cache_add,
+        "cache-search": cmd_cache_search,
+        "cache-get": cmd_cache_get,
+        "cache-clear": cmd_cache_clear,
+        "cache-gc": cmd_cache_gc,
+        "cache-stats": cmd_cache_stats,
     }
 
     return commands[args.command](args)
