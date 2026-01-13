@@ -67,12 +67,30 @@ prompt = """
 
 Incorporate feedback and finalize design.
 
+## Inputs
+- design.md from previous draft/revise
+- review-feedback.md from external reviewers
+- User guidance (if re-entering from user-decision)
+
+## Check for User Guidance
+
+If the user provided feedback when selecting revise, retrieve it:
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py get-user-guidance
+```
+
+Address their specific concerns in the revision. After processing, clear it:
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py clear-user-guidance
+```
+
 ## Tasks
-1. Address feedback in design.md
-2. Update confidence assessment
+1. Read user guidance if present
+2. Address feedback in design.md (focus on user's concerns)
+3. Update confidence assessment
 
 ## Outputs
-Final design.md ready for user review.
+Updated design.md ready for user review.
 """
 suggested_next = ["user-decision"]
 
@@ -92,16 +110,20 @@ The user should review:
 Present these numbered options to the user:
 1. **implement** - Proceed with implementation
 2. **complete-design-only** - End workflow with design document only
+3. **revise** - Provide feedback for another revision
 
 After listing options, show: `Use /jons-plan:proceed <number> [optional guidance]` to select.
 
-Example: `/jons-plan:proceed 1` or `/jons-plan:proceed 2 good enough for now`
+Examples:
+- `/jons-plan:proceed 1` - Implement the design
+- `/jons-plan:proceed 2` - Complete with design only
+- `/jons-plan:proceed 3 add error handling for network failures` - Revise with specific feedback
 
 This phase requires user input. Stop and await user feedback.
 """
 requires_user_input = true
 user_review_artifacts = ["design.md", "review-feedback.md"]
-suggested_next = ["implement", "complete-design-only"]
+suggested_next = ["implement", "complete-design-only", "revise"]
 
 [[phases]]
 id = "implement"

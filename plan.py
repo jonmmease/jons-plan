@@ -1405,6 +1405,39 @@ def cmd_clear_mode(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_get_user_guidance(args: argparse.Namespace) -> int:
+    """Get user guidance from state.json (set by enter-phase-by-number)."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    guidance = state.get("user_guidance", "")
+    if guidance:
+        print(guidance)
+    return 0
+
+
+def cmd_clear_user_guidance(args: argparse.Namespace) -> int:
+    """Clear user guidance from state.json after it's been processed."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    if "user_guidance" in state:
+        del state["user_guidance"]
+        state_mgr.save(state)
+        print("Cleared user guidance")
+    return 0
+
+
 # --- Workflow Commands ---
 
 
@@ -2407,6 +2440,10 @@ def main() -> int:
     # clear-mode
     subparsers.add_parser("clear-mode", help="Clear session mode")
 
+    # User guidance commands
+    subparsers.add_parser("get-user-guidance", help="Get user guidance from state.json")
+    subparsers.add_parser("clear-user-guidance", help="Clear user guidance after processing")
+
     # --- Workflow Commands ---
 
     # Dead-end commands
@@ -2499,6 +2536,8 @@ def main() -> int:
         "set-mode": cmd_set_mode,
         "get-mode": cmd_get_mode,
         "clear-mode": cmd_clear_mode,
+        "get-user-guidance": cmd_get_user_guidance,
+        "clear-user-guidance": cmd_clear_user_guidance,
         # Workflow commands
         "add-dead-end": cmd_add_dead_end,
         "get-dead-ends": cmd_get_dead_ends,
