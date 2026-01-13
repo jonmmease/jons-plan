@@ -93,7 +93,10 @@ Convert topic to kebab-case (e.g., "add user authentication" → "add-user-authe
    ```
 4. Create `request.md` with the user's request
 5. Create `claude-progress.txt` with initial entry
-6. Write plan name to `.claude/jons-plan/active-plan`
+6. Set as active plan:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py set-active <plan-name>
+   ```
 
 ### Step 3: Initialize State Machine
 1. Initialize state.json with first phase
