@@ -2052,14 +2052,14 @@ def cmd_workflow_diagram(args: argparse.Namespace) -> int:
 
 
 def _render_vertical_diagram(phases: list[dict], phase_map: dict, current_phase: str | None) -> None:
-    """Render workflow as vertical ASCII diagram."""
+    """Render workflow as vertical Unicode box diagram."""
     # Build transition graph
     transitions: dict[str, list[str]] = {}
     for phase in phases:
         pid = phase["id"]
         transitions[pid] = phase.get("suggested_next", [])
 
-    # Print each phase with annotations
+    # Print each phase with unicode boxes
     for i, phase in enumerate(phases):
         pid = phase["id"]
         is_current = pid == current_phase
@@ -2069,48 +2069,54 @@ def _render_vertical_diagram(phases: list[dict], phase_map: dict, current_phase:
         # Build annotations
         annotations = []
         if is_current:
-            annotations.append("*CURRENT*")
+            annotations.append("← current")
         if is_terminal:
             annotations.append("[terminal]")
         if requires_input:
             annotations.append("[user-input]")
 
-        # Format phase box
+        # Calculate box width
         ann_str = " ".join(annotations)
-        if ann_str:
-            print(f"  [{pid}] {ann_str}")
-        else:
-            print(f"  [{pid}]")
+        content = pid
+        box_width = max(len(content) + 2, 10)
+
+        # Draw unicode box
+        top = "┌" + "─" * box_width + "┐"
+        mid = "│ " + content.center(box_width - 2) + " │"
+        bot = "└" + "─" * box_width + "┘"
+
+        print(f"  {top}")
+        print(f"  {mid} {ann_str}")
+        print(f"  {bot}")
 
         # Show transitions (arrows)
         next_phases = transitions.get(pid, [])
         if next_phases and not is_terminal:
             if len(next_phases) == 1:
-                print(f"    |")
-                print(f"    v")
+                print(f"     │")
+                print(f"     ↓")
             else:
-                # Multiple transitions
+                # Multiple transitions (branching)
+                print(f"     │")
                 for j, np in enumerate(next_phases):
-                    if j == 0:
-                        print(f"    +-> {np}")
-                    else:
-                        print(f"    +-> {np}")
+                    prefix = "├" if j < len(next_phases) - 1 else "└"
+                    print(f"     {prefix}──→ {np}")
         elif not is_terminal and i < len(phases) - 1:
-            print(f"    |")
-            print(f"    v")
+            print(f"     │")
+            print(f"     ↓")
 
 
 def _render_horizontal_diagram(phases: list[dict], phase_map: dict, current_phase: str | None) -> None:
-    """Render workflow as horizontal ASCII diagram."""
-    # Simplified horizontal layout
-    parts = []
+    """Render workflow as horizontal Unicode box diagram."""
+    # Build boxes and arrows
+    boxes = []
     for phase in phases:
         pid = phase["id"]
         is_current = pid == current_phase
         is_terminal = phase.get("terminal", False)
         requires_input = phase.get("requires_user_input", False)
 
-        # Build label with all annotations
+        # Build markers
         markers = []
         if is_current:
             markers.append("*")
@@ -2120,12 +2126,27 @@ def _render_horizontal_diagram(phases: list[dict], phase_map: dict, current_phas
             markers.append("?")
 
         suffix = "".join(markers)
-        label = f"[{pid}]{suffix}"
+        boxes.append((pid, suffix))
 
-        parts.append(label)
+    # Build three-line output (top, middle, bottom)
+    top_line = ""
+    mid_line = ""
+    bot_line = ""
 
-    # Print as: phase1 -> phase2 -> phase3
-    print("  " + " -> ".join(parts))
+    for i, (pid, suffix) in enumerate(boxes):
+        width = len(pid) + 2
+        top_line += "┌" + "─" * width + "┐"
+        mid_line += "│ " + pid + " │" + suffix
+        bot_line += "└" + "─" * width + "┘"
+
+        if i < len(boxes) - 1:
+            top_line += "   "
+            mid_line += " → "
+            bot_line += "   "
+
+    print(f"  {top_line}")
+    print(f"  {mid_line}")
+    print(f"  {bot_line}")
 
     # Legend
     print("\n  Legend: * = current, ! = terminal, ? = user-input")
