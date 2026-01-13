@@ -38,30 +38,42 @@ Create a detailed implementation plan based on exploration findings.
 ## Inputs
 Review the findings.md from the explore phase.
 
-## Tasks
-1. Create tasks.json with a task dependency graph
+## Planning Tasks
+Create tasks in this phase to:
+1. Analyze findings and identify implementation approach
 2. Break down the work into atomic, testable tasks
 3. Identify which tasks can be parallelized
 4. Consider test-first tasks if acceptance criteria are clear
 
 ## Outputs
-- tasks.json in this phase directory
-- Updated findings with any additional discoveries
+Write `implementation-plan.md` with:
+- Recommended approach and rationale
+- Task breakdown (descriptions, dependencies, steps)
+- Parallelization strategy
+- Risk assessment
+
+Note: The implement phase will create its own tasks.json from this plan.
 """
 suggested_next = ["implement"]
 
 [[phases]]
 id = "implement"
+use_tasks = true
 prompt = """
 # Implement Phase
 
 Execute the implementation plan.
 
 ## Inputs
-- tasks.json from the plan phase
+- Implementation plan from the plan phase
 - findings.md from explore phase
 
-## Tasks
+## Setup
+1. Read the implementation plan from the plan phase
+2. Create tasks.json in this phase directory based on the plan
+3. All tasks start with `status: "todo"`
+
+## Task Execution
 1. Work through tasks in dependency order
 2. Set each task to in-progress before starting
 3. Mark tasks done immediately after completion
