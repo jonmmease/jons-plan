@@ -106,10 +106,12 @@ Convert topic to kebab-case (e.g., "add user authentication" → "add-user-authe
    ```
 
 ### Step 4: Present Summary
-Show:
-- Workflow diagram (phases and transitions)
-- Current phase and its prompt
-- Instruction: "Type `/jons-plan:proceed` to start, or `/jons-plan:plan` to refine the request."
+1. Display workflow diagram:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py workflow-diagram --flow east
+   ```
+2. Show current phase and its prompt
+3. Tell user: "Type `/jons-plan:proceed` to start, or `/jons-plan:plan` to refine the request."
 
 ## Task Schema
 
