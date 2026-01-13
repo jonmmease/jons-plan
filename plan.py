@@ -1351,16 +1351,23 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
                 prompt_parts.append(progress_content)
                 prompt_parts.append("\nContinue from where the previous work left off.")
 
-    # 6. Task output directory (for research/exploration tasks that produce artifacts)
+    # 6. Progress logging (required for resumption)
+    prompt_parts.append("\n\n## Progress Logging (Required)")
+    prompt_parts.append(f"Log progress as you work to enable resumption after interruptions:")
+    prompt_parts.append(f"```bash")
+    prompt_parts.append(f"uv run ~/.claude-plugins/jons-plan/plan.py task-log {args.task_id} \"<message>\"")
+    prompt_parts.append(f"```")
+    prompt_parts.append(f"Log after each significant step, file modification, or decision.")
+
+    # 7. Task output directory (for artifacts)
     output_dir = get_task_output_dir(plan_dir, args.task_id)
     if output_dir:
         prompt_parts.append("\n\n## Task Output Directory")
-        prompt_parts.append(f"If this task produces findings, research results, or artifacts for downstream tasks:")
+        prompt_parts.append(f"For findings, research results, or artifacts for downstream tasks:")
         prompt_parts.append(f"- Output path: `{output_dir}/`")
-        prompt_parts.append(f"- You have FULL write access - create files as needed (e.g., findings.md, analysis.md)")
-        prompt_parts.append(f"- The directory will be created automatically when you write to it")
+        prompt_parts.append(f"- Create files as needed (e.g., findings.md, analysis.md)")
 
-    # 7. CLI reference for task completion
+    # 8. CLI reference for task completion
     prompt_parts.append("\n\n## When Done")
     prompt_parts.append(f"Mark this task complete: `uv run ~/.claude-plugins/jons-plan/plan.py set-status {args.task_id} done`")
 
