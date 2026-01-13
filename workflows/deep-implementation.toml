@@ -315,12 +315,28 @@ Execute the validated implementation plan.
 2. Create tasks.json in this phase directory based on the plan
 3. All tasks start with `status: "todo"`
 
-## Tasks
+## Task Schema - context_artifacts
 
-1. Work through tasks in dependency order
-2. Follow patterns from research
-3. Log progress throughout
-4. Handle blockers by recording dead-ends
+When creating tasks, use `context_artifacts` to give tasks access to relevant documents:
+
+```json
+{
+  "id": "implement-feature",
+  "description": "Implement the feature",
+  "context_artifacts": ["request", "implementation-plan"],
+  ...
+}
+```
+
+**When to use context_artifacts:**
+- Implementation tasks → `["request", "implementation-plan"]`
+- Complex tasks → `["request", "implementation-plan", "categorized-feedback"]`
+- Validation tasks → `["request"]` (to verify against requirements)
+
+Common artifacts in this workflow:
+- `request` - Original user request
+- `implementation-plan` - Synthesized plan with task breakdown
+- `categorized-feedback` - External reviewer feedback
 
 ## Task Execution Guidelines
 

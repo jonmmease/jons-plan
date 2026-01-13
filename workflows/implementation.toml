@@ -73,6 +73,29 @@ Execute the implementation plan.
 2. Create tasks.json in this phase directory based on the plan
 3. All tasks start with `status: "todo"`
 
+## Task Schema - context_artifacts
+
+When creating tasks, use `context_artifacts` to give tasks access to relevant documents:
+
+```json
+{
+  "id": "implement-auth",
+  "description": "Implement authentication",
+  "context_artifacts": ["request", "findings"],
+  ...
+}
+```
+
+**When to use context_artifacts:**
+- Research/exploration tasks → `["request"]` (need the original requirements)
+- Implementation tasks → `["request", "findings"]` or `["request", "design"]`
+- Validation tasks → `["request"]` (to verify against requirements)
+
+Artifacts must be recorded via `record-artifact` to be available. Common artifacts:
+- `request` - Original user request
+- `findings` - Exploration/research findings
+- `design` - Design document (if design phase exists)
+
 ## Task Execution
 1. Work through tasks in dependency order
 2. Set each task to in-progress before starting

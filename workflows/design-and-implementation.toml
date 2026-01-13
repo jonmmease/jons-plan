@@ -137,10 +137,36 @@ Execute the design.
 - design.md with approved design
 - research.md for context
 
-## Tasks
-1. Create tasks.json with implementation plan
-2. Execute tasks following the design
-3. Validate implementation matches design
+## Setup
+1. Create tasks.json with implementation plan based on design.md
+2. All tasks start with `status: "todo"`
+
+## Task Schema - context_artifacts
+
+When creating tasks, use `context_artifacts` to give tasks access to relevant documents:
+
+```json
+{
+  "id": "implement-feature",
+  "description": "Implement the feature",
+  "context_artifacts": ["request", "design"],
+  ...
+}
+```
+
+**When to use context_artifacts:**
+- Implementation tasks → `["request", "design"]` (need requirements + design)
+- Validation tasks → `["request", "design"]` (to verify against both)
+
+Common artifacts in this workflow:
+- `request` - Original user request
+- `research` - Research findings
+- `design` - Approved design document
+
+## Task Execution
+1. Execute tasks following the design
+2. Set each task to in-progress before starting
+3. Mark tasks done immediately after completion
 
 ## Outputs
 Working implementation of the design.
