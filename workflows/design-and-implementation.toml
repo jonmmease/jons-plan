@@ -18,9 +18,40 @@ Investigate the problem space before designing.
 2. Research potential approaches
 3. Identify constraints and requirements
 4. Document trade-offs
+5. **Assess verification capabilities** (see below)
+
+## Verification-Aware Research
+
+Before finalizing your research, understand what verification is possible:
+
+### Discover Available Tools
+- What test frameworks exist? (`package.json`, `pytest.ini`, `go.mod`, etc.)
+- What MCP servers are available? (browser automation, API testing, etc.)
+- What build/lint/type-check commands exist?
+
+### Influence Design Choices
+**Prefer approaches that can be self-verified.** When comparing options:
+- Favor technologies with existing test patterns in the codebase
+- Prefer architectures that work with available MCP tools
+- Consider: "How will I verify this actually works?"
+
+### Document in research.md
+Include a section:
+```markdown
+## Verification Capabilities
+
+### Available Tools
+- Test suite: `npm test` (Jest)
+- Type checking: `tsc --noEmit`
+- MCP: Browser automation available via playwright MCP
+
+### Verification Considerations
+- [How each approach option can be verified]
+- [Which option is easiest to verify]
+```
 
 ## Outputs
-Write `research.md` with findings.
+Write `research.md` with findings, including verification capabilities.
 """
 suggested_next = ["draft"]
 
@@ -32,15 +63,48 @@ prompt = """
 Create the design document.
 
 ## Inputs
-Review research.md from research phase.
+Review research.md from research phase, including verification capabilities.
 
 ## Tasks
 1. Synthesize research into a design
 2. Document the proposed solution
 3. Include implementation plan preview
+4. **Create verification plan** (see below)
 
 ## Outputs
-Write `design.md` with the complete design.
+
+### design.md
+Write the complete design document.
+
+### verification-plan.md
+Based on the verification capabilities identified in research, create a concrete plan:
+
+```markdown
+# Verification Plan
+
+## Automated Checks
+Commands to run after implementation:
+- [ ] `<test command>` - <what it verifies>
+- [ ] `<type check command>` - <what it verifies>
+- [ ] `<lint command>` - <what it verifies>
+- [ ] `<build command>` - <what it verifies>
+
+## Interactive Verification
+If MCP tools are available (browser, API, etc.):
+- [ ] <step> - <expected result>
+- [ ] <step> - <expected result>
+
+## Acceptance Criteria
+Specific criteria that must be true:
+- [ ] <criterion derived from requirements>
+- [ ] <criterion derived from design>
+```
+
+Record artifacts:
+```bash
+uv run plan.py record-artifact design <path-to-design.md>
+uv run plan.py record-artifact verification-plan <path-to-verification-plan.md>
+```
 """
 suggested_next = ["review"]
 
@@ -140,36 +204,8 @@ Execute the design.
 ## Setup
 1. Create tasks.json with implementation plan based on design.md
 2. All tasks start with `status: "todo"`
-3. Create `verification-plan.md` documenting how to verify the implementation
 
-### verification-plan.md
-Analyze the project and document available verification methods:
-
-```markdown
-# Verification Plan
-
-## Available Verification Methods
-- Test suite? (`npm test`, `pytest`, `go test`, etc.)
-- Type checking? (`tsc`, `mypy`, `pyright`, etc.)
-- Linting? (`eslint`, `ruff`, etc.)
-- Build? (`npm run build`, `make`, etc.)
-- MCP tools? (browser automation, API testing, etc.)
-
-## Automated Checks
-- [ ] `<command>` - <what it verifies>
-
-## Interactive Verification (if MCP available)
-- [ ] Navigate to <url>, verify <expected behavior>
-
-## Acceptance Criteria (from design.md)
-- <criterion 1>
-- <criterion 2>
-```
-
-Record the artifact:
-```bash
-uv run plan.py record-artifact verification-plan <path>
-```
+Note: verification-plan.md was created in the draft phase and is available as an artifact.
 
 ## Task Schema - context_artifacts
 
