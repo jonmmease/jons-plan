@@ -4147,6 +4147,14 @@ def cmd_status(args: argparse.Namespace) -> int:
 
             print(f"\n## Active: {active}")
             print(f"  Path: {plan_dir}")
+
+            # Viewer URL
+            viewer_app = Path.home() / ".local" / "share" / "JonsPlanViewer.app"
+            if viewer_app.exists():
+                print(f"  View: jons-plan://{plan_dir}")
+            else:
+                print("  View: (run `uv run plan.py install-viewer` to enable)")
+
             if blocked_count > 0:
                 print(f"  Progress: {done}/{total} done, {in_progress_count} in-progress, {blocked_count} blocked, {todo} todo")
             else:
@@ -4560,6 +4568,97 @@ def cmd_validate_workflow(args: argparse.Namespace) -> int:
     return 0
 
 
+# ============================================================================
+# Viewer Commands
+# ============================================================================
+
+
+INFO_PLIST_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.jons-plan.viewer</string>
+    <key>CFBundleName</key>
+    <string>JonsPlanViewer</string>
+    <key>CFBundleExecutable</key>
+    <string>JonsPlanViewer</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>JonsPlan URL</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>jons-plan</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>
+'''
+
+
+def cmd_install_viewer(args: argparse.Namespace) -> int:
+    """Install the workflow viewer URL handler."""
+    app_path = Path.home() / ".local" / "share" / "JonsPlanViewer.app"
+    contents = app_path / "Contents"
+    macos = contents / "MacOS"
+
+    # Check for existing installation
+    if app_path.exists() and not args.force:
+        print(f"Viewer already installed at: {app_path}")
+        print("Use --force to reinstall")
+        return 0
+
+    # Remove existing if force
+    if app_path.exists():
+        import shutil
+        shutil.rmtree(app_path)
+
+    # Create directory structure
+    macos.mkdir(parents=True, exist_ok=True)
+
+    # Write Info.plist
+    plist_path = contents / "Info.plist"
+    plist_path.write_text(INFO_PLIST_TEMPLATE.strip())
+
+    # Write launcher script
+    launcher = macos / "JonsPlanViewer"
+    plugin_dir = Path(__file__).parent
+    launcher.write_text(f'''#!/bin/bash
+exec /usr/bin/env uv run "{plugin_dir}/viewer.py" "$@"
+''')
+    launcher.chmod(0o755)
+
+    # Register by opening (macOS adds to Launch Services)
+    import subprocess
+    subprocess.run(["open", str(app_path)], capture_output=True)
+
+    print(f"Installed: {app_path}")
+    print("URL handler registered: jons-plan://")
+    print("")
+    print("Usage: Click a jons-plan:///path/to/plan URL to open the viewer")
+    return 0
+
+
+def cmd_uninstall_viewer(args: argparse.Namespace) -> int:
+    """Remove the workflow viewer URL handler."""
+    app_path = Path.home() / ".local" / "share" / "JonsPlanViewer.app"
+
+    if not app_path.exists():
+        print("Viewer not installed")
+        return 0
+
+    import shutil
+    shutil.rmtree(app_path)
+
+    print(f"Removed: {app_path}")
+    print("URL handler unregistered")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Plan management CLI for long-running agent harness",
@@ -4834,6 +4933,12 @@ def main() -> int:
 
     subparsers.add_parser("validate-workflow", help="Validate workflow including expandable rules")
 
+    # Viewer commands
+    p_install_viewer = subparsers.add_parser("install-viewer", help="Install workflow viewer URL handler")
+    p_install_viewer.add_argument("--force", action="store_true", help="Force reinstall")
+
+    subparsers.add_parser("uninstall-viewer", help="Remove workflow viewer URL handler")
+
     args = parser.parse_args()
 
     commands = {
@@ -4916,6 +5021,9 @@ def main() -> int:
         "expand-phase": cmd_expand_phase,
         "rollback-expansion": cmd_rollback_expansion,
         "validate-workflow": cmd_validate_workflow,
+        # Viewer commands
+        "install-viewer": cmd_install_viewer,
+        "uninstall-viewer": cmd_uninstall_viewer,
     }
 
     return commands[args.command](args)
