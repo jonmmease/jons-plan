@@ -82,10 +82,52 @@ Tasks are scoped to the **current phase** of the workflow:
      uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <next-phase-id>
      ```
 
-5. **On terminal phase**:
+5. **Handling Expandable Phases (`__expand__` in suggested-next)**:
+
+   If `suggested-next` returns `__expand__` (or includes it as an option):
+
+   a. **Decide whether to expand**:
+      - If research revealed simple changes → go to `complete` instead
+      - If multiple components or unclear scope → proceed with expansion
+
+   b. **Build the expansion prompt**:
+      ```bash
+      uv run ~/.claude-plugins/jons-plan/plan.py build-expand-prompt
+      ```
+      This outputs guidance with reference workflow templates.
+
+   c. **Generate phases**:
+      Based on your research findings and the expand_prompt guidance, generate a JSON structure with phases and transitions.
+
+   d. **Preview with dry-run**:
+      ```bash
+      echo '<your-json>' | uv run ~/.claude-plugins/jons-plan/plan.py expand-phase --dry-run
+      ```
+
+   e. **Present to user for confirmation**:
+      Show the planned workflow with a diagram and ask for confirmation using `AskUserQuestion`.
+
+   f. **Expand the workflow**:
+      ```bash
+      echo '<your-json>' | uv run ~/.claude-plugins/jons-plan/plan.py expand-phase
+      ```
+      This backs up the workflow, injects new phases, and records the expansion.
+
+   g. **Continue with generated phases**:
+      ```bash
+      uv run ~/.claude-plugins/jons-plan/plan.py suggested-next
+      uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <first-generated-phase>
+      ```
+
+   **Rollback if needed**:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py rollback-expansion
+   ```
+
+6. **On terminal phase**:
    The workflow is complete. Show summary and allow stop.
 
-6. **Recording dead-ends**:
+7. **Recording dead-ends**:
    If an approach fails, record it so it's not repeated:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py add-dead-end --task-id <id> --what-failed "..." --why-failed "..." --type WRONG_ASSUMPTION

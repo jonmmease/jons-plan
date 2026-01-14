@@ -1,0 +1,164 @@
+# Dynamic Workflow
+# Research-first workflow where phases are generated based on codebase exploration
+
+[workflow]
+name = "dynamic"
+description = "Research-first workflow - phases generated based on codebase exploration"
+
+[[phases]]
+id = "research"
+use_tasks = true
+supports_prototypes = true
+supports_cache_reference = true
+max_iterations = 4
+prompt = """
+# Research Phase
+
+Explore the codebase and requirements to understand:
+
+1. **Project Structure**
+   - Is this a monorepo? What packages/modules exist?
+   - What frameworks are used (frontend, backend)?
+   - Where should changes be made?
+
+2. **Components Involved**
+   - Frontend components needed?
+   - Backend services affected?
+   - Database changes required?
+   - Infrastructure considerations?
+
+3. **Domains and Concerns**
+   - Security-sensitive (auth, payments)?
+   - Data migration needed?
+   - Performance critical?
+
+4. **Dependencies**
+   - What must be built first?
+   - Can components be developed in parallel?
+   - Integration points?
+
+Document findings in research.md with sections for each area.
+
+## After Research
+
+When research is complete, check suggested-next for options:
+- If the work is simple (single component, clear changes), go to `complete`
+- If complex (multiple components, unclear dependencies), use `__expand__` to generate phases
+"""
+expand_prompt = """
+Generate the workflow phases based on your research findings.
+
+## Philosophy: Plan the Visible Horizon
+
+Don't try to plan everything - plan what you can clearly see from research.
+
+**Validation phases are checkpoints**, not just verification:
+- Pause and verify progress
+- Catch issues before they compound
+- Decide: continue, or loop back to research?
+
+Even for coupled components, break into chunks with validation between:
+```
+implement-auth-backend → validate-backend → implement-auth-frontend → validate-all
+```
+
+This creates natural re-planning points. If validate-backend reveals problems,
+it can trigger a loopback to research rather than continuing blindly.
+
+## When to Ask for User Input
+
+If research revealed ambiguity or trade-offs, use AskUserQuestion before generating:
+- Multiple valid structures (sequential vs parallel?)
+- Optional phases (security review needed?)
+- Scope decisions (include migration or separate plan?)
+
+If research was clear, generate directly without asking.
+
+## Guidelines
+
+1. **One phase per logical chunk** - even coupled components benefit from checkpoints
+2. **Validation after each implementation** - these are decision points
+3. **Include loopback transitions** - validation phases should be able to return to research
+4. **Security review** for auth/payment domains
+
+## Verification Phases
+
+Validation phases should specify how to verify:
+
+**Prefer automated:**
+- Test suite, type checker, linter, build
+- API calls with curl/httpie
+- Browser automation if MCP available
+
+**If manual verification needed:**
+- Set `requires_user_input: true` on the phase
+- Phase prompt should instruct agent to generate precise testing procedure:
+  1. Specific steps to perform
+  2. Expected results for each step
+  3. What constitutes pass/fail
+- Agent waits for user to report results before continuing
+
+## Phase Naming
+
+- `plan-{component}`: Planning phase
+- `implement-{component}`: Implementation phase
+- `validate-{component}`: Checkpoint - verify before continuing
+- `validate-all`: Final integration check
+
+The `complete` phase already exists - point your final phase to it.
+
+## Decision Point
+
+After research, decide:
+- If the work is straightforward (single component, clear changes), go directly to `complete`
+- If complex (multiple components, unclear dependencies), expand into detailed phases
+
+This is a judgment call based on what you learned.
+"""
+suggested_next = ["complete", "__expand__"]
+
+[[phases]]
+id = "complete"
+terminal = true
+supports_proposals = true
+prompt = """
+# Complete Phase
+
+Finalize the implementation.
+
+## Review CLAUDE.md Proposals
+
+If implementation generated any CLAUDE.md improvement proposals:
+
+1. Collect proposals:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py collect-proposals
+   ```
+
+2. List pending proposals:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py list-proposals
+   ```
+
+3. For each pending proposal, present to user via AskUserQuestion:
+   - Show: target file, proposed content, rationale
+   - Options: Accept, Reject
+   - If Accept: use Edit tool to apply the change to the target file
+   - Update status: `uv run ~/.claude-plugins/jons-plan/plan.py update-proposal-status <id> accepted|rejected`
+
+## Final Tasks
+
+1. Review all changes made
+2. Ensure tests pass
+3. Prepare commit message summarizing changes
+4. Note any follow-up work needed
+
+This is a terminal phase. The workflow is complete.
+"""
+
+# Transition rule for loopback from complete
+[[transitions]]
+from = ["complete"]
+to = "research"
+requires_approval = true
+approval_prompt = "Return to research phase for additional investigation?"

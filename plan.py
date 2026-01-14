@@ -385,6 +385,31 @@ class StateManager:
 
         return True, ""
 
+    def record_expansion(self, phase_id: str, generated_phases: list[str]):
+        """Record expansion event in state.
+
+        Args:
+            phase_id: The phase that triggered expansion
+            generated_phases: List of phase IDs that were generated
+        """
+        state = self.load()
+        if "expansions" not in state:
+            state["expansions"] = []
+        state["expansions"].append({
+            "phase": phase_id,
+            "generated": generated_phases,
+            "timestamp": datetime.now().isoformat()
+        })
+        self.save(state)
+
+    def get_expansions(self) -> list[dict]:
+        """Get all expansion events.
+
+        Returns:
+            List of expansion event dicts with phase, generated, timestamp
+        """
+        return self.load().get("expansions", [])
+
 
 class DeadEndRegistry:
     """Manages dead-ends.json for tracking failed approaches."""
@@ -730,6 +755,59 @@ class WorkflowManager:
             # Check approval_prompt is present when requires_approval is true
             if t.get("requires_approval") and not t.get("approval_prompt"):
                 errors.append(f"Transition to '{to_phase}' requires approval but has no approval_prompt")
+
+        return errors
+
+    def is_expandable(self, phase_id: str) -> bool:
+        """Check if phase has __expand__ marker in suggested_next."""
+        phase = self.get_phase(phase_id)
+        if not phase:
+            return False
+        suggested = phase.get("suggested_next", [])
+        return "__expand__" in suggested
+
+    def get_expand_prompt(self, phase_id: str) -> str | None:
+        """Get expansion prompt for expandable phase."""
+        phase = self.get_phase(phase_id)
+        return phase.get("expand_prompt") if phase else None
+
+    def invalidate_cache(self):
+        """Clear cached workflow to force reload."""
+        self._workflow = None
+
+    def validate_expandable(self) -> list[str]:
+        """Validate expandable phase configuration.
+
+        Checks:
+        - Phases with __expand__ have expand_prompt
+        - Phases with expand_prompt have __expand__ in suggested_next
+        - __expand__ can only coexist with "complete" in suggested_next
+
+        Returns list of error strings.
+        """
+        errors = []
+        for phase in self.get_all_phases():
+            suggested = phase.get("suggested_next", [])
+            has_expand_marker = "__expand__" in suggested
+            has_expand_prompt = "expand_prompt" in phase
+
+            if has_expand_marker and not has_expand_prompt:
+                errors.append(
+                    f"Phase '{phase['id']}' has __expand__ but no expand_prompt"
+                )
+            if has_expand_prompt and not has_expand_marker:
+                errors.append(
+                    f"Phase '{phase['id']}' has expand_prompt but no __expand__ in suggested_next"
+                )
+            # __expand__ can coexist with "complete" only
+            if has_expand_marker and len(suggested) > 1:
+                other_targets = [
+                    t for t in suggested if t not in ("__expand__", "complete")
+                ]
+                if other_targets:
+                    errors.append(
+                        f"Phase '{phase['id']}' has __expand__ mixed with non-complete targets: {other_targets}"
+                    )
 
         return errors
 
@@ -4108,6 +4186,379 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+# =============================================================================
+# Workflow Expansion Commands
+# =============================================================================
+
+
+def cmd_build_expand_prompt(args: argparse.Namespace) -> int:
+    """Build full expand prompt with reference workflow templates."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    workflow_mgr = WorkflowManager(plan_dir)
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    current_phase = state.get("current_phase")
+
+    if not current_phase:
+        print("No current phase", file=sys.stderr)
+        return 1
+
+    # Get workflow-specific expand_prompt
+    phase_expand_prompt = workflow_mgr.get_expand_prompt(current_phase)
+    if not phase_expand_prompt:
+        print(f"Phase '{current_phase}' has no expand_prompt", file=sys.stderr)
+        return 1
+
+    # Load reference workflows
+    workflows_dir = Path.home() / ".claude-plugins" / "jons-plan" / "workflows"
+    reference_workflows = []
+    for template in ["implementation.toml", "design.toml", "deep-implementation.toml"]:
+        path = workflows_dir / template
+        if path.exists():
+            reference_workflows.append((template, path.read_text()))
+
+    # Assemble the full prompt
+    prompt = """# Workflow Expansion
+
+Generate the remaining workflow phases based on your research findings.
+
+## Philosophy: Plan the Visible Horizon
+
+You're not planning everything - you're planning what you can clearly see from research.
+
+**Key principles:**
+
+1. **Validation phases are checkpoints** - not just "does it work" but "should we continue or re-plan?"
+
+2. **Break complex work into chunks** - even coupled components benefit from validation points between them. This catches issues early and creates natural decision points.
+
+3. **Include loopback transitions** - validation phases should be able to return to research if things aren't working. Don't plan a path that assumes everything succeeds.
+
+4. **It's OK to not see everything** - plan confidently to the next validation checkpoint. The checkpoint is where you reassess.
+
+5. **Nested expansion** - generated phases can themselves be expandable. Use this when:
+   - A component needs its own research before planning
+   - Later phases depend on decisions made during earlier phases
+   - Phased delivery where later phases aren't scoped yet
+
+## When to Ask for User Input
+
+Use your judgment based on research findings:
+
+**Generate directly if:**
+- Research clearly identified components and their relationships
+- There's an obvious workflow structure
+- You're confident in the approach
+
+**Use AskUserQuestion first if:**
+- Multiple valid approaches exist
+- Research revealed optional concerns
+- Scope is ambiguous
+- Trade-offs the user should decide
+
+## Reference: Existing Workflow Templates
+
+Study these patterns before generating:
+
+"""
+    for name, content in reference_workflows:
+        prompt += f"### {name}\n```toml\n{content}\n```\n\n"
+
+    prompt += """## Phase Configuration Reference
+
+| Flag | Purpose |
+|------|---------|
+| `use_tasks` | Phase uses tasks.json for work breakdown |
+| `on_blocked = "self"` | Retry phase on blocked tasks |
+| `max_retries` | Limit retries before escalating |
+| `supports_proposals` | Enable CLAUDE.md improvement proposals |
+| `supports_prototypes` | Enable prototype tasks |
+| `terminal = true` | Final phase, workflow ends here |
+
+## Your Expansion Instructions
+
+"""
+    prompt += phase_expand_prompt
+    prompt += """
+
+## Output Format
+
+Return JSON with this structure:
+```json
+{
+  "phases": [
+    {
+      "id": "phase-id",
+      "prompt": "Phase instructions...",
+      "use_tasks": true,
+      "suggested_next": ["next-phase-id"]
+    }
+  ],
+  "transitions": []
+}
+```
+
+Generated phases must end with `suggested_next` pointing to either:
+- `"complete"` - work is done, end workflow
+- `"__expand__"` - more planning needed, another expansion point
+"""
+
+    print(prompt)
+    return 0
+
+
+def validate_generated_phases(generated: dict) -> list[str]:
+    """Validate generated phases JSON structure and content."""
+    errors = []
+
+    if not isinstance(generated, dict):
+        errors.append("Input must be a JSON object")
+        return errors
+
+    phases = generated.get("phases", [])
+    if not phases:
+        errors.append("No phases defined")
+        return errors
+
+    if not isinstance(phases, list):
+        errors.append("phases must be an array")
+        return errors
+
+    phase_ids = {p.get("id") for p in phases if p.get("id")}
+
+    # Check each phase
+    for i, phase in enumerate(phases):
+        if not phase.get("id"):
+            errors.append(f"Phase {i} missing id")
+            continue
+
+        pid = phase["id"]
+        if not phase.get("prompt"):
+            errors.append(f"Phase '{pid}' missing prompt")
+
+        # Check suggested_next targets exist (except special values)
+        for target in phase.get("suggested_next", []):
+            if target not in ("complete", "__expand__") and target not in phase_ids:
+                errors.append(f"Phase '{pid}' has suggested_next '{target}' which doesn't exist")
+
+        # Check expandable config
+        has_expand = "__expand__" in phase.get("suggested_next", [])
+        has_expand_prompt = "expand_prompt" in phase
+        if has_expand and not has_expand_prompt:
+            errors.append(f"Phase '{pid}' has __expand__ but no expand_prompt")
+        if has_expand_prompt and not has_expand:
+            errors.append(f"Phase '{pid}' has expand_prompt but no __expand__ in suggested_next")
+
+    # Check phase count
+    if len(phases) > 10:
+        errors.append(f"Too many phases ({len(phases)}), maximum is 10")
+
+    # Check last phase points to terminal
+    if phases:
+        last_phase = phases[-1]
+        suggested = last_phase.get("suggested_next", [])
+        if "complete" not in suggested and "__expand__" not in suggested:
+            errors.append(f"Last phase '{last_phase.get('id')}' must end with 'complete' or '__expand__'")
+
+    # Check transitions
+    for t in generated.get("transitions", []):
+        to_phase = t.get("to")
+        if to_phase and to_phase not in phase_ids and to_phase != "complete":
+            errors.append(f"Transition to '{to_phase}' references non-existent phase")
+
+    return errors
+
+
+def cmd_expand_phase(args: argparse.Namespace) -> int:
+    """Expand current expandable phase with generated phases."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    workflow_mgr = WorkflowManager(plan_dir)
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    current_phase = state.get("current_phase")
+    current_phase_dir = state.get("current_phase_dir")
+
+    if not current_phase:
+        print("No current phase", file=sys.stderr)
+        return 1
+
+    # Check if expandable
+    if not workflow_mgr.is_expandable(current_phase):
+        print(f"Phase '{current_phase}' is not expandable (no __expand__ in suggested_next)", file=sys.stderr)
+        return 1
+
+    # Read generated phases from stdin
+    try:
+        generated = json.loads(sys.stdin.read())
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON input: {e}", file=sys.stderr)
+        return 1
+
+    # Validate generated phases
+    errors = validate_generated_phases(generated)
+    if errors:
+        print("Validation errors:", file=sys.stderr)
+        for e in errors:
+            print(f"  - {e}", file=sys.stderr)
+        return 1
+
+    if args.dry_run:
+        print("## Dry Run - Would generate these phases:")
+        print(json.dumps(generated, indent=2))
+        return 0
+
+    # Backup current workflow
+    workflow_file = plan_dir / "workflow.toml"
+    phase_dir = plan_dir / current_phase_dir if current_phase_dir else plan_dir
+    backup_file = phase_dir / "workflow-backup.toml"
+
+    import shutil
+    shutil.copy(workflow_file, backup_file)
+
+    # Load and modify workflow
+    import tomllib
+    with open(workflow_file, "rb") as f:
+        workflow = tomllib.load(f)
+
+    # Remove __expand__ from current phase, point to first generated
+    first_generated_id = generated["phases"][0]["id"]
+    for phase in workflow["phases"]:
+        if phase["id"] == current_phase:
+            # Keep 'complete' if it was there, remove __expand__
+            old_suggested = phase.get("suggested_next", [])
+            new_suggested = [first_generated_id]
+            if "complete" in old_suggested:
+                # complete was an option, now expansion happened so we continue
+                pass
+            phase["suggested_next"] = new_suggested
+            # Remove expand_prompt since it's no longer expandable
+            if "expand_prompt" in phase:
+                del phase["expand_prompt"]
+            break
+
+    # Append generated phases
+    workflow["phases"].extend(generated["phases"])
+
+    # Append generated transitions (if any)
+    if "transitions" in generated:
+        if "transitions" not in workflow:
+            workflow["transitions"] = []
+        workflow["transitions"].extend(generated["transitions"])
+
+    # Write atomically using tomli_w
+    try:
+        import tomli_w
+    except ImportError:
+        print("Error: tomli_w not installed. Install with: pip install tomli_w", file=sys.stderr)
+        return 1
+
+    temp_file = workflow_file.with_suffix(".tmp")
+    with open(temp_file, "wb") as f:
+        tomli_w.dump(workflow, f)
+    temp_file.rename(workflow_file)
+
+    # Invalidate cache
+    workflow_mgr.invalidate_cache()
+
+    # Record expansion
+    state_mgr.record_expansion(
+        current_phase,
+        [p["id"] for p in generated["phases"]]
+    )
+
+    print(f"Expanded workflow with {len(generated['phases'])} phases")
+    print(f"Backup saved to: {backup_file}")
+    log_progress(plan_dir, f"EXPANDED: {current_phase} -> {[p['id'] for p in generated['phases']]}")
+    return 0
+
+
+def cmd_rollback_expansion(args: argparse.Namespace) -> int:
+    """Rollback to pre-expansion workflow from backup."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    current_phase_dir = state.get("current_phase_dir")
+
+    if not current_phase_dir:
+        print("No current phase directory", file=sys.stderr)
+        return 1
+
+    phase_dir = plan_dir / current_phase_dir
+    backup_file = phase_dir / "workflow-backup.toml"
+
+    if not backup_file.exists():
+        # Try to find backup in any phase directory
+        phases_dir = plan_dir / "phases"
+        if phases_dir.exists():
+            for pdir in sorted(phases_dir.iterdir(), reverse=True):
+                candidate = pdir / "workflow-backup.toml"
+                if candidate.exists():
+                    backup_file = candidate
+                    break
+
+    if not backup_file.exists():
+        print("No workflow backup found", file=sys.stderr)
+        return 1
+
+    workflow_file = plan_dir / "workflow.toml"
+    import shutil
+    shutil.copy(backup_file, workflow_file)
+
+    # Invalidate cache
+    workflow_mgr = WorkflowManager(plan_dir)
+    workflow_mgr.invalidate_cache()
+
+    print(f"Restored workflow from: {backup_file}")
+    log_progress(plan_dir, f"ROLLBACK: restored workflow from {backup_file.name}")
+    return 0
+
+
+def cmd_validate_workflow(args: argparse.Namespace) -> int:
+    """Validate workflow including expandable phase rules."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    workflow_mgr = WorkflowManager(plan_dir)
+    if not workflow_mgr.exists():
+        print("No workflow.toml found", file=sys.stderr)
+        return 1
+
+    errors = []
+
+    # Run existing validation
+    errors.extend(workflow_mgr.validate_phase_references())
+
+    # Run expandable validation
+    errors.extend(workflow_mgr.validate_expandable())
+
+    if errors:
+        print("Validation errors:", file=sys.stderr)
+        for e in errors:
+            print(f"  - {e}", file=sys.stderr)
+        return 1
+
+    print("Workflow validation passed")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Plan management CLI for long-running agent harness",
@@ -4372,6 +4823,16 @@ def main() -> int:
     p_update_proposal.add_argument("proposal_id", help="Proposal ID")
     p_update_proposal.add_argument("status", choices=["pending", "accepted", "rejected"], help="New status")
 
+    # Workflow expansion commands
+    subparsers.add_parser("build-expand-prompt", help="Build full expand prompt with reference workflows")
+
+    p_expand = subparsers.add_parser("expand-phase", help="Expand current phase with generated phases")
+    p_expand.add_argument("--dry-run", action="store_true", help="Preview without writing")
+
+    subparsers.add_parser("rollback-expansion", help="Rollback to pre-expansion workflow")
+
+    subparsers.add_parser("validate-workflow", help="Validate workflow including expandable rules")
+
     args = parser.parse_args()
 
     commands = {
@@ -4449,6 +4910,11 @@ def main() -> int:
         "collect-proposals": cmd_collect_proposals,
         "list-proposals": cmd_list_proposals,
         "update-proposal-status": cmd_update_proposal_status,
+        # Workflow expansion commands
+        "build-expand-prompt": cmd_build_expand_prompt,
+        "expand-phase": cmd_expand_phase,
+        "rollback-expansion": cmd_rollback_expansion,
+        "validate-workflow": cmd_validate_workflow,
     }
 
     return commands[args.command](args)

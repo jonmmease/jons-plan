@@ -34,6 +34,7 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 | `pr-review` | Review existing PR description |
 | `tech-docs` | Technical documentation |
 | `tech-docs-review` | Review RFCs, design docs, proposals |
+| `dynamic` | Research-first, phases generated based on exploration |
 
 Workflow templates are in `~/.claude-plugins/jons-plan/workflows/`.
 
@@ -187,6 +188,14 @@ All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 | `phase-tasks-file` | Print phase tasks.json path |
 | `phase-tasks` | List tasks in current phase |
 | `phase-next-tasks` | List available phase tasks |
+
+### Workflow Expansion
+| Command | Description |
+|---------|-------------|
+| `build-expand-prompt` | Build expansion prompt with workflow templates |
+| `expand-phase [--dry-run]` | Expand current phase (reads JSON from stdin) |
+| `rollback-expansion` | Restore workflow from backup |
+| `validate-workflow` | Validate workflow including expandable rules |
 
 ### Artifact Management
 | Command | Description |
