@@ -523,6 +523,13 @@ class WorkflowManager:
             return phase.get("supports_test_definition", False)
         return False
 
+    def supports_proposals(self, phase_id: str) -> bool:
+        """Check if phase supports CLAUDE.md proposals."""
+        phase = self.get_phase(phase_id)
+        if phase:
+            return phase.get("supports_proposals", False)
+        return False
+
     def get_max_iterations(self, phase_id: str) -> int | None:
         """Get max iterations for a phase (for research loops)."""
         phase = self.get_phase(phase_id)
@@ -598,6 +605,12 @@ def get_assembled_prompts(workflow_mgr: "WorkflowManager", phase_id: str) -> str
         test_def_file = prompts_dir / "test-definition.md"
         if test_def_file.exists():
             prompt_parts.append(test_def_file.read_text())
+
+    # CLAUDE.md proposals support
+    if workflow_mgr.supports_proposals(phase_id):
+        proposals_file = prompts_dir / "claude-md-proposals.md"
+        if proposals_file.exists():
+            prompt_parts.append(proposals_file.read_text())
 
     return "\n\n".join(prompt_parts)
 
@@ -1853,6 +1866,25 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
         for step in steps:
             prompt_parts.append(f"- {step}")
 
+    # 2b. Project context (CLAUDE.md) - opt-in via task field
+    if task.get("inject_project_context", False):
+        claude_md_paths = [
+            project_dir / ".claude" / "CLAUDE.md",
+            project_dir / "CLAUDE.md",
+        ]
+        for claude_path in claude_md_paths:
+            if claude_path.exists():
+                content = claude_path.read_text().strip()
+                if content:
+                    # Size guard: truncate if over 500 lines
+                    lines = content.split('\n')
+                    if len(lines) > 500:
+                        content = '\n'.join(lines[:500])
+                        content += f"\n\n[... truncated, {len(lines) - 500} lines omitted]"
+                    prompt_parts.append(f"\n\n## Project Context (from {claude_path.name})")
+                    prompt_parts.append(content)
+                break
+
     # 3. Context artifacts (from phase history)
     context_artifacts = task.get("context_artifacts", [])
     if context_artifacts:
@@ -2323,14 +2355,14 @@ def cmd_enter_phase_by_number(args: argparse.Namespace) -> int:
         log_progress(plan_dir, f"USER_GUIDANCE: {guidance}")
 
     # Build reason string
-    reason = f"User selected option {number}"
+    reason_str = f"User selected option {number}"
     if guidance:
-        reason += f": {guidance}"
+        reason_str += f": {guidance}"
 
     # Simulate args for enter-phase
     class EnterPhaseArgs:
         phase_id = target_phase
-        reason = reason
+        reason = reason_str
 
     return cmd_enter_phase(EnterPhaseArgs())
 
@@ -3089,6 +3121,235 @@ def cmd_cache_suggest(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- Proposal Commands ---
+
+
+def slugify(text: str) -> str:
+    """Convert text to slug format for IDs."""
+    import re
+    text = text.lower().strip()
+    text = re.sub(r'[^\w\s-]', '', text)
+    text = re.sub(r'[-\s]+', '-', text)
+    return text[:50]  # Limit length
+
+
+def parse_proposals_md(content: str) -> list[dict]:
+    """Parse proposals.md markdown format into structured proposals.
+
+    Expected format:
+    ## Proposal: <title>
+
+    **Target File**: `path/to/file`
+
+    **Content**:
+    <content lines>
+
+    **Rationale**:
+    <rationale lines>
+    """
+    import re
+    proposals = []
+
+    # Split by ## Proposal: headers
+    sections = re.split(r'^## Proposal:\s*', content, flags=re.MULTILINE)
+
+    for section in sections[1:]:  # Skip content before first proposal
+        lines = section.strip().split('\n')
+        if not lines:
+            continue
+
+        title = lines[0].strip()
+        section_text = '\n'.join(lines[1:])
+
+        # Extract Target File
+        target_match = re.search(r'\*\*Target File\*\*:\s*`([^`]+)`', section_text)
+        target_file = target_match.group(1) if target_match else ""
+
+        # Extract Content (between **Content**: and **Rationale**:)
+        content_match = re.search(
+            r'\*\*Content\*\*:\s*\n(.*?)(?=\*\*Rationale\*\*:|\Z)',
+            section_text,
+            re.DOTALL
+        )
+        proposal_content = content_match.group(1).strip() if content_match else ""
+
+        # Extract Rationale
+        rationale_match = re.search(
+            r'\*\*Rationale\*\*:\s*\n(.*?)(?=---|\Z)',
+            section_text,
+            re.DOTALL
+        )
+        rationale = rationale_match.group(1).strip() if rationale_match else ""
+
+        if title and target_file:
+            proposals.append({
+                "title": title,
+                "target_file": target_file,
+                "content": proposal_content,
+                "rationale": rationale,
+            })
+
+    return proposals
+
+
+def cmd_collect_proposals(args: argparse.Namespace) -> int:
+    """Collect all proposals from task directories into a manifest."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    manifest_file = plan_dir / "proposals-manifest.json"
+
+    # Load existing manifest to preserve status
+    existing = {}
+    if manifest_file.exists():
+        try:
+            data = json.loads(manifest_file.read_text())
+            existing = {p["id"]: p for p in data.get("proposals", [])}
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    # Collect proposals from all task directories
+    proposals = []
+    phases_dir = plan_dir / "phases"
+
+    if phases_dir.exists():
+        for phase_dir in sorted(phases_dir.iterdir()):
+            if not phase_dir.is_dir():
+                continue
+            tasks_dir = phase_dir / "tasks"
+            if not tasks_dir.exists():
+                continue
+
+            for task_dir in sorted(tasks_dir.iterdir()):
+                if not task_dir.is_dir():
+                    continue
+                proposals_file = task_dir / "proposals.md"
+                if not proposals_file.exists():
+                    continue
+
+                # Parse proposals from this task
+                parsed = parse_proposals_md(proposals_file.read_text())
+                for p in parsed:
+                    # Generate ID as task:title-slug
+                    proposal_id = f"{task_dir.name}:{slugify(p['title'])}"
+
+                    proposal = {
+                        "id": proposal_id,
+                        "source_task": task_dir.name,
+                        "source_phase": str(phase_dir.relative_to(plan_dir)),
+                        "target_file": p["target_file"],
+                        "title": p["title"],
+                        "content": p["content"],
+                        "rationale": p["rationale"],
+                        "status": "pending",
+                    }
+
+                    # Preserve status from existing manifest
+                    if proposal_id in existing:
+                        proposal["status"] = existing[proposal_id].get("status", "pending")
+
+                    proposals.append(proposal)
+
+    # Write manifest
+    manifest = {"proposals": proposals}
+    manifest_file.write_text(json.dumps(manifest, indent=2))
+
+    new_count = sum(1 for p in proposals if p["id"] not in existing)
+    print(f"Collected {len(proposals)} proposals ({new_count} new)")
+    return 0
+
+
+def cmd_list_proposals(args: argparse.Namespace) -> int:
+    """List proposals with status."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    manifest_file = plan_dir / "proposals-manifest.json"
+    if not manifest_file.exists():
+        print("No proposals collected yet. Run collect-proposals first.")
+        return 0
+
+    try:
+        manifest = json.loads(manifest_file.read_text())
+    except json.JSONDecodeError:
+        print("Error: Invalid manifest file", file=sys.stderr)
+        return 1
+
+    proposals = manifest.get("proposals", [])
+    if not proposals:
+        print("No proposals")
+        return 0
+
+    # Filter by status if specified
+    status_filter = getattr(args, 'status', None)
+    if status_filter:
+        proposals = [p for p in proposals if p.get("status") == status_filter]
+
+    # Group by status
+    by_status = {"pending": [], "accepted": [], "rejected": []}
+    for p in proposals:
+        status = p.get("status", "pending")
+        if status in by_status:
+            by_status[status].append(p)
+        else:
+            by_status["pending"].append(p)
+
+    total = len(proposals)
+    pending = len(by_status["pending"])
+
+    print(f"Proposals ({total} total, {pending} pending):")
+
+    for status in ["pending", "accepted", "rejected"]:
+        if by_status[status]:
+            print(f"\n  {status}:")
+            for p in by_status[status]:
+                print(f"    {p['id']}: [{p['target_file']}] {p['title']} (from {p['source_task']})")
+
+    return 0
+
+
+def cmd_update_proposal_status(args: argparse.Namespace) -> int:
+    """Update proposal status in manifest."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    manifest_file = plan_dir / "proposals-manifest.json"
+    if not manifest_file.exists():
+        print("No proposals manifest. Run collect-proposals first.", file=sys.stderr)
+        return 1
+
+    try:
+        manifest = json.loads(manifest_file.read_text())
+    except json.JSONDecodeError:
+        print("Error: Invalid manifest file", file=sys.stderr)
+        return 1
+
+    # Find and update the proposal
+    found = False
+    for p in manifest.get("proposals", []):
+        if p["id"] == args.proposal_id:
+            p["status"] = args.status
+            found = True
+            break
+
+    if not found:
+        print(f"Proposal not found: {args.proposal_id}", file=sys.stderr)
+        return 1
+
+    manifest_file.write_text(json.dumps(manifest, indent=2))
+    print(f"Updated: {args.proposal_id} -> {args.status}")
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     """Show comprehensive status overview."""
     project_dir = get_project_dir()
@@ -3390,6 +3651,16 @@ def main() -> int:
     p_cache_suggest = subparsers.add_parser("cache-suggest", help="Suggest cache references for a task")
     p_cache_suggest.add_argument("--description", "-d", required=True, help="Task description to search for")
 
+    # Proposal commands
+    subparsers.add_parser("collect-proposals", help="Collect proposals from task directories")
+
+    p_list_proposals = subparsers.add_parser("list-proposals", help="List proposals with status")
+    p_list_proposals.add_argument("--status", choices=["pending", "accepted", "rejected"], help="Filter by status")
+
+    p_update_proposal = subparsers.add_parser("update-proposal-status", help="Update proposal status")
+    p_update_proposal.add_argument("proposal_id", help="Proposal ID")
+    p_update_proposal.add_argument("status", choices=["pending", "accepted", "rejected"], help="New status")
+
     args = parser.parse_args()
 
     commands = {
@@ -3457,6 +3728,10 @@ def main() -> int:
         "cache-gc": cmd_cache_gc,
         "cache-stats": cmd_cache_stats,
         "cache-suggest": cmd_cache_suggest,
+        # Proposal commands
+        "collect-proposals": cmd_collect_proposals,
+        "list-proposals": cmd_list_proposals,
+        "update-proposal-status": cmd_update_proposal_status,
     }
 
     return commands[args.command](args)

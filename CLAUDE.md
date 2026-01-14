@@ -97,6 +97,7 @@ Tasks in `tasks.json` support these fields:
 | `model` | Model override (`sonnet`, `haiku`, `opus`) |
 | `question` | For prototype tasks: the question being answered |
 | `hypothesis` | For prototype tasks: expected outcome |
+| `inject_project_context` | Include project CLAUDE.md in task prompt (default: false) |
 
 The `context_artifacts` field lets tasks selectively request artifacts from phase history. Use `build-task-prompt` to resolve them.
 
