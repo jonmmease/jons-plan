@@ -87,6 +87,7 @@ Tasks in `tasks.json` support these fields:
 | Field | Description |
 |-------|-------------|
 | `id` | Unique task identifier |
+| `type` | Task type: `cache-reference`, `prototype`. Default: normal task |
 | `description` | What the task accomplishes |
 | `steps` | Ordered list of steps |
 | `parents` | Task IDs that must complete first |
@@ -94,8 +95,14 @@ Tasks in `tasks.json` support these fields:
 | `subagent` | Agent type for execution |
 | `subagent_prompt` | Additional context for subagent |
 | `model` | Model override (`sonnet`, `haiku`, `opus`) |
+| `question` | For prototype tasks: the question being answered |
+| `hypothesis` | For prototype tasks: expected outcome |
 
 The `context_artifacts` field lets tasks selectively request artifacts from phase history. Use `build-task-prompt` to resolve them.
+
+### Prototype Tasks
+
+Prototype tasks (`type: "prototype"`) are standalone experiments that answer questions through implementation. They include `question` and `hypothesis` fields, run in isolated task directories, and produce `findings.md` with the answer.
 
 ## Subagent Capabilities
 

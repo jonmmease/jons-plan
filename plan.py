@@ -495,6 +495,41 @@ class WorkflowManager:
             return phase.get("user_review_artifacts", [])
         return []
 
+    def supports_cache_reference(self, phase_id: str) -> bool:
+        """Check if phase supports cache-reference tasks."""
+        phase = self.get_phase(phase_id)
+        if phase:
+            return phase.get("supports_cache_reference", False)
+        return False
+
+    def supports_prototypes(self, phase_id: str) -> bool:
+        """Check if phase supports prototype tasks."""
+        phase = self.get_phase(phase_id)
+        if phase:
+            return phase.get("supports_prototypes", False)
+        return False
+
+    def supports_validation(self, phase_id: str) -> bool:
+        """Check if phase supports validation tasks."""
+        phase = self.get_phase(phase_id)
+        if phase:
+            return phase.get("supports_validation", False)
+        return False
+
+    def supports_test_definition(self, phase_id: str) -> bool:
+        """Check if phase supports test definition tasks."""
+        phase = self.get_phase(phase_id)
+        if phase:
+            return phase.get("supports_test_definition", False)
+        return False
+
+    def get_max_iterations(self, phase_id: str) -> int | None:
+        """Get max iterations for a phase (for research loops)."""
+        phase = self.get_phase(phase_id)
+        if phase:
+            return phase.get("max_iterations")
+        return None
+
     def get_workflow_name(self) -> str:
         """Get the workflow name."""
         if not self.exists():
@@ -508,6 +543,63 @@ class WorkflowManager:
             return ""
         workflow = self.load()
         return workflow.get("workflow", {}).get("description", "")
+
+
+def get_assembled_prompts(workflow_mgr: "WorkflowManager", phase_id: str) -> str:
+    """Assemble prompts based on workflow phase configuration flags.
+
+    Reads prompt files from the prompts/ directory and concatenates them
+    based on which flags are enabled for the phase.
+
+    Args:
+        workflow_mgr: WorkflowManager instance
+        phase_id: ID of the current phase
+
+    Returns:
+        Assembled prompt string with all applicable guidance
+    """
+    # Get the prompts directory (relative to plan.py location)
+    prompts_dir = Path(__file__).parent / "prompts"
+    if not prompts_dir.exists():
+        return ""
+
+    prompt_parts: list[str] = []
+
+    # Core task execution (required for any task-based phase)
+    if workflow_mgr.uses_tasks(phase_id):
+        task_exec_file = prompts_dir / "task-execution.md"
+        if task_exec_file.exists():
+            prompt_parts.append(task_exec_file.read_text())
+
+    # Optional task types
+    if workflow_mgr.supports_cache_reference(phase_id):
+        cache_ref_file = prompts_dir / "cache-reference.md"
+        if cache_ref_file.exists():
+            prompt_parts.append(cache_ref_file.read_text())
+
+    if workflow_mgr.supports_prototypes(phase_id):
+        prototype_file = prompts_dir / "prototype.md"
+        if prototype_file.exists():
+            prompt_parts.append(prototype_file.read_text())
+
+    # Research iteration support
+    if workflow_mgr.get_max_iterations(phase_id):
+        iteration_file = prompts_dir / "iteration-guidance.md"
+        if iteration_file.exists():
+            prompt_parts.append(iteration_file.read_text())
+
+    # Validation/test phases
+    if workflow_mgr.supports_validation(phase_id):
+        validation_file = prompts_dir / "validation-tasks.md"
+        if validation_file.exists():
+            prompt_parts.append(validation_file.read_text())
+
+    if workflow_mgr.supports_test_definition(phase_id):
+        test_def_file = prompts_dir / "test-definition.md"
+        if test_def_file.exists():
+            prompt_parts.append(test_def_file.read_text())
+
+    return "\n\n".join(prompt_parts)
 
 
 class ArtifactResolver:
@@ -1745,6 +1837,15 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
     else:
         prompt_parts.append(description)
 
+    # 1b. For prototype tasks, include question and hypothesis
+    if task.get("type") == "prototype":
+        question = task.get("question")
+        hypothesis = task.get("hypothesis")
+        if question:
+            prompt_parts.append(f"\n**Question:** {question}")
+        if hypothesis:
+            prompt_parts.append(f"\n**Hypothesis:** {hypothesis}")
+
     # 2. Steps list
     steps = task.get("steps", [])
     if steps:
@@ -2067,6 +2168,16 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
     ]
     is_reentry = len(prev_entries) > 0
 
+    # Check max_iterations limit
+    max_iterations = workflow_mgr.get_max_iterations(args.phase_id)
+    if max_iterations and len(prev_entries) >= max_iterations:
+        print(
+            f"Error: Phase '{args.phase_id}' has reached max iterations ({max_iterations})",
+            file=sys.stderr,
+        )
+        print("Proceeding to next phase is required.", file=sys.stderr)
+        return 1
+
     # Determine next entry number (global across all phases)
     next_entry = state.get("current_phase_entry", 0) + 1
 
@@ -2370,6 +2481,7 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
 
     if args.json:
         use_tasks = workflow_mgr.uses_tasks(current_phase)
+        assembled_prompts = get_assembled_prompts(workflow_mgr, current_phase)
         output = {
             "phase_id": current_phase,
             "phase_dir": str(plan_dir / current_phase_dir) if current_phase_dir else None,
@@ -2378,6 +2490,7 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             "requires_user_input": phase.get("requires_user_input", False),
             "use_tasks": use_tasks,
             "task_schema": TASK_SCHEMA if use_tasks else None,
+            "assembled_prompts": assembled_prompts if assembled_prompts else None,
             "suggested_next": phase.get("suggested_next", []),
             "input_artifacts": {
                 "found": [str(p) for p in found],
@@ -2409,6 +2522,12 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
         # Task schema (injected for phases with use_tasks=true)
         if workflow_mgr.uses_tasks(current_phase):
             print(TASK_SCHEMA)
+            print()
+
+        # Assembled prompts based on workflow flags
+        assembled_prompts = get_assembled_prompts(workflow_mgr, current_phase)
+        if assembled_prompts:
+            print(assembled_prompts)
             print()
 
         # Re-entry context

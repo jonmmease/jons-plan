@@ -8,6 +8,9 @@ description = "Design a solution, get user approval, then optionally implement"
 [[phases]]
 id = "research"
 use_tasks = true
+supports_prototypes = true
+supports_cache_reference = true
+max_iterations = 4
 prompt = """
 # Research Phase
 
@@ -52,8 +55,10 @@ Include a section:
 
 ## Outputs
 Write `research.md` with findings, including verification capabilities.
+
+Use prototype tasks if you need to answer questions through implementation.
 """
-suggested_next = ["draft"]
+suggested_next = ["research", "draft"]
 
 [[phases]]
 id = "draft"

@@ -338,6 +338,44 @@ This allows cached research to be injected via the parent task output flow.
 
 Proceed with creating a normal research task. After the research completes (during implementation), consider caching valuable findings using `cache-add`.
 
+## Prototype Tasks
+
+For questions that can only be answered by trying something, create prototype tasks.
+
+### When to Use Prototypes
+
+- Library compatibility questions ("Do X and Y work together?")
+- API behavior clarification ("What does this actually do?")
+- Performance experiments ("Is this approach fast enough?")
+- "Does this work?" questions
+
+### Task Schema
+
+```json
+{
+  "id": "proto-async-compat",
+  "type": "prototype",
+  "question": "Can library-x be used in async context?",
+  "hypothesis": "Should work with run_in_executor",
+  "description": "Test async compatibility",
+  "parents": ["research-library-x"],
+  "context_artifacts": ["research"],
+  "steps": ["Create test script", "Run experiment", "Document findings"],
+  "status": "todo"
+}
+```
+
+### Key Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | Yes | Must be `"prototype"` |
+| `question` | Yes | The question being answered |
+| `hypothesis` | No | Expected outcome (recommended) |
+| `context_artifacts` | No | Include research artifacts from phase history |
+
+Prototypes run in their task directory and produce `findings.md` with the answer to the question.
+
 ## Important Reminders
 
 - NEVER implement code - only create the plan infrastructure

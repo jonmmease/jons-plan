@@ -8,6 +8,9 @@ description = "Research, explore, and produce a design document"
 [[phases]]
 id = "research"
 use_tasks = true
+supports_prototypes = true
+supports_cache_reference = true
+max_iterations = 4
 prompt = """
 # Research Phase
 
@@ -47,8 +50,10 @@ Write findings to `research.md`:
 - External resources and references
 - Identified constraints
 - Potential approaches with pros/cons
+
+Use prototype tasks if you need to answer questions through implementation.
 """
-suggested_next = ["draft"]
+suggested_next = ["research", "draft"]
 
 [[phases]]
 id = "draft"

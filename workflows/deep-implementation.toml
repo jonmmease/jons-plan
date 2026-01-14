@@ -53,6 +53,9 @@ suggested_next = ["research"]
 [[phases]]
 id = "research"
 use_tasks = true
+supports_prototypes = true
+supports_cache_reference = true
+max_iterations = 4
 prompt = """
 # Research Phase
 
@@ -93,8 +96,10 @@ Write `research-findings.md` with:
 - Code patterns found
 - External references
 - Remaining unknowns
+
+Use prototype tasks if you need to answer questions through implementation.
 """
-suggested_next = ["synthesize"]
+suggested_next = ["research", "synthesize"]
 
 [[phases]]
 id = "synthesize"

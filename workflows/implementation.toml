@@ -6,26 +6,31 @@ name = "implementation"
 description = "Build features, fix bugs, implement changes with research and validation"
 
 [[phases]]
-id = "explore"
+id = "research"
+use_tasks = true
+supports_prototypes = true
+supports_cache_reference = true
+max_iterations = 4
 prompt = """
-# Explore Phase
+# Research Phase
 
 Your goal is to understand the codebase and requirements before implementation.
 
 ## Tasks
+Create research tasks to:
 1. Explore the codebase to understand existing patterns and architecture
 2. Identify files and components relevant to this request
 3. Look for similar implementations to follow as examples
 4. Note any constraints, dependencies, or potential blockers
 
+Use prototype tasks if you need to answer questions through implementation (e.g., "Can library X work with Y?").
+
 ## Outputs
-Write your findings to `findings.md` in this phase directory:
-- Key files and their purposes
-- Existing patterns to follow
-- Potential challenges or considerations
-- Recommended approach summary
+Synthesize findings into `research.md` with one section per task. Include:
+- Brief overview of important findings
+- Links to full reports in task directories
 """
-suggested_next = ["plan"]
+suggested_next = ["research", "plan"]
 
 [[phases]]
 id = "plan"
@@ -36,7 +41,7 @@ prompt = """
 Create a detailed implementation plan based on exploration findings.
 
 ## Inputs
-Review the findings.md from the explore phase.
+Review the research.md from the research phase.
 
 ## Planning Tasks
 Create tasks in this phase to:
