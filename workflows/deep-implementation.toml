@@ -334,6 +334,8 @@ on_blocked = "synthesize"
 id = "implement"
 use_tasks = true
 supports_proposals = true
+on_blocked = "self"
+max_retries = 3
 prompt = """
 # Implement Phase
 
@@ -484,3 +486,10 @@ Remove intermediate artifacts if no longer needed:
 This is a terminal phase. The workflow is complete.
 """
 terminal = true
+
+# Transition rules for phase loopbacks
+[[transitions]]
+from = ["implement", "validate"]
+to = "research"
+requires_approval = true
+approval_prompt = "Return to research phase for additional investigation?"

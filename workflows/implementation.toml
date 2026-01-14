@@ -98,6 +98,8 @@ suggested_next = ["implement"]
 id = "implement"
 use_tasks = true
 supports_proposals = true
+on_blocked = "self"
+max_retries = 3
 prompt = """
 # Implement Phase
 
@@ -231,3 +233,10 @@ If implementation generated any CLAUDE.md improvement proposals:
 This is a terminal phase. The workflow is complete.
 """
 terminal = true
+
+# Transition rules for phase loopbacks
+[[transitions]]
+from = ["implement", "validate"]
+to = "research"
+requires_approval = true
+approval_prompt = "Return to research phase for additional investigation?"

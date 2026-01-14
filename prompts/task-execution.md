@@ -211,9 +211,36 @@ Only after `blockers.md` exists:
 uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> blocked
 ```
 
-### Step 3: STOP Execution
+### Step 3: Consider Phase Loopback
 
-**CRITICAL: After marking a task as blocked, you MUST STOP all task execution.**
+If the workflow supports loopbacks (check if `on_blocked` or `max_retries` are configured):
+
+**Before looping, record important artifacts:**
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py record-artifact blockers phases/XX-{phase}/tasks/{task-id}/blockers.md
+```
+
+**Self-loop (retry current phase):**
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py loop-phase --reason "Task blocked: <brief description>"
+```
+This creates a new phase directory. Create new tasks.json addressing the blockers.
+
+**Cross-phase loop (e.g., validate → implement):**
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py loop-to-phase <target-phase> --reason "<description>"
+```
+
+**Check prior phase outputs for context:**
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py prior-phase-outputs
+```
+
+**If max retries exceeded or loopback not configured:** STOP and inform user.
+
+### Step 4: STOP Execution (if not looping)
+
+**CRITICAL: After marking a task as blocked without looping, you MUST STOP all task execution.**
 
 - Do NOT continue to other tasks
 - Do NOT try workarounds

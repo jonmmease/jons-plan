@@ -60,3 +60,20 @@ Option A: Add session-storage-refactor as prerequisite task
 Option B: Descope session limits from this feature
 Option C: Accept eventual consistency for token refresh
 ```
+
+## Validation Phase Loopbacks
+
+When validation identifies issues requiring implementation changes:
+
+1. **Document findings** in blockers.md
+2. **Mark task as blocked**: `uv run plan.py set-status validate-auth blocked`
+3. **Check if loopback to implement is configured**:
+   - If `on_blocked = "implement"` in workflow, loop back:
+     ```bash
+     uv run plan.py loop-to-phase implement --reason "Validation failures: <summary>"
+     ```
+   - The implementation phase will receive validation findings via artifacts
+
+4. **If approval required**: The loop-to-phase command will set pending_approval and prompt for user confirmation.
+
+5. **If user rejects loopback**: Continue in validate phase, try alternative approaches or escalate to user.

@@ -244,11 +244,18 @@ class StateManager:
         entry = state.get("current_phase_entry", 0) + 1
 
         # Close current phase in history if exists
+        old_phase_id = state.get("current_phase")
         if state.get("phase_history"):
             current_entry = state["phase_history"][-1]
             if "exited" not in current_entry:
                 current_entry["exited"] = datetime.now().isoformat()
                 current_entry["outcome"] = "completed"
+
+        # Reset retry counter for old phase if transitioning to a different phase
+        # (successful completion, not a loopback)
+        if old_phase_id and old_phase_id != phase_id:
+            if "phase_retries" in state and old_phase_id in state["phase_retries"]:
+                state["phase_retries"][old_phase_id] = 0
 
         # Update current phase info
         state["current_phase"] = phase_id
@@ -297,7 +304,86 @@ class StateManager:
             "current_phase_entry": 0,
             "started_at": datetime.now().isoformat(),
             "phase_history": [],
+            "phase_retries": {},
         }
+
+    def get_phase_retries(self, phase_id: str) -> int:
+        """Get the number of re-entries for a phase (not including original)."""
+        state = self.load()
+        return state.get("phase_retries", {}).get(phase_id, 0)
+
+    def increment_phase_retries(self, phase_id: str) -> int:
+        """Increment retry count for a phase. Returns new count."""
+        state = self.load()
+        if "phase_retries" not in state:
+            state["phase_retries"] = {}
+        current = state["phase_retries"].get(phase_id, 0)
+        state["phase_retries"][phase_id] = current + 1
+        self.save(state)
+        return current + 1
+
+    def reset_phase_retries(self, phase_id: str) -> None:
+        """Reset retry counter for a phase (on successful completion)."""
+        state = self.load()
+        if "phase_retries" in state and phase_id in state["phase_retries"]:
+            state["phase_retries"][phase_id] = 0
+            self.save(state)
+
+    def get_pending_approval(self) -> dict | None:
+        """Get pending approval info if exists."""
+        state = self.load()
+        return state.get("pending_approval")
+
+    def set_pending_approval(
+        self,
+        from_phase: str,
+        to_phase: str,
+        reason: str,
+        from_entry: int,
+    ) -> None:
+        """Set pending approval for a transition.
+
+        Args:
+            from_phase: Source phase ID
+            to_phase: Target phase ID
+            reason: Why transition is needed
+            from_entry: Current phase entry number (for staleness check)
+        """
+        state = self.load()
+        state["pending_approval"] = {
+            "from_phase": from_phase,
+            "from_entry": from_entry,
+            "to_phase": to_phase,
+            "reason": reason,
+            "proposed_at": datetime.now().isoformat(),
+        }
+        self.save(state)
+
+    def clear_pending_approval(self) -> None:
+        """Clear any pending approval."""
+        state = self.load()
+        if "pending_approval" in state:
+            del state["pending_approval"]
+            self.save(state)
+
+    def validate_pending_approval(self) -> tuple[bool, str]:
+        """Validate pending approval is not stale.
+
+        Returns:
+            (is_valid, error_message) - is_valid is True if approval can proceed
+        """
+        state = self.load()
+        pending = state.get("pending_approval")
+        if not pending:
+            return False, "No pending approval"
+
+        current_entry = state.get("current_phase_entry", 0)
+        pending_entry = pending.get("from_entry", 0)
+
+        if current_entry != pending_entry:
+            return False, f"Stale approval: proposed at entry {pending_entry}, now at entry {current_entry}"
+
+        return True, ""
 
 
 class DeadEndRegistry:
@@ -537,6 +623,17 @@ class WorkflowManager:
             return phase.get("max_iterations")
         return None
 
+    def get_max_retries(self, phase_id: str) -> int | None:
+        """Get max retries for a phase (re-entries, not total).
+
+        Returns None if no limit configured.
+        A value of 3 means 4 total entries (1 original + 3 retries).
+        """
+        phase = self.get_phase(phase_id)
+        if phase:
+            return phase.get("max_retries")
+        return None
+
     def get_workflow_name(self) -> str:
         """Get the workflow name."""
         if not self.exists():
@@ -550,6 +647,91 @@ class WorkflowManager:
             return ""
         workflow = self.load()
         return workflow.get("workflow", {}).get("description", "")
+
+    def get_transitions(self) -> list[dict]:
+        """Get all transition rules from workflow."""
+        if not self.exists():
+            return []
+        workflow = self.load()
+        return workflow.get("transitions", [])
+
+    def get_transition(self, from_phase: str, to_phase: str) -> dict | None:
+        """Get transition rule for a specific from→to pair if defined."""
+        for t in self.get_transitions():
+            from_phases = t.get("from", [])
+            if from_phase in from_phases and t.get("to") == to_phase:
+                return t
+        return None
+
+    def transition_requires_approval(self, from_phase: str, to_phase: str) -> bool:
+        """Check if transition requires user approval."""
+        t = self.get_transition(from_phase, to_phase)
+        if t:
+            return t.get("requires_approval", False)
+        return False
+
+    def is_transition_allowed(self, from_phase: str, to_phase: str) -> bool:
+        """Check if transition is allowed via transitions config or on_blocked.
+
+        Allowed if:
+        - Explicit transition rule exists (from → to)
+        - OR from_phase.on_blocked == to_phase
+        - OR to_phase in from_phase.suggested_next
+        """
+        # Check explicit transition rule
+        if self.get_transition(from_phase, to_phase):
+            return True
+
+        # Check on_blocked
+        on_blocked = self.get_on_blocked(from_phase)
+        if on_blocked == to_phase:
+            return True
+        # Handle "self" as special value
+        if on_blocked == "self" and from_phase == to_phase:
+            return True
+
+        # Check suggested_next
+        suggested = self.get_suggested_next(from_phase)
+        if to_phase in suggested:
+            return True
+
+        return False
+
+    def validate_phase_references(self) -> list[str]:
+        """Validate all phase ID references in workflow config.
+
+        Returns list of errors if any phase IDs in on_blocked or
+        transitions don't exist.
+        """
+        errors = []
+        if not self.exists():
+            return errors
+
+        workflow = self.load()
+        phases = workflow.get("phases", [])
+        phase_ids = {p.get("id") for p in phases}
+
+        # Check on_blocked references
+        for phase in phases:
+            pid = phase.get("id")
+            on_blocked = phase.get("on_blocked")
+            if on_blocked and on_blocked != "self" and on_blocked not in phase_ids:
+                errors.append(f"Phase '{pid}' has on_blocked='{on_blocked}' but phase '{on_blocked}' doesn't exist")
+
+        # Check transition references
+        for t in workflow.get("transitions", []):
+            to_phase = t.get("to")
+            if to_phase and to_phase not in phase_ids:
+                errors.append(f"Transition to '{to_phase}' references non-existent phase")
+            for from_phase in t.get("from", []):
+                if from_phase not in phase_ids:
+                    errors.append(f"Transition from '{from_phase}' references non-existent phase")
+
+            # Check approval_prompt is present when requires_approval is true
+            if t.get("requires_approval") and not t.get("approval_prompt"):
+                errors.append(f"Transition to '{to_phase}' requires approval but has no approval_prompt")
+
+        return errors
 
 
 def get_assembled_prompts(workflow_mgr: "WorkflowManager", phase_id: str) -> str:
@@ -1189,6 +1371,12 @@ def cmd_set_active(args: argparse.Namespace) -> int:
                     print(f"  {plan.name}", file=sys.stderr)
         return 1
 
+    # Clear pending approval from old plan if switching
+    old_plan_dir = get_active_plan_dir(project_dir)
+    if old_plan_dir and old_plan_dir != plan_dir:
+        state_mgr = StateManager(old_plan_dir)
+        state_mgr.clear_pending_approval()
+
     active_plan_file = project_dir / ".claude" / "jons-plan" / "active-plan"
     active_plan_file.parent.mkdir(parents=True, exist_ok=True)
     active_plan_file.write_text(args.plan_name)
@@ -1204,6 +1392,12 @@ def cmd_deactivate(args: argparse.Namespace) -> int:
     if not active_plan_file.exists():
         print("No active plan to deactivate")
         return 0
+
+    # Clear pending approval before deactivating
+    plan_dir = get_active_plan_dir(project_dir)
+    if plan_dir:
+        state_mgr = StateManager(plan_dir)
+        state_mgr.clear_pending_approval()
 
     plan_name = active_plan_file.read_text().strip()
     active_plan_file.unlink()
@@ -2200,7 +2394,7 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
     ]
     is_reentry = len(prev_entries) > 0
 
-    # Check max_iterations limit
+    # Check max_iterations limit (legacy research phase looping)
     max_iterations = workflow_mgr.get_max_iterations(args.phase_id)
     if max_iterations and len(prev_entries) >= max_iterations:
         print(
@@ -2209,6 +2403,21 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
         )
         print("Proceeding to next phase is required.", file=sys.stderr)
         return 1
+
+    # Check max_retries limit for phase loopbacks
+    if is_reentry:
+        max_retries = workflow_mgr.get_max_retries(args.phase_id)
+        current_retries = state_mgr.get_phase_retries(args.phase_id)
+        if max_retries is not None and current_retries >= max_retries:
+            print(
+                f"Max retries ({max_retries}) exceeded for phase '{args.phase_id}'",
+                file=sys.stderr,
+            )
+            print("User intervention required.", file=sys.stderr)
+            return 10  # Exit code for max retries exceeded
+
+        # Increment retry counter for this re-entry
+        state_mgr.increment_phase_retries(args.phase_id)
 
     # Determine next entry number (global across all phases)
     next_entry = state.get("current_phase_entry", 0) + 1
@@ -2399,6 +2608,483 @@ def cmd_phase_history(args: argparse.Namespace) -> int:
             print(f"{entry_num:2d}. {phase_id}: {entered} -> {exited} [{outcome}]{reentry_marker}")
         else:
             print(f"{entry_num:2d}. {phase_id}: {entered} (active){current_marker}{reentry_marker}")
+
+    return 0
+
+
+def cmd_prior_phase_outputs(args: argparse.Namespace) -> int:
+    """List task output directories from prior entries of the same phase type."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    current_phase = state.get("current_phase")
+
+    # Determine which phase type to look for
+    phase_type = args.phase_type if args.phase_type else current_phase
+    if not phase_type:
+        print("No current phase and no --phase-type specified", file=sys.stderr)
+        return 1
+
+    # Find all prior entries of this phase type
+    history = state.get("phase_history", [])
+    current_entry = state.get("current_phase_entry", 0)
+
+    prior_entries = []
+    for entry in history:
+        if entry.get("phase") == phase_type and entry.get("entry") != current_entry:
+            entry_num = entry.get("entry")
+            entry_dir = entry.get("dir")
+            if entry_dir:
+                tasks_dir = plan_dir / entry_dir / "tasks"
+                task_outputs = []
+                if tasks_dir.exists():
+                    for task_dir in sorted(tasks_dir.iterdir()):
+                        if task_dir.is_dir():
+                            files = [f.name for f in task_dir.iterdir() if f.is_file()]
+                            if files:
+                                task_outputs.append({
+                                    "task": task_dir.name,
+                                    "files": sorted(files)
+                                })
+                prior_entries.append({
+                    "entry": entry_num,
+                    "dir": entry_dir,
+                    "task_outputs": task_outputs
+                })
+
+    if args.json:
+        result = {
+            "phase_type": phase_type,
+            "prior_entries": prior_entries
+        }
+        print(json.dumps(result, indent=2))
+    else:
+        if not prior_entries:
+            print(f"No prior {phase_type} phase outputs")
+        else:
+            print(f"Prior {phase_type} phase outputs:")
+            for entry in prior_entries:
+                print(f"  Entry {entry['entry']} ({entry['dir']}/tasks/):")
+                if entry["task_outputs"]:
+                    for to in entry["task_outputs"]:
+                        files_str = ", ".join(to["files"])
+                        print(f"    - {to['task']}/: {files_str}")
+                else:
+                    print("    (no task outputs)")
+
+    return 0
+
+
+def cmd_loop_phase(args: argparse.Namespace) -> int:
+    """Re-enter current phase (self-loop).
+
+    Exit codes:
+        0: Success, phase re-entered
+        1: In-progress tasks exist
+        2: No active plan/phase
+        10: Max retries exceeded
+    """
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 2
+
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    current_phase = state.get("current_phase")
+    if not current_phase:
+        print("No current phase", file=sys.stderr)
+        return 2
+
+    workflow_mgr = WorkflowManager(plan_dir)
+    if not workflow_mgr.exists():
+        print("No workflow.toml in plan", file=sys.stderr)
+        return 2
+
+    # Check no in-progress tasks (require all done or blocked)
+    tasks = get_tasks(plan_dir)
+    in_progress = [t for t in tasks if t.get("status") == "in-progress"]
+    if in_progress:
+        print("Cannot loop: in-progress tasks exist", file=sys.stderr)
+        for t in in_progress:
+            print(f"  - {t['id']}", file=sys.stderr)
+        return 1
+
+    # Check max_retries not exceeded
+    max_retries = workflow_mgr.get_max_retries(current_phase)
+    current_retries = state_mgr.get_phase_retries(current_phase)
+    if max_retries is not None and current_retries >= max_retries:
+        # Set mode to awaiting-feedback
+        state["session_mode"] = "awaiting-feedback"
+        state_mgr.save(state)
+        print(f"Max retries ({max_retries}) exceeded for {current_phase}. User intervention required.", file=sys.stderr)
+        if args.json:
+            result = {
+                "error": "max_retries_exceeded",
+                "phase": current_phase,
+                "retries": current_retries,
+                "max_retries": max_retries
+            }
+            print(json.dumps(result))
+        return 10
+
+    # Call enter-phase with same phase ID
+    reason = args.reason or f"Self-loop: retry attempt {current_retries + 1}"
+
+    class EnterPhaseArgs:
+        phase_id = current_phase
+        reason = reason
+
+    enter_args = EnterPhaseArgs()
+    enter_args.reason = reason
+
+    result = cmd_enter_phase(enter_args)
+
+    if result == 0 and args.json:
+        new_state = state_mgr.load()
+        output = {
+            "success": True,
+            "phase": current_phase,
+            "new_dir": new_state.get("current_phase_dir"),
+            "retry_count": new_state.get("phase_retries", {}).get(current_phase, 0)
+        }
+        print(json.dumps(output))
+
+    return result
+
+
+def cmd_loop_to_phase(args: argparse.Namespace) -> int:
+    """Transition to a different phase (cross-phase loopback).
+
+    Exit codes:
+        0: Success, transitioned
+        2: No active plan/phase
+        10: Target phase max retries exceeded
+        11: Approval required (pending_approval set)
+        12: Invalid transition (not allowed)
+    """
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 2
+
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    current_phase = state.get("current_phase")
+    if not current_phase:
+        print("No current phase", file=sys.stderr)
+        return 2
+
+    workflow_mgr = WorkflowManager(plan_dir)
+    if not workflow_mgr.exists():
+        print("No workflow.toml in plan", file=sys.stderr)
+        return 2
+
+    target_phase = args.phase_id
+
+    # Check target phase exists
+    if not workflow_mgr.get_phase(target_phase):
+        print(f"Phase not found: {target_phase}", file=sys.stderr)
+        return 12
+
+    # Validate transition is allowed
+    if not workflow_mgr.is_transition_allowed(current_phase, target_phase):
+        print(f"Transition not allowed: {current_phase} -> {target_phase}", file=sys.stderr)
+        if args.json:
+            result = {
+                "error": "invalid_transition",
+                "from": current_phase,
+                "to": target_phase
+            }
+            print(json.dumps(result))
+        return 12
+
+    # Check target phase's max_retries
+    # We need to check if target has been entered before (would be a re-entry)
+    prev_entries = [
+        e for e in state.get("phase_history", []) if e["phase"] == target_phase
+    ]
+    if prev_entries:
+        max_retries = workflow_mgr.get_max_retries(target_phase)
+        current_retries = state_mgr.get_phase_retries(target_phase)
+        if max_retries is not None and current_retries >= max_retries:
+            state["session_mode"] = "awaiting-feedback"
+            state_mgr.save(state)
+            print(f"Max retries ({max_retries}) exceeded for target phase '{target_phase}'.", file=sys.stderr)
+            if args.json:
+                result = {
+                    "error": "max_retries_exceeded",
+                    "phase": target_phase,
+                    "retries": current_retries,
+                    "max_retries": max_retries
+                }
+                print(json.dumps(result))
+            return 10
+
+    # Check if transition requires approval
+    if workflow_mgr.transition_requires_approval(current_phase, target_phase):
+        # Get approval prompt
+        transition = workflow_mgr.get_transition(current_phase, target_phase)
+        approval_prompt = transition.get("approval_prompt", f"Transition to {target_phase}?") if transition else f"Transition to {target_phase}?"
+
+        # Set pending approval
+        current_entry = state.get("current_phase_entry", 0)
+        reason = args.reason or f"Loopback: {current_phase} -> {target_phase}"
+        state_mgr.set_pending_approval(current_phase, target_phase, reason, current_entry)
+
+        # Set mode to awaiting-feedback
+        state = state_mgr.load()
+        state["session_mode"] = "awaiting-feedback"
+        state_mgr.save(state)
+
+        log_progress(plan_dir, f"TRANSITION_PROPOSED: {current_phase} -> {target_phase}")
+
+        print(f"Transition proposed: {current_phase} -> {target_phase}")
+        print(f"Reason: {reason}")
+        print()
+        print(f"Approval prompt: {approval_prompt}")
+        print()
+        print("Use /jons-plan:proceed with user decision:")
+        print("- To approve: Agent will call `uv run plan.py approve-transition`")
+        print("- To reject: Agent will call `uv run plan.py reject-transition`")
+
+        if args.json:
+            result = {
+                "approval_required": True,
+                "from": current_phase,
+                "to": target_phase,
+                "reason": reason,
+                "approval_prompt": approval_prompt
+            }
+            print(json.dumps(result))
+
+        return 11
+
+    # Transition directly
+    reason = args.reason or f"Loopback: {current_phase} -> {target_phase}"
+
+    class EnterPhaseArgs:
+        phase_id = target_phase
+
+    enter_args = EnterPhaseArgs()
+    enter_args.reason = reason
+
+    result = cmd_enter_phase(enter_args)
+
+    if result == 0:
+        log_progress(plan_dir, f"LOOPBACK: {current_phase} -> {target_phase}")
+        if args.json:
+            new_state = state_mgr.load()
+            output = {
+                "success": True,
+                "from": current_phase,
+                "to": target_phase,
+                "new_dir": new_state.get("current_phase_dir")
+            }
+            print(json.dumps(output))
+
+    return result
+
+
+def cmd_propose_transition(args: argparse.Namespace) -> int:
+    """Request user approval for a transition.
+
+    Exit codes:
+        0: Proposal set
+        1: Existing pending approval (must reject first)
+        2: No active plan/phase
+    """
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 2
+
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    current_phase = state.get("current_phase")
+    if not current_phase:
+        print("No current phase", file=sys.stderr)
+        return 2
+
+    # Check no existing pending approval
+    pending = state_mgr.get_pending_approval()
+    if pending:
+        print(f"Existing pending approval: {pending['from_phase']} -> {pending['to_phase']}", file=sys.stderr)
+        print("Call reject-transition to cancel first.", file=sys.stderr)
+        return 1
+
+    workflow_mgr = WorkflowManager(plan_dir)
+    target_phase = args.phase_id
+
+    # Check target phase exists
+    if workflow_mgr.exists() and not workflow_mgr.get_phase(target_phase):
+        print(f"Phase not found: {target_phase}", file=sys.stderr)
+        return 1
+
+    # Set pending approval
+    current_entry = state.get("current_phase_entry", 0)
+    reason = args.reason or f"Transition requested: {current_phase} -> {target_phase}"
+    state_mgr.set_pending_approval(current_phase, target_phase, reason, current_entry)
+
+    # Set mode to awaiting-feedback
+    state = state_mgr.load()
+    state["session_mode"] = "awaiting-feedback"
+    state_mgr.save(state)
+
+    log_progress(plan_dir, f"TRANSITION_PROPOSED: {current_phase} -> {target_phase}")
+
+    # Get approval prompt if available
+    approval_prompt = f"Transition to {target_phase}?"
+    if workflow_mgr.exists():
+        transition = workflow_mgr.get_transition(current_phase, target_phase)
+        if transition and transition.get("approval_prompt"):
+            approval_prompt = transition["approval_prompt"]
+
+    print(f"Transition proposed: {current_phase} -> {target_phase}")
+    print(f"Reason: {reason}")
+    print()
+    print("Use /jons-plan:proceed with user decision:")
+    print("- To approve: Agent will call `uv run plan.py approve-transition`")
+    print("- To reject: Agent will call `uv run plan.py reject-transition`")
+
+    if args.json:
+        result = {
+            "success": True,
+            "from": current_phase,
+            "to": target_phase,
+            "reason": reason,
+            "approval_prompt": approval_prompt
+        }
+        print(json.dumps(result))
+
+    return 0
+
+
+def cmd_approve_transition(args: argparse.Namespace) -> int:
+    """Execute a pending approved transition.
+
+    Exit codes:
+        0: Transitioned successfully
+        2: No active plan/phase
+        13: No pending approval
+        14: Stale pending approval
+    """
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 2
+
+    state_mgr = StateManager(plan_dir)
+
+    # Check pending approval exists
+    pending = state_mgr.get_pending_approval()
+    if not pending:
+        print("No pending approval", file=sys.stderr)
+        return 13
+
+    # Validate staleness
+    is_valid, error_msg = state_mgr.validate_pending_approval()
+    if not is_valid:
+        print(f"Cannot approve: {error_msg}", file=sys.stderr)
+        if args.json:
+            result = {
+                "error": "stale_approval",
+                "message": error_msg
+            }
+            print(json.dumps(result))
+        return 14
+
+    target_phase = pending["to_phase"]
+    from_phase = pending["from_phase"]
+    reason = pending.get("reason", f"Approved transition: {from_phase} -> {target_phase}")
+
+    # Execute transition via enter-phase
+    class EnterPhaseArgs:
+        phase_id = target_phase
+
+    enter_args = EnterPhaseArgs()
+    enter_args.reason = reason
+
+    result = cmd_enter_phase(enter_args)
+
+    # Only clear pending after successful transition
+    if result == 0:
+        state_mgr.clear_pending_approval()
+        # Clear session mode
+        state = state_mgr.load()
+        if state.get("session_mode") == "awaiting-feedback":
+            del state["session_mode"]
+            state_mgr.save(state)
+        log_progress(plan_dir, f"TRANSITION_APPROVED: {from_phase} -> {target_phase}")
+
+        if args.json:
+            new_state = state_mgr.load()
+            output = {
+                "success": True,
+                "from": from_phase,
+                "to": target_phase,
+                "new_dir": new_state.get("current_phase_dir")
+            }
+            print(json.dumps(output))
+
+    return result
+
+
+def cmd_reject_transition(args: argparse.Namespace) -> int:
+    """Cancel a pending transition.
+
+    Exit codes:
+        0: Rejected
+        13: No pending approval
+    """
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 2
+
+    state_mgr = StateManager(plan_dir)
+
+    # Check pending approval exists
+    pending = state_mgr.get_pending_approval()
+    if not pending:
+        print("No pending approval", file=sys.stderr)
+        return 13
+
+    from_phase = pending["from_phase"]
+    to_phase = pending["to_phase"]
+
+    # Clear pending approval
+    state_mgr.clear_pending_approval()
+
+    # Clear session mode
+    state = state_mgr.load()
+    if state.get("session_mode") == "awaiting-feedback":
+        del state["session_mode"]
+        state_mgr.save(state)
+
+    log_progress(plan_dir, f"TRANSITION_REJECTED: {from_phase} -> {to_phase}")
+
+    print(f"Transition rejected: {from_phase} -> {to_phase}")
+    print("Agent continues in current phase.")
+
+    if args.json:
+        output = {
+            "success": True,
+            "rejected_from": from_phase,
+            "rejected_to": to_phase,
+            "current_phase": state.get("current_phase")
+        }
+        print(json.dumps(output))
 
     return 0
 
@@ -3583,6 +4269,31 @@ def main() -> int:
 
     subparsers.add_parser("phase-history", help="Show all phase entries")
 
+    p_prior_outputs = subparsers.add_parser("prior-phase-outputs", help="List outputs from prior same-type phases")
+    p_prior_outputs.add_argument("--phase-type", help="Phase type to look for (default: current phase)")
+    p_prior_outputs.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # Phase loopback commands
+    p_loop_phase = subparsers.add_parser("loop-phase", help="Re-enter current phase (self-loop)")
+    p_loop_phase.add_argument("--reason", help="Reason for looping")
+    p_loop_phase.add_argument("--json", action="store_true", help="Output as JSON")
+
+    p_loop_to = subparsers.add_parser("loop-to-phase", help="Transition to a different phase (cross-phase loopback)")
+    p_loop_to.add_argument("phase_id", help="Target phase ID")
+    p_loop_to.add_argument("--reason", help="Reason for looping")
+    p_loop_to.add_argument("--json", action="store_true", help="Output as JSON")
+
+    p_propose = subparsers.add_parser("propose-transition", help="Request user approval for a transition")
+    p_propose.add_argument("phase_id", help="Target phase ID")
+    p_propose.add_argument("--reason", help="Reason for transition")
+    p_propose.add_argument("--json", action="store_true", help="Output as JSON")
+
+    p_approve = subparsers.add_parser("approve-transition", help="Execute a pending approved transition")
+    p_approve.add_argument("--json", action="store_true", help="Output as JSON")
+
+    p_reject = subparsers.add_parser("reject-transition", help="Cancel a pending transition")
+    p_reject.add_argument("--json", action="store_true", help="Output as JSON")
+
     # Artifact commands
     p_record_art = subparsers.add_parser("record-artifact", help="Record artifact produced by current phase")
     p_record_art.add_argument("filename", help="Logical name for artifact")
@@ -3708,6 +4419,12 @@ def main() -> int:
         "suggested-next": cmd_suggested_next,
         "enter-phase-by-number": cmd_enter_phase_by_number,
         "phase-history": cmd_phase_history,
+        "prior-phase-outputs": cmd_prior_phase_outputs,
+        "loop-phase": cmd_loop_phase,
+        "loop-to-phase": cmd_loop_to_phase,
+        "propose-transition": cmd_propose_transition,
+        "approve-transition": cmd_approve_transition,
+        "reject-transition": cmd_reject_transition,
         # Artifact commands
         "record-artifact": cmd_record_artifact,
         "input-artifacts": cmd_input_artifacts,
