@@ -4,9 +4,16 @@
 
 set -e
 
+# Determine plugin root: use CLAUDE_PLUGIN_ROOT if set, otherwise detect from script location
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+    PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+
 # Helper to run plan CLI from plugin location
 plan() {
-    uv run ~/.claude-plugins/jons-plan/plan.py "$@"
+    uv run "${PLUGIN_ROOT}/plan.py" "$@"
 }
 
 # Read hook input from stdin
@@ -68,7 +75,7 @@ if [[ -n "$IN_PROGRESS" ]]; then
     echo ""
     echo "Read task progress for full context:"
     echo "\`\`\`bash"
-    echo "uv run ~/.claude-plugins/jons-plan/plan.py task-progress <task-id>"
+    echo "uv run \${PLUGIN_ROOT}/plan.py task-progress <task-id>"
     echo "\`\`\`"
 else
     echo "_No tasks currently in progress_"

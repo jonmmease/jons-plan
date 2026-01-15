@@ -4,9 +4,16 @@
 
 set -e
 
+# Determine plugin root: use CLAUDE_PLUGIN_ROOT if set, otherwise detect from script location
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+    PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+
 # Helper to run plan CLI from plugin location
 plan() {
-    uv run ~/.claude-plugins/jons-plan/plan.py "$@"
+    uv run "${PLUGIN_ROOT}/plan.py" "$@"
 }
 
 # Read hook input from stdin
@@ -63,14 +70,14 @@ if [[ "$SESSION_MODE" == "proceed" ]]; then
                 PHASE_TASKS=$(plan phase-next-tasks 2>/dev/null || echo "")
                 if [[ -n "$PHASE_TASKS" && "$PHASE_TASKS" != "No tasks in current phase" && "$PHASE_TASKS" != "All phase tasks complete" ]]; then
                     TASK_COUNT=$(echo "$PHASE_TASKS" | wc -l | tr -d ' ')
-                    echo '{"decision": "block", "reason": "Phase has '"$TASK_COUNT"' available tasks. Continue working on the next task. Run: uv run ~/.claude-plugins/jons-plan/plan.py phase-next-tasks"}'
+                    echo '{"decision": "block", "reason": "Phase has '"$TASK_COUNT"' available tasks. Continue working on the next task. Run: uv run ${PLUGIN_ROOT}/plan.py phase-next-tasks"}'
                     exit 2
                 fi
 
                 # Check if there are suggested next phases (workflow not complete)
                 SUGGESTED_NEXT=$(echo "$PHASE_JSON" | grep -o '"suggested_next": *\[[^]]*\]' | grep -v '\[\]' || echo "")
                 if [[ -n "$SUGGESTED_NEXT" ]]; then
-                    echo '{"decision": "block", "reason": "Current phase complete but workflow continues. Check suggested_next phases and transition. Run: uv run ~/.claude-plugins/jons-plan/plan.py suggested-next"}'
+                    echo '{"decision": "block", "reason": "Current phase complete but workflow continues. Check suggested_next phases and transition. Run: uv run ${PLUGIN_ROOT}/plan.py suggested-next"}'
                     exit 2
                 fi
             fi

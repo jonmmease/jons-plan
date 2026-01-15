@@ -4,15 +4,22 @@
 
 set -e
 
+# Determine plugin root: use CLAUDE_PLUGIN_ROOT if set, otherwise detect from script location
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+    PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+
 # Debug logging - writes to file while still outputting to stdout
 DEBUG_LOG="/tmp/jons-plan-hook-debug.log"
 echo "=== SessionStart hook started at $(date) ===" >> "$DEBUG_LOG"
 echo "PWD: $(pwd)" >> "$DEBUG_LOG"
-echo "CLAUDE_PLUGIN_ROOT: ${CLAUDE_PLUGIN_ROOT:-not set}" >> "$DEBUG_LOG"
+echo "PLUGIN_ROOT: ${PLUGIN_ROOT}" >> "$DEBUG_LOG"
 
 # Helper to run plan CLI from plugin location
 plan() {
-    uv run ~/.claude-plugins/jons-plan/plan.py "$@"
+    uv run "${PLUGIN_ROOT}/plan.py" "$@"
 }
 
 # Read hook input from stdin
@@ -272,7 +279,7 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
         echo ""
         echo "To continue:"
         echo "1. Read \`request.md\` and check phase context from the plan directory"
-        echo "2. Check recent progress: \`uv run ~/.claude-plugins/jons-plan/plan.py recent-progress\`"
+        echo "2. Check recent progress: \`uv run \${PLUGIN_ROOT}/plan.py recent-progress\`"
         echo "3. Continue developing the plan following the \`/jons-plan:new\` workflow"
     elif [[ "$SESSION_MODE" == "plan" ]]; then
         # In refine mode - continue refining
@@ -283,7 +290,7 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
         echo ""
         echo "To continue:"
         echo "1. Read \`request.md\` and check phase context from the plan directory"
-        echo "2. Check recent progress: \`uv run ~/.claude-plugins/jons-plan/plan.py recent-progress\`"
+        echo "2. Check recent progress: \`uv run \${PLUGIN_ROOT}/plan.py recent-progress\`"
         echo "3. Continue refining following the \`/jons-plan:plan\` workflow"
     else
         # No mode set - show neutral commands

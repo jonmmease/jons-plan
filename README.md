@@ -2,6 +2,54 @@
 
 A Claude Code plugin inspired by Anthropic's [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) blog post for managing complex, multi-session coding tasks.
 
+## Prerequisites
+
+- **Claude Code** - The Anthropic CLI tool
+- **uv** - Python package runner (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+- **graphviz** (optional) - For workflow viewer (`brew install graphviz`)
+- **macOS** - Linux/Windows (WSL) support is untested
+
+## Quick Start
+
+```bash
+# 1. Clone anywhere you want
+git clone https://github.com/youruser/jons-plan ~/path/to/jons-plan
+
+# 2. Run the installer
+cd ~/path/to/jons-plan
+uv run scripts/install.py
+
+# 3. Restart Claude Code and test
+/jons-plan:status
+```
+
+The install script will:
+- Register the plugin with Claude Code
+- Configure all necessary hooks
+- Verify the installation
+
+## Verify Installation
+
+```bash
+# Run the verification script
+uv run scripts/verify.py
+
+# Or test in Claude Code
+/jons-plan:status
+```
+
+You should see: "No plans exist yet..." or a list of your plans.
+
+## Uninstallation
+
+```bash
+uv run scripts/uninstall.py
+```
+
+This removes the plugin registration and hooks but leaves the plugin directory intact.
+
+---
+
 ## Overview
 
 When AI agents work on complex projects that span multiple context windows, each new session starts with no memory of what came before. This plugin solves that problem by providing:
@@ -142,19 +190,7 @@ Runs when the session ends:
 
 ## CLI Reference
 
-The plugin includes a Python CLI for programmatic access:
-
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py <command>
-```
-
-See `CLAUDE.md` for complete CLI reference.
-
-## Installation
-
-1. Clone or copy this plugin to `~/.claude-plugins/jons-plan/`
-2. Add the hooks to your Claude settings (see workaround below)
-3. Add `.claude/jons-plan/` to your project's `.git/info/exclude`
+The plugin includes a Python CLI for programmatic access. See `CLAUDE.md` for complete CLI reference.
 
 ---
 
@@ -164,77 +200,13 @@ See `CLAUDE.md` for complete CLI reference.
 
 Plugin-based hooks execute successfully but their stdout is not passed to the agent's context. This affects all hooks defined in `hooks/hooks.json`.
 
-### Workaround
-
-Until the bug is fixed, hooks must be defined in `~/.claude/settings.json` instead of in the plugin's `hooks/hooks.json`:
-
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude-plugins/jons-plan/hooks/session-start.sh",
-            "timeout": 10000
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude-plugins/jons-plan/hooks/pre-compact.sh",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude-plugins/jons-plan/hooks/user-prompt-submit.sh",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude-plugins/jons-plan/hooks/post-tool-use.sh",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude-plugins/jons-plan/hooks/stop.sh",
-            "timeout": 10000
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+The install script works around this by adding hooks directly to `~/.claude/settings.json`.
 
 ### When Issue #12151 is Fixed
 
-1. Remove the `hooks` section from `~/.claude/settings.json`
-2. The plugin's `hooks/hooks.json` will work automatically (uses `${CLAUDE_PLUGIN_ROOT}` for portable paths)
+The `hooks/hooks.json` file already uses `${CLAUDE_PLUGIN_ROOT}` for portable paths. Once the bug is fixed:
+1. Run `./scripts/uninstall.sh` to remove the workaround hooks
+2. The plugin's native hooks will work automatically
 
 ## References
 

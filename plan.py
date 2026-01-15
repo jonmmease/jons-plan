@@ -6,7 +6,7 @@
 """
 Plan management CLI for long-running agent harness.
 
-Usage: uv run ~/.claude-plugins/jons-plan/plan.py <subcommand> [args]
+Usage: uv run $PLUGIN_ROOT/plan.py <subcommand> [args]
 """
 
 import argparse
@@ -16,6 +16,9 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+# Plugin root directory (for generating portable paths in prompts)
+PLUGIN_ROOT = Path(__file__).parent
 
 # Task schema documentation injected into phases with use_tasks=true
 TASK_SCHEMA = """
@@ -2216,7 +2219,7 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
     prompt_parts.append("\n\n## Progress Logging (Required)")
     prompt_parts.append(f"Log progress as you work to enable resumption after interruptions:")
     prompt_parts.append(f"```bash")
-    prompt_parts.append(f"uv run ~/.claude-plugins/jons-plan/plan.py task-log {args.task_id} \"<message>\"")
+    prompt_parts.append(f"uv run {PLUGIN_ROOT}/plan.py task-log {args.task_id} \"<message>\"")
     prompt_parts.append(f"```")
     prompt_parts.append(f"Log after each significant step, file modification, or decision.")
 
@@ -2230,7 +2233,7 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
 
     # 8. CLI reference for task completion
     prompt_parts.append("\n\n## When Done")
-    prompt_parts.append(f"Mark this task complete: `uv run ~/.claude-plugins/jons-plan/plan.py set-status {args.task_id} done`")
+    prompt_parts.append(f"Mark this task complete: `uv run {PLUGIN_ROOT}/plan.py set-status {args.task_id} done`")
 
     # Output the complete prompt
     print("\n".join(prompt_parts))
@@ -2247,7 +2250,7 @@ def cmd_help(args: argparse.Namespace) -> int:
 **Next tasks:** `next-tasks` - available tasks to start
 **Progress:** `log <message>` | `recent-progress`
 
-Full docs: ~/.claude-plugins/jons-plan/CLAUDE.md""")
+Full docs: {PLUGIN_ROOT}/CLAUDE.md""")
     return 0
 
 
@@ -4183,7 +4186,7 @@ def cmd_status(args: argparse.Namespace) -> int:
                     print(f"    - {task['id']}: {task.get('description', '')}")
     else:
         print("\n## No active plan")
-        print("  Use: uv run ~/.claude-plugins/jons-plan/plan.py set-active <plan-name>")
+        print(f"  Use: uv run {PLUGIN_ROOT}/plan.py set-active <plan-name>")
 
     return 0
 
