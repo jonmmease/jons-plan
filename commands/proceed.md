@@ -67,12 +67,24 @@ Tasks are scoped to the **current phase** of the workflow:
 
 2. **Follow the phase prompt**: The phase context includes all task execution guidance assembled based on the workflow configuration.
 
-3. **Check phase tasks**:
+3. **Create or check phase tasks**:
    ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py phase-tasks-file
    uv run ~/.claude-plugins/jons-plan/plan.py phase-tasks
+   ```
+
+   **If tasks.json doesn't exist or is empty**, you MUST create it before proceeding:
+   - Write tasks.json to the path returned by `phase-tasks-file`
+   - Follow the Task Schema from the `/jons-plan:new` command documentation
+   - Break the phase work into discrete, trackable tasks
+   - Use appropriate subagents (Explore for research, general-purpose for implementation)
+
+   **After tasks exist**, check what's available:
+   ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py phase-next-tasks
    ```
-   Execute tasks from the current phase's tasks.json.
+
+   Execute tasks from the phase's tasks.json using the Task Execution Loop below.
 
 4. **After phase tasks complete**:
    - Check `suggested-next` for the next phase
