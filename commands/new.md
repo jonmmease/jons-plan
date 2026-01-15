@@ -136,7 +136,16 @@ Convert topic to kebab-case (e.g., "add user authentication" → "add-user-authe
    uv run ~/.claude-plugins/jons-plan/plan.py workflow-diagram
    ```
 2. Show current phase and its prompt
-3. Tell user: "Type `/jons-plan:proceed` to start, or `/jons-plan:plan` to refine the request."
+3. Display the View link (if viewer is installed):
+   ```bash
+   PLAN_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py active-plan-dir)
+   if [[ -d "$HOME/.local/share/JonsPlanViewer.app" ]]; then
+       echo "**View:** \`jons-plan://${PLAN_DIR}\`"
+   else
+       echo "**View:** _(run \`uv run ~/.claude-plugins/jons-plan/plan.py install-viewer\` to enable)_"
+   fi
+   ```
+4. Tell user: "Type `/jons-plan:proceed` to start, or `/jons-plan:plan` to refine the request."
 
 ## Task Schema
 
