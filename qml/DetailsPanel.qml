@@ -11,6 +11,9 @@ Rectangle {
     id: root
     color: Theme.bgPanel
 
+    // Track the last selected phase to detect actual phase changes
+    property string lastSelectedPhase: ""
+
     // Connect to tab switch signal from model
     Connections {
         target: workflowModel
@@ -18,8 +21,12 @@ Rectangle {
             tabBar.currentIndex = tabIndex
         }
         function onSelectedPhaseChanged() {
-            // Switch to Phase tab when a new phase is selected
-            tabBar.currentIndex = 0
+            // Only switch to Phase tab when a DIFFERENT phase is selected,
+            // not when the same phase's details are updated during reload
+            if (workflowModel.selectedPhase !== root.lastSelectedPhase) {
+                root.lastSelectedPhase = workflowModel.selectedPhase
+                tabBar.currentIndex = 0
+            }
         }
     }
 
