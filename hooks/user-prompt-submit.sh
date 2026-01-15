@@ -27,9 +27,15 @@ elif [[ "$MESSAGE" == "/jons-plan:switch"* ]] || [[ "$MESSAGE" == "/jons-plan:st
     # Informational commands - don't change mode
     :
 else
-    # Regular message - preserve all modes
-    # Mode should persist until workflow completes or user explicitly changes it
-    :
+    # Regular message - check current mode
+    CURRENT_MODE=$(plan get-mode 2>/dev/null || echo "")
+
+    if [[ "$CURRENT_MODE" == "proceed" ]]; then
+        # Clear proceed mode - require explicit /jons-plan:proceed for auto-resume
+        plan clear-mode 2>/dev/null || true
+    fi
+    # Planning modes (new, plan) are preserved
+    # No mode set - no action needed
 fi
 
 exit 0
