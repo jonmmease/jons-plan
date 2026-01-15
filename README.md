@@ -188,9 +188,44 @@ Runs when the session ends:
 - Shows session summary (files modified, task progress)
 - Warns about uncommitted changes
 
-## CLI Reference
+## Workflow Viewer
 
-The plugin includes a Python CLI for programmatic access. See `CLAUDE.md` for complete CLI reference.
+A Qt/QML desktop application that visualizes plan execution in real-time. The viewer launches automatically after `/jons-plan:new` or `/jons-plan:plan` completes, or can be launched manually:
+
+```bash
+uv run /path/to/viewer.py /path/to/plan
+# Example: uv run ~/.claude-plugins/jons-plan/viewer.py .claude/jons-plan/plans/my-plan
+```
+
+**Requirements:** graphviz (`brew install graphviz`)
+
+### Features
+
+**Workflow Diagram**
+- Interactive state machine visualization with Graphviz-computed layout
+- Color-coded phase status: current (blue), completed (green), terminal (gray), pending (white)
+- Click nodes to select phases; hover for visual feedback
+- Auto-follows current phase as Claude progresses
+
+**Phase History**
+- Chronological list of all phase entries with timestamps
+- Navigate between different executions of the same phase
+- Keyboard navigation (up/down arrows)
+
+**Progress Timeline**
+- Live stream of progress events from `claude-progress.txt`
+- Color-coded by type: phase transitions, task updates, session events
+
+**Details Panel**
+- **Phase tab**: Entry reason, phase prompt (rendered markdown), artifacts with rich/plain toggle, logs
+- **Tasks tab**: Dependency tree visualization, task details with steps/artifacts/logs
+- Copy buttons with visual feedback; clickable links navigate within viewer
+
+**Live Updates**
+- File system watcher detects changes in real-time
+- Task logs stream as Claude writes them
+- New artifacts appear automatically
+- Selection and scroll position preserved during updates
 
 ---
 
