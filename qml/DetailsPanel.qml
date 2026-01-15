@@ -175,81 +175,22 @@ Rectangle {
             }
         }
 
-        // Navigation buttons (Previous / Next)
+        // Separator line above tabs
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: navContent.height + Theme.spacingSmall * 2
-            color: Theme.bgPanel
-            visible: workflowModel.selectedPhaseEntry > 0
-
-            RowLayout {
-                id: navContent
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.leftMargin: Theme.spacingMedium
-                anchors.rightMargin: Theme.spacingMedium
-                spacing: Theme.spacingSmall
-
-                // Previous button
-                Rectangle {
-                    width: prevLabel.width + Theme.spacingSmall * 2
-                    height: prevLabel.height + Theme.spacingTiny * 2
-                    radius: Theme.radiusSmall
-                    color: prevMouse.containsMouse ? Theme.hoverHighlight : Theme.bgPanelHeader
-                    visible: workflowModel.selectedPhaseEntry > 1
-
-                    Text {
-                        id: prevLabel
-                        anchors.centerIn: parent
-                        text: "← Previous"
-                        font.pixelSize: Theme.fontSizeSmall
-                        color: Theme.textLink
-                    }
-
-                    MouseArea {
-                        id: prevMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: workflowModel.selectPhaseEntry(workflowModel.selectedPhaseEntry - 1)
-                    }
-                }
-
-                Item { Layout.fillWidth: true }
-
-                // Next button
-                Rectangle {
-                    width: nextLabel.width + Theme.spacingSmall * 2
-                    height: nextLabel.height + Theme.spacingTiny * 2
-                    radius: Theme.radiusSmall
-                    color: nextMouse.containsMouse ? Theme.hoverHighlight : Theme.bgPanelHeader
-                    visible: workflowModel.selectedPhaseEntry < workflowModel.phaseHistory.length
-
-                    Text {
-                        id: nextLabel
-                        anchors.centerIn: parent
-                        text: "Next →"
-                        font.pixelSize: Theme.fontSizeSmall
-                        color: Theme.textLink
-                    }
-
-                    MouseArea {
-                        id: nextMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: workflowModel.selectPhaseEntry(workflowModel.selectedPhaseEntry + 1)
-                    }
-                }
-            }
+            Layout.preferredHeight: 1
+            color: Theme.borderLight
         }
 
-        // Tab bar
-        TabBar {
-            id: tabBar
+        // Tab bar with navigation buttons
+        RowLayout {
             Layout.fillWidth: true
-            background: Rectangle { color: Theme.bgPanelHeader }
+            spacing: 0
+
+            TabBar {
+                id: tabBar
+                Layout.fillWidth: true
+                background: Rectangle { color: Theme.bgPanelHeader }
 
             TabButton {
                 text: "Phase"
@@ -300,6 +241,43 @@ Rectangle {
                     color: tabBar.currentIndex === 1 ? Theme.textLink : Theme.textMuted
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
+                }
+            }
+            }
+
+            // Navigation buttons (inline with tabs)
+            Row {
+                Layout.alignment: Qt.AlignVCenter
+                Layout.rightMargin: Theme.spacingSmall
+                spacing: Theme.spacingTiny
+                visible: workflowModel.selectedPhaseEntry > 0
+
+                Text {
+                    text: "‹"
+                    font.pixelSize: 18
+                    color: workflowModel.selectedPhaseEntry > 1 ? Theme.textLink : Theme.textMuted
+                    opacity: workflowModel.selectedPhaseEntry > 1 ? 1 : 0.3
+
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: workflowModel.selectedPhaseEntry > 1
+                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: workflowModel.selectPhaseEntry(workflowModel.selectedPhaseEntry - 1)
+                    }
+                }
+
+                Text {
+                    text: "›"
+                    font.pixelSize: 18
+                    color: workflowModel.selectedPhaseEntry < workflowModel.phaseHistory.length ? Theme.textLink : Theme.textMuted
+                    opacity: workflowModel.selectedPhaseEntry < workflowModel.phaseHistory.length ? 1 : 0.3
+
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: workflowModel.selectedPhaseEntry < workflowModel.phaseHistory.length
+                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: workflowModel.selectPhaseEntry(workflowModel.selectedPhaseEntry + 1)
+                    }
                 }
             }
         }
