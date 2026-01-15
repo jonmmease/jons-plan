@@ -577,11 +577,56 @@ class WorkflowManager:
         return workflow.get("phases", [])
 
     def get_suggested_next(self, phase_id: str) -> list[str]:
-        """Get suggested next phases for a given phase."""
+        """Get suggested next phases for a given phase (phase IDs only)."""
+        return self.normalize_suggested_next(
+            self.get_phase(phase_id).get("suggested_next", []) if self.get_phase(phase_id) else []
+        )
+
+    def normalize_suggested_next(self, suggested_next: list) -> list[str]:
+        """Extract phase IDs from mixed string/object format.
+
+        Handles both:
+        - "phase-id" (string)
+        - {"phase": "phase-id", "requires_approval": true} (object)
+        """
+        result = []
+        for item in suggested_next:
+            if isinstance(item, str):
+                result.append(item)
+            elif isinstance(item, dict):
+                phase_id = item.get("phase", "")
+                if phase_id:
+                    result.append(phase_id)
+        return result
+
+    def get_suggested_next_full(self, phase_id: str) -> list[dict]:
+        """Get suggested_next with full metadata for each item.
+
+        Returns list of dicts with 'phase', 'requires_approval', 'approval_prompt'.
+        """
         phase = self.get_phase(phase_id)
-        if phase:
-            return phase.get("suggested_next", [])
-        return []
+        if not phase:
+            return []
+        suggested = phase.get("suggested_next", [])
+        result = []
+        for item in suggested:
+            if isinstance(item, str):
+                result.append({"phase": item, "requires_approval": False})
+            elif isinstance(item, dict):
+                # Ensure required fields are present
+                result.append({
+                    "phase": item.get("phase", ""),
+                    "requires_approval": item.get("requires_approval", False),
+                    "approval_prompt": item.get("approval_prompt"),
+                })
+        return result
+
+    def get_approval_prompt(self, from_phase: str, to_phase: str) -> str | None:
+        """Get approval prompt for a transition, if any."""
+        for item in self.get_suggested_next_full(from_phase):
+            if item.get("phase") == to_phase:
+                return item.get("approval_prompt")
+        return None
 
     def is_terminal(self, phase_id: str) -> bool:
         """Check if phase is a terminal state."""
@@ -692,40 +737,23 @@ class WorkflowManager:
         workflow = self.load()
         return workflow.get("workflow", {}).get("description", "")
 
-    def get_transitions(self) -> list[dict]:
-        """Get all transition rules from workflow."""
-        if not self.exists():
-            return []
-        workflow = self.load()
-        return workflow.get("transitions", [])
-
-    def get_transition(self, from_phase: str, to_phase: str) -> dict | None:
-        """Get transition rule for a specific from→to pair if defined."""
-        for t in self.get_transitions():
-            from_phases = t.get("from", [])
-            if from_phase in from_phases and t.get("to") == to_phase:
-                return t
-        return None
-
     def transition_requires_approval(self, from_phase: str, to_phase: str) -> bool:
-        """Check if transition requires user approval."""
-        t = self.get_transition(from_phase, to_phase)
-        if t:
-            return t.get("requires_approval", False)
+        """Check if transition requires user approval.
+
+        Reads from suggested_next objects with requires_approval field.
+        """
+        for item in self.get_suggested_next_full(from_phase):
+            if item.get("phase") == to_phase:
+                return item.get("requires_approval", False)
         return False
 
     def is_transition_allowed(self, from_phase: str, to_phase: str) -> bool:
-        """Check if transition is allowed via transitions config or on_blocked.
+        """Check if transition is allowed.
 
         Allowed if:
-        - Explicit transition rule exists (from → to)
+        - to_phase in from_phase.suggested_next (string or object)
         - OR from_phase.on_blocked == to_phase
-        - OR to_phase in from_phase.suggested_next
         """
-        # Check explicit transition rule
-        if self.get_transition(from_phase, to_phase):
-            return True
-
         # Check on_blocked
         on_blocked = self.get_on_blocked(from_phase)
         if on_blocked == to_phase:
@@ -734,7 +762,7 @@ class WorkflowManager:
         if on_blocked == "self" and from_phase == to_phase:
             return True
 
-        # Check suggested_next
+        # Check suggested_next (handles both string and object format)
         suggested = self.get_suggested_next(from_phase)
         if to_phase in suggested:
             return True
@@ -745,7 +773,7 @@ class WorkflowManager:
         """Validate all phase ID references in workflow config.
 
         Returns list of errors if any phase IDs in on_blocked or
-        transitions don't exist.
+        suggested_next don't exist.
         """
         errors = []
         if not self.exists():
@@ -762,28 +790,28 @@ class WorkflowManager:
             if on_blocked and on_blocked != "self" and on_blocked not in phase_ids:
                 errors.append(f"Phase '{pid}' has on_blocked='{on_blocked}' but phase '{on_blocked}' doesn't exist")
 
-        # Check transition references
-        for t in workflow.get("transitions", []):
-            to_phase = t.get("to")
-            if to_phase and to_phase not in phase_ids:
-                errors.append(f"Transition to '{to_phase}' references non-existent phase")
-            for from_phase in t.get("from", []):
-                if from_phase not in phase_ids:
-                    errors.append(f"Transition from '{from_phase}' references non-existent phase")
+            # Check suggested_next references (handles both string and object format)
+            for item in phase.get("suggested_next", []):
+                if isinstance(item, str):
+                    target = item
+                elif isinstance(item, dict):
+                    target = item.get("phase", "")
+                    # Check approval_prompt is present when requires_approval is true
+                    if item.get("requires_approval") and not item.get("approval_prompt"):
+                        errors.append(f"Phase '{pid}' transition to '{target}' requires approval but has no approval_prompt")
+                else:
+                    continue
 
-            # Check approval_prompt is present when requires_approval is true
-            if t.get("requires_approval") and not t.get("approval_prompt"):
-                errors.append(f"Transition to '{to_phase}' requires approval but has no approval_prompt")
+                if target and target not in phase_ids and target not in ("complete", "__expand__"):
+                    errors.append(f"Phase '{pid}' has suggested_next '{target}' which doesn't exist")
 
         return errors
 
     def is_expandable(self, phase_id: str) -> bool:
         """Check if phase has __expand__ marker in suggested_next."""
-        phase = self.get_phase(phase_id)
-        if not phase:
-            return False
-        suggested = phase.get("suggested_next", [])
-        return "__expand__" in suggested
+        # Use normalized version which extracts phase IDs from objects
+        suggested_ids = self.get_suggested_next(phase_id)
+        return "__expand__" in suggested_ids
 
     def get_expand_prompt(self, phase_id: str) -> str | None:
         """Get expansion prompt for expandable phase."""
@@ -806,8 +834,9 @@ class WorkflowManager:
         """
         errors = []
         for phase in self.get_all_phases():
-            suggested = phase.get("suggested_next", [])
-            has_expand_marker = "__expand__" in suggested
+            # Use normalized suggested_next to handle both string and object formats
+            suggested_ids = self.normalize_suggested_next(phase.get("suggested_next", []))
+            has_expand_marker = "__expand__" in suggested_ids
             has_expand_prompt = "expand_prompt" in phase
 
             if has_expand_marker and not has_expand_prompt:
@@ -819,9 +848,9 @@ class WorkflowManager:
                     f"Phase '{phase['id']}' has expand_prompt but no __expand__ in suggested_next"
                 )
             # __expand__ can coexist with "complete" only
-            if has_expand_marker and len(suggested) > 1:
+            if has_expand_marker and len(suggested_ids) > 1:
                 other_targets = [
-                    t for t in suggested if t not in ("__expand__", "complete")
+                    t for t in suggested_ids if t not in ("__expand__", "complete")
                 ]
                 if other_targets:
                     errors.append(
@@ -2634,14 +2663,20 @@ def cmd_suggested_next(args: argparse.Namespace) -> int:
             print("(no phases found)")
         return 0
 
-    suggested = workflow_mgr.get_suggested_next(current_phase)
-    if suggested:
-        for phase_id in suggested:
+    suggested_full = workflow_mgr.get_suggested_next_full(current_phase)
+    if suggested_full:
+        for item in suggested_full:
+            phase_id = item.get("phase")
             phase = workflow_mgr.get_phase(phase_id)
-            if phase:
-                terminal = " (terminal)" if phase.get("terminal") else ""
-                user_input = " (requires user input)" if phase.get("requires_user_input") else ""
-                print(f"{phase_id}{terminal}{user_input}")
+            markers = []
+            if phase and phase.get("terminal"):
+                markers.append("terminal")
+            if phase and phase.get("requires_user_input"):
+                markers.append("requires user input")
+            if item.get("requires_approval"):
+                markers.append("requires approval")
+            marker_str = f" ({', '.join(markers)})" if markers else ""
+            print(f"{phase_id}{marker_str}")
     else:
         # Check if current phase is terminal
         if workflow_mgr.is_terminal(current_phase):
@@ -2965,9 +3000,8 @@ def cmd_loop_to_phase(args: argparse.Namespace) -> int:
 
     # Check if transition requires approval
     if workflow_mgr.transition_requires_approval(current_phase, target_phase):
-        # Get approval prompt
-        transition = workflow_mgr.get_transition(current_phase, target_phase)
-        approval_prompt = transition.get("approval_prompt", f"Transition to {target_phase}?") if transition else f"Transition to {target_phase}?"
+        # Get approval prompt from suggested_next object
+        approval_prompt = workflow_mgr.get_approval_prompt(current_phase, target_phase) or f"Transition to {target_phase}?"
 
         # Set pending approval
         current_entry = state.get("current_phase_entry", 0)
@@ -3599,13 +3633,26 @@ def cmd_workflow_diagram(args: argparse.Namespace) -> int:
     return 0
 
 
+def _normalize_suggested_next(suggested_next: list) -> list[str]:
+    """Extract phase IDs from mixed string/object format for diagram rendering."""
+    result = []
+    for item in suggested_next:
+        if isinstance(item, str):
+            result.append(item)
+        elif isinstance(item, dict):
+            phase_id = item.get("phase", "")
+            if phase_id:
+                result.append(phase_id)
+    return result
+
+
 def _render_vertical_diagram(phases: list[dict], phase_map: dict, current_phase: str | None) -> None:
     """Render workflow as vertical Unicode box diagram."""
-    # Build transition graph
+    # Build transition graph (normalize to handle object format)
     transitions: dict[str, list[str]] = {}
     for phase in phases:
         pid = phase["id"]
-        transitions[pid] = phase.get("suggested_next", [])
+        transitions[pid] = _normalize_suggested_next(phase.get("suggested_next", []))
 
     # Print each phase with unicode boxes
     for i, phase in enumerate(phases):
@@ -4327,7 +4374,9 @@ Study these patterns before generating:
     for name, content in reference_workflows:
         prompt += f"### {name}\n```toml\n{content}\n```\n\n"
 
-    prompt += """## Phase Configuration Reference
+    prompt += """**Note on `[[transitions]]` in templates:** These are DEPRECATED. The new format puts loopback transitions directly in `suggested_next` as objects. See Output Format below.
+
+## Phase Configuration Reference
 
 | Flag | Purpose |
 |------|---------|
@@ -4356,14 +4405,46 @@ Return JSON with this structure:
       "use_tasks": true,
       "suggested_next": ["next-phase-id"]
     }
-  ],
-  "transitions": []
+  ]
 }
 ```
 
-Generated phases must end with `suggested_next` pointing to either:
-- `"complete"` - work is done, end workflow
-- `"__expand__"` - more planning needed, another expansion point
+**IMPORTANT: Every phase MUST have `suggested_next`**
+
+- Each phase's `suggested_next` points to the next phase in sequence
+- The LAST phase must have `suggested_next: ["complete"]` or `["__expand__"]`
+
+Example chain: `impl-a` → `impl-b` → `validate` → `complete`
+```json
+{
+  "phases": [
+    {"id": "impl-a", "prompt": "...", "suggested_next": ["impl-b"]},
+    {"id": "impl-b", "prompt": "...", "suggested_next": ["validate"]},
+    {"id": "validate", "prompt": "...", "suggested_next": ["complete"]}
+  ]
+}
+```
+
+**Loopback transitions (optional)**
+
+For backward jumps (e.g., validate fails → return to research), use object format in `suggested_next`:
+
+```json
+{
+  "phases": [
+    {"id": "impl", "prompt": "...", "suggested_next": ["validate"]},
+    {"id": "validate", "prompt": "...", "suggested_next": [
+      "complete",
+      {"phase": "research", "requires_approval": true, "approval_prompt": "Return to research?"}
+    ]}
+  ]
+}
+```
+
+The object format fields:
+- `phase` (required): target phase ID
+- `requires_approval` (required for loopbacks): set to `true`
+- `approval_prompt` (required if requires_approval): prompt shown to user
 """
 
     print(prompt)
@@ -4389,6 +4470,18 @@ def validate_generated_phases(generated: dict) -> list[str]:
 
     phase_ids = {p.get("id") for p in phases if p.get("id")}
 
+    def normalize_suggested(suggested_next: list) -> list[str]:
+        """Extract phase IDs from mixed string/object format."""
+        result = []
+        for item in suggested_next:
+            if isinstance(item, str):
+                result.append(item)
+            elif isinstance(item, dict):
+                phase_id = item.get("phase", "")
+                if phase_id:
+                    result.append(phase_id)
+        return result
+
     # Check each phase
     for i, phase in enumerate(phases):
         if not phase.get("id"):
@@ -4399,13 +4492,28 @@ def validate_generated_phases(generated: dict) -> list[str]:
         if not phase.get("prompt"):
             errors.append(f"Phase '{pid}' missing prompt")
 
-        # Check suggested_next targets exist (except special values)
-        for target in phase.get("suggested_next", []):
-            if target not in ("complete", "__expand__") and target not in phase_ids:
+        # Every phase must have suggested_next
+        if not phase.get("suggested_next"):
+            errors.append(f"Phase '{pid}' missing suggested_next (every phase needs it)")
+
+        # Check suggested_next targets exist (handles both string and object format)
+        suggested_ids = normalize_suggested(phase.get("suggested_next", []))
+        for item in phase.get("suggested_next", []):
+            if isinstance(item, str):
+                target = item
+            elif isinstance(item, dict):
+                target = item.get("phase", "")
+                # Check approval config
+                if item.get("requires_approval") and not item.get("approval_prompt"):
+                    errors.append(f"Phase '{pid}' transition to '{target}' requires approval but has no approval_prompt")
+            else:
+                continue
+
+            if target and target not in ("complete", "__expand__") and target not in phase_ids:
                 errors.append(f"Phase '{pid}' has suggested_next '{target}' which doesn't exist")
 
-        # Check expandable config
-        has_expand = "__expand__" in phase.get("suggested_next", [])
+        # Check expandable config (using normalized IDs)
+        has_expand = "__expand__" in suggested_ids
         has_expand_prompt = "expand_prompt" in phase
         if has_expand and not has_expand_prompt:
             errors.append(f"Phase '{pid}' has __expand__ but no expand_prompt")
@@ -4419,15 +4527,9 @@ def validate_generated_phases(generated: dict) -> list[str]:
     # Check last phase points to terminal
     if phases:
         last_phase = phases[-1]
-        suggested = last_phase.get("suggested_next", [])
-        if "complete" not in suggested and "__expand__" not in suggested:
+        suggested_ids = normalize_suggested(last_phase.get("suggested_next", []))
+        if "complete" not in suggested_ids and "__expand__" not in suggested_ids:
             errors.append(f"Last phase '{last_phase.get('id')}' must end with 'complete' or '__expand__'")
-
-    # Check transitions
-    for t in generated.get("transitions", []):
-        to_phase = t.get("to")
-        if to_phase and to_phase not in phase_ids and to_phase != "complete":
-            errors.append(f"Transition to '{to_phase}' references non-existent phase")
 
     return errors
 

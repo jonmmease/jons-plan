@@ -125,7 +125,14 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
       This outputs guidance with reference workflow templates.
 
    c. **Generate phases**:
-      Based on your research findings and the expand_prompt guidance, generate a JSON structure with phases and transitions.
+      Based on your research findings and the expand_prompt guidance, generate a JSON structure with phases. Each phase must have `suggested_next` pointing to the next phase.
+
+      **Phase transition format:**
+      - Use strings for simple forward transitions: `"implement"`
+      - Use objects for transitions requiring approval (typically loopbacks):
+        ```json
+        { "phase": "research", "requires_approval": true, "approval_prompt": "Return to research?" }
+        ```
 
    d. **Preview with dry-run**:
       ```bash

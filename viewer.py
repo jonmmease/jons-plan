@@ -106,12 +106,19 @@ def compute_layout(workflow: dict) -> dict:
         label = phase_id.replace("-", " ").title()
         g.node(phase_id, label=label)
 
-    # Add transition edges
+    # Add transition edges (handle both string and object format)
     for phase in phases:
         phase_id = phase.get("id", "")
-        for next_id in phase.get("suggested_next", []):
+        for item in phase.get("suggested_next", []):
+            # Extract phase ID from string or object format
+            if isinstance(item, str):
+                next_id = item
+            elif isinstance(item, dict):
+                next_id = item.get("phase", "")
+            else:
+                continue
             # Skip special transitions like __expand__
-            if not next_id.startswith("__"):
+            if next_id and not next_id.startswith("__"):
                 g.edge(phase_id, next_id)
 
     # Compute layout and parse JSON output
@@ -525,11 +532,22 @@ class WorkflowModel(QObject):
         self._phases = {}
         for phase in workflow.get("phases", []):
             phase_id = phase.get("id", "")
+            # Normalize suggested_next to include approval metadata
+            suggested_full = []
+            for item in phase.get("suggested_next", []):
+                if isinstance(item, str):
+                    suggested_full.append({"phase": item, "requires_approval": False})
+                elif isinstance(item, dict):
+                    suggested_full.append({
+                        "phase": item.get("phase", ""),
+                        "requires_approval": item.get("requires_approval", False),
+                        "approval_prompt": item.get("approval_prompt"),
+                    })
             self._phases[phase_id] = {
                 "id": phase_id,
                 "name": phase_id.replace("-", " ").title(),
                 "prompt": phase.get("prompt", ""),
-                "suggested_next": phase.get("suggested_next", []),
+                "suggested_next": suggested_full,
                 "terminal": phase.get("terminal", False),
                 "use_tasks": phase.get("use_tasks", False),
                 "entry_count": entry_counts.get(phase_id, 0),

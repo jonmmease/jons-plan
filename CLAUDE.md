@@ -68,6 +68,27 @@ uv run plan.py set-status <task-id> in-progress
 uv run plan.py set-status <task-id> done
 ```
 
+## Phase Transitions
+
+Phase transitions are defined via `suggested_next` in workflow.toml. Items can be:
+- **Strings** for simple transitions: `"implement"`
+- **Objects** for transitions requiring approval:
+
+```toml
+suggested_next = [
+    "implement",
+    { phase = "research", requires_approval = true, approval_prompt = "Return to research?" }
+]
+```
+
+| Field | Description |
+|-------|-------------|
+| `phase` | Target phase ID |
+| `requires_approval` | If true, user must approve transition |
+| `approval_prompt` | Message shown when asking for approval |
+
+Use object format for loopback transitions (e.g., validate → research when issues found).
+
 ## Task Schema
 
 Tasks in `tasks.json` support these fields:

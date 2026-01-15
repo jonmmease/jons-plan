@@ -121,6 +121,9 @@ suggested_next = ["complete", "__expand__"]
 id = "complete"
 terminal = true
 supports_proposals = true
+suggested_next = [
+    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
+]
 prompt = """
 # Complete Phase
 
@@ -155,10 +158,3 @@ If implementation generated any CLAUDE.md improvement proposals:
 
 This is a terminal phase. The workflow is complete.
 """
-
-# Transition rule for loopback from complete
-[[transitions]]
-from = ["complete"]
-to = "research"
-requires_approval = true
-approval_prompt = "Return to research phase for additional investigation?"

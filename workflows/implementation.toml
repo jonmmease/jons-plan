@@ -149,7 +149,10 @@ Artifacts must be recorded via `record-artifact` to be available. Common artifac
 - Don't over-engineer or add unnecessary features
 - Test changes as you go
 """
-suggested_next = ["validate"]
+suggested_next = [
+    "validate",
+    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
+]
 
 [[phases]]
 id = "validate"
@@ -194,7 +197,11 @@ Verify each criterion from the verification plan is met.
 - If fixable: Fix and re-run checks
 - If needs significant work: Transition back to implement with notes on what failed
 """
-suggested_next = ["complete", "implement"]
+suggested_next = [
+    "complete",
+    "implement",
+    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
+]
 on_blocked = "implement"
 
 [[phases]]
@@ -233,10 +240,3 @@ If implementation generated any CLAUDE.md improvement proposals:
 This is a terminal phase. The workflow is complete.
 """
 terminal = true
-
-# Transition rules for phase loopbacks
-[[transitions]]
-from = ["implement", "validate"]
-to = "research"
-requires_approval = true
-approval_prompt = "Return to research phase for additional investigation?"

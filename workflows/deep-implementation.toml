@@ -393,7 +393,10 @@ Common artifacts in this workflow:
 | Test writing | `sonnet` |
 | Documentation | `haiku` |
 """
-suggested_next = ["validate"]
+suggested_next = [
+    "validate",
+    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
+]
 
 [[phases]]
 id = "validate"
@@ -437,7 +440,10 @@ Verify each criterion from the verification plan is met.
 - If needs rework: Transition back to implement
 - If fundamental issue: Record in dead-ends
 """
-suggested_next = ["complete"]
+suggested_next = [
+    "complete",
+    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
+]
 on_blocked = "implement"
 
 [[phases]]
@@ -486,10 +492,3 @@ Remove intermediate artifacts if no longer needed:
 This is a terminal phase. The workflow is complete.
 """
 terminal = true
-
-# Transition rules for phase loopbacks
-[[transitions]]
-from = ["implement", "validate"]
-to = "research"
-requires_approval = true
-approval_prompt = "Return to research phase for additional investigation?"
