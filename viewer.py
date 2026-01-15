@@ -15,6 +15,8 @@ Usage:
 """
 
 import json
+import logging
+import os
 import re
 import shutil
 import subprocess
@@ -25,6 +27,14 @@ from urllib.parse import unquote, urlparse
 import graphviz
 import markdown
 import tomli
+
+# Configure logging - set JONS_PLAN_LOG_LEVEL=DEBUG for verbose output
+_log_level = os.environ.get("JONS_PLAN_LOG_LEVEL", "WARNING").upper()
+logging.basicConfig(
+    level=getattr(logging, _log_level, logging.WARNING),
+    format="[%(levelname)s] %(message)s",
+)
+logger = logging.getLogger("jons-plan-viewer")
 from PySide6.QtCore import (
     Property,
     QFileSystemWatcher,
@@ -337,12 +347,16 @@ class WorkflowModel(QObject):
         for f in watch_files:
             if f.exists():
                 self._watcher.addPath(str(f))
+                logger.debug(f"Watching file: {f}")
         for d in watch_dirs:
             if d.exists():
                 self._watcher.addPath(str(d))
+                logger.debug(f"Watching dir: {d}")
+        logger.info(f"Watching {len(self._watcher.files())} files, {len(self._watcher.directories())} directories")
 
     def _on_file_changed(self, path: str) -> None:
         """Reload when watched files change."""
+        logger.info(f"File changed: {path}")
         self._reload()
         # Re-add watch (Qt removes after change notification)
         if Path(path).exists():
@@ -352,6 +366,7 @@ class WorkflowModel(QObject):
 
     def _on_directory_changed(self, path: str) -> None:
         """Reload when directory contents change (new files created)."""
+        logger.info(f"Directory changed: {path}")
         self._reload()
         # Watch any new files/directories that were created
         self._watch_new_phase_files()
@@ -397,6 +412,7 @@ class WorkflowModel(QObject):
 
     def _reload(self) -> None:
         """Reload workflow and state from files."""
+        logger.debug("Reloading workflow data...")
         workflow = self._load_workflow()
         state = self._load_state()
         layout = compute_layout(workflow)
@@ -409,9 +425,11 @@ class WorkflowModel(QObject):
 
         # Update selected phase details if an entry is selected
         if self._selected_phase_entry:
+            logger.debug(f"Updating selected phase entry: {self._selected_phase_entry}")
             self._update_selected_phase_details()
 
         self.dataChanged.emit()
+        logger.debug("Reload complete, dataChanged emitted")
 
     def _load_workflow(self) -> dict:
         """Load workflow.toml."""
@@ -543,14 +561,19 @@ class WorkflowModel(QObject):
     def _load_phase_tasks(self, phase_dir: str) -> list:
         """Load tasks for a specific phase directory."""
         if not phase_dir:
+            logger.debug("_load_phase_tasks: no phase_dir provided")
             return []
         phase_path = Path(phase_dir)
         if not phase_path.is_absolute():
             phase_path = self._plan_path / phase_path
         tasks_file = phase_path / "tasks.json"
+        logger.debug(f"_load_phase_tasks: checking {tasks_file}")
         if tasks_file.exists():
             with open(tasks_file) as f:
-                return json.load(f)
+                tasks = json.load(f)
+                logger.debug(f"_load_phase_tasks: loaded {len(tasks)} tasks")
+                return tasks
+        logger.debug("_load_phase_tasks: tasks.json not found")
         return []
 
     def _find_entry_by_number(self, entry_num: int) -> dict | None:
@@ -571,17 +594,20 @@ class WorkflowModel(QObject):
 
     def _update_selected_phase_details(self) -> None:
         """Update details for the selected phase entry."""
+        logger.debug(f"_update_selected_phase_details: entry={self._selected_phase_entry}")
         if not self._selected_phase_entry:
             self._selected_phase_details = {}
             return
 
         entry = self._find_entry_by_number(self._selected_phase_entry)
         if not entry:
+            logger.debug("_update_selected_phase_details: entry not found")
             self._selected_phase_details = {}
             return
 
         phase_id = entry.get("phase", "")
         phase_dir = entry.get("dir", "")
+        logger.debug(f"_update_selected_phase_details: phase={phase_id}, dir={phase_dir}")
 
         if phase_id in self._phases:
             details = dict(self._phases[phase_id])
@@ -591,6 +617,7 @@ class WorkflowModel(QObject):
             details["reason"] = entry.get("reason", "")
             details["outcome"] = entry.get("outcome")
             details["tasks"] = self._load_phase_tasks(phase_dir)
+            logger.debug(f"_update_selected_phase_details: loaded {len(details['tasks'])} tasks")
             self._selected_phase_details = details
             self._load_phase_artifacts(phase_dir)
             self._load_phase_logs(phase_dir)
