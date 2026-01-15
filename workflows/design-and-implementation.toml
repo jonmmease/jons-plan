@@ -115,17 +115,61 @@ suggested_next = ["review"]
 
 [[phases]]
 id = "review"
+use_tasks = true
 prompt = """
 # Review Phase
 
-Get external feedback on the design.
+Get external feedback on the design using reviewer agents.
 
-## Tasks
-1. Launch reviewer agents (gemini-reviewer, codex-reviewer)
-2. Collect and categorize feedback
+## Setup
+
+Create tasks.json with reviewer tasks. Reviewer tasks can run in parallel since they have no dependencies on each other.
+
+### Example tasks.json
+
+```json
+[
+  {
+    "id": "gemini-review",
+    "description": "Get design feedback from Gemini",
+    "subagent": "gemini-reviewer",
+    "subagent_prompt": "Review the design for architectural concerns, completeness, and clarity",
+    "context_artifacts": ["design", "verification-plan"],
+    "parents": [],
+    "status": "todo"
+  },
+  {
+    "id": "codex-review",
+    "description": "Get design feedback from Codex",
+    "subagent": "codex-reviewer",
+    "subagent_prompt": "Review the design for technical accuracy and implementation feasibility",
+    "context_artifacts": ["design", "verification-plan"],
+    "parents": [],
+    "status": "todo"
+  },
+  {
+    "id": "synthesize-feedback",
+    "description": "Synthesize feedback into review-feedback.md",
+    "parents": ["gemini-review", "codex-review"],
+    "steps": [
+      "Read output from parent tasks",
+      "Categorize feedback: critical, suggestion, nit",
+      "Write review-feedback.md"
+    ],
+    "status": "todo"
+  }
+]
+```
+
+## Task Execution
+
+1. Run reviewer tasks in parallel (they have no parents)
+2. After both complete, run synthesize task
+3. Mark each task done as it completes
 
 ## Outputs
-Write `review-feedback.md` with categorized feedback.
+
+Write `review-feedback.md` with categorized feedback from all reviewers.
 """
 suggested_next = ["revise"]
 

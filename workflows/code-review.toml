@@ -65,68 +65,90 @@ suggested_next = ["analyze"]
 
 [[phases]]
 id = "analyze"
+use_tasks = true
 prompt = """
 # Analyze Phase
 
-Perform multi-perspective analysis of the changes using specialized reviewer personas.
+Perform multi-perspective analysis of the changes using specialized reviewer tasks.
+
+## Setup
+
+Create tasks.json with reviewer tasks. Independent reviewers can run in parallel.
+
+### Example tasks.json
+
+```json
+[
+  {
+    "id": "slop-detection",
+    "description": "Scan for LLM-generated code patterns",
+    "subagent": "general-purpose",
+    "subagent_prompt": "Adopt a gruff senior developer persona. Scan for LLM slop: verbose variable names, excessive comments, generic error messages, copy-paste patterns, inconsistent style",
+    "model": "haiku",
+    "parents": [],
+    "status": "todo"
+  },
+  {
+    "id": "edge-case-adversary",
+    "description": "Identify assumptions that could be violated",
+    "subagent": "general-purpose",
+    "subagent_prompt": "Adopt a gruff senior developer persona. Find edge cases: null/undefined inputs, empty collections, concurrent access, network failures, resource exhaustion, invalid state transitions",
+    "model": "haiku",
+    "parents": [],
+    "status": "todo"
+  },
+  {
+    "id": "architect-review",
+    "description": "Architectural review via Gemini",
+    "subagent": "gemini-reviewer",
+    "subagent_prompt": "Adopt a gruff senior developer persona. Review architecture: system-level fit, architectural drift, coupling/cohesion, API design, scalability",
+    "parents": [],
+    "status": "todo"
+  },
+  {
+    "id": "bug-hunter-review",
+    "description": "Bug hunting review via Codex",
+    "subagent": "codex-reviewer",
+    "subagent_prompt": "Adopt a gruff senior developer persona. Hunt bugs: edge cases, race conditions, error handling, resource leaks, security vulnerabilities",
+    "parents": [],
+    "status": "todo"
+  },
+  {
+    "id": "maintainer-review",
+    "description": "Maintainability review",
+    "subagent": "general-purpose",
+    "subagent_prompt": "Adopt a gruff senior developer persona. Review maintainability: code clarity, 6-month comprehension test, documentation adequacy, test coverage, naming",
+    "model": "opus",
+    "parents": [],
+    "status": "todo"
+  },
+  {
+    "id": "synthesize-analysis",
+    "description": "Synthesize all perspectives into analysis.md",
+    "parents": ["slop-detection", "edge-case-adversary", "architect-review", "bug-hunter-review", "maintainer-review"],
+    "steps": [
+      "Read output from all reviewer tasks",
+      "Organize by category: slop, edge cases, architecture, bugs, maintainability",
+      "Write analysis.md"
+    ],
+    "status": "todo"
+  }
+]
+```
 
 ## Inputs
 
-Review review-scope.md for context and read the generated diffs.
+Review review-scope.md and diffs from gather phase.
 
-## Reviewer Personas
+## Task Execution
 
-Each reviewer should adopt a "gruff senior developer" persona - direct, slightly impatient, but ultimately helpful.
-
-### 1. Slop Detection (haiku)
-Scan for LLM-generated code patterns:
-- Overly verbose variable names
-- Excessive comments explaining obvious code
-- Generic error messages
-- Copy-paste patterns
-- Inconsistent style with surrounding code
-
-### 2. Edge Case Adversary (haiku)
-Identify assumptions in code that could be violated:
-- Null/undefined inputs
-- Empty collections
-- Concurrent access
-- Network failures
-- Resource exhaustion
-- Invalid state transitions
-
-### 3. The Architect (gemini-reviewer)
-Architectural review focusing on:
-- System-level fit
-- Architectural drift from existing patterns
-- Coupling and cohesion
-- API design
-- Scalability implications
-
-### 4. The Bug Hunter (codex-reviewer)
-Bug hunting review focusing on:
-- Edge cases and boundary conditions
-- Race conditions
-- Error handling paths
-- Resource leaks
-- Security vulnerabilities
-
-### 5. The Maintainer (opus)
-Maintainability review focusing on:
-- Code clarity and readability
-- The "6-month comprehension test" - will this make sense later?
-- Documentation adequacy
-- Test coverage
-- Naming and organization
+1. Run all reviewer tasks in parallel (no dependencies)
+2. After all complete, run synthesize task
+3. Mark each task done as it completes
 
 ## Outputs
 
-Write `analysis.md` with all perspectives:
-- Slop detection findings
-- Edge case concerns
-- Architectural feedback (gemini)
-- Bug hunting results (codex)
-- Maintainability assessment (opus)
+Write `analysis.md` with all perspectives synthesized.
 """
 suggested_next = ["generate-pr"]
 
@@ -189,45 +211,78 @@ suggested_next = ["review-draft"]
 
 [[phases]]
 id = "review-draft"
+use_tasks = true
 prompt = """
 # Review Draft Phase
 
 Review the generated PR description for quality before finalizing.
+
+## Setup
+
+Create tasks.json with PR reviewer tasks. Independent reviewers can run in parallel.
+
+### Example tasks.json
+
+```json
+[
+  {
+    "id": "pr-slop-detection",
+    "description": "Scan PR for AI-generated writing patterns",
+    "subagent": "general-purpose",
+    "subagent_prompt": "Scan PR description for AI slop: marketing speak, vague claims, unnecessary hedging, overly formal tone",
+    "model": "haiku",
+    "parents": [],
+    "status": "todo"
+  },
+  {
+    "id": "gemini-pr-review",
+    "description": "Gemini review of PR description",
+    "subagent": "gemini-reviewer",
+    "subagent_prompt": "Review PR for clarity, completeness, accurate summary, appropriate detail level, missing context",
+    "parents": [],
+    "status": "todo"
+  },
+  {
+    "id": "codex-pr-review",
+    "description": "Codex review of PR description",
+    "subagent": "codex-reviewer",
+    "subagent_prompt": "Review PR for technical accuracy, misleading claims, missing details, consistency with diff",
+    "parents": [],
+    "status": "todo"
+  },
+  {
+    "id": "opus-pr-review",
+    "description": "Opus review of PR description",
+    "subagent": "general-purpose",
+    "subagent_prompt": "Review PR for reader comprehension, reviewer understanding, organization, actionable guidance",
+    "model": "opus",
+    "parents": [],
+    "status": "todo"
+  },
+  {
+    "id": "synthesize-pr-feedback",
+    "description": "Synthesize PR feedback into pr-review-feedback.md",
+    "parents": ["pr-slop-detection", "gemini-pr-review", "codex-pr-review", "opus-pr-review"],
+    "steps": [
+      "Read output from all PR reviewer tasks",
+      "Categorize feedback",
+      "Write pr-review-feedback.md"
+    ],
+    "status": "todo"
+  }
+]
+```
 
 ## Inputs
 
 - draft-pr.md from generate-pr phase
 - full.diff for verifying accuracy
 
-## PR Review Tasks
+## Task Execution
 
-### 1. PR Slop Detection (haiku)
-Scan for AI-generated writing patterns:
-- Marketing speak ("cutting-edge", "seamless")
-- Vague claims ("various improvements")
-- Unnecessary hedging
-- Overly formal tone
-
-### 2. Gemini PR Review
-Check for:
-- Clarity and completeness
-- Accurate summary of changes
-- Appropriate level of detail
-- Missing context
-
-### 3. Codex PR Review
-Check for:
-- Technical accuracy
-- Misleading claims
-- Missing important details
-- Consistency with actual diff
-
-### 4. Opus PR Review
-Check for:
-- Reader comprehension
-- Would a reviewer understand the change?
-- Appropriate organization
-- Actionable review guidance
+1. Run all reviewer tasks in parallel (no dependencies)
+2. After all complete, run synthesize task
+3. Mark each task done as it completes
 
 ## Outputs
 
