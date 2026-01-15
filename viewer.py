@@ -309,9 +309,16 @@ class WorkflowModel(QObject):
             # Watch tasks.json files
             for tasks_file in phases_dir.glob("*/tasks.json"):
                 watch_files.append(tasks_file)
-            # Watch task progress.txt files
-            for progress_file in phases_dir.glob("*/tasks/*/progress.txt"):
-                watch_files.append(progress_file)
+            # Watch phase-level progress and artifacts
+            for phase_file in phases_dir.glob("*/*.txt"):
+                watch_files.append(phase_file)
+            for phase_file in phases_dir.glob("*/*.md"):
+                watch_files.append(phase_file)
+            # Watch task progress and output files
+            for task_file in phases_dir.glob("*/tasks/*/*.txt"):
+                watch_files.append(task_file)
+            for task_file in phases_dir.glob("*/tasks/*/*.md"):
+                watch_files.append(task_file)
         for f in watch_files:
             if f.exists():
                 self._watcher.addPath(str(f))
@@ -326,18 +333,22 @@ class WorkflowModel(QObject):
         self._watch_new_phase_files()
 
     def _watch_new_phase_files(self) -> None:
-        """Add watches for any new tasks.json or progress.txt files."""
+        """Add watches for any new phase/task files."""
         phases_dir = self._plan_path / "phases"
         if phases_dir.exists():
             watched = set(self._watcher.files())
-            # Watch new tasks.json files
-            for tasks_file in phases_dir.glob("*/tasks.json"):
-                if str(tasks_file) not in watched:
-                    self._watcher.addPath(str(tasks_file))
-            # Watch new progress.txt files
-            for progress_file in phases_dir.glob("*/tasks/*/progress.txt"):
-                if str(progress_file) not in watched:
-                    self._watcher.addPath(str(progress_file))
+            # Patterns to watch for new files
+            patterns = [
+                "*/tasks.json",      # Phase tasks
+                "*/*.txt",           # Phase progress/artifacts
+                "*/*.md",            # Phase artifacts
+                "*/tasks/*/*.txt",   # Task progress
+                "*/tasks/*/*.md",    # Task outputs
+            ]
+            for pattern in patterns:
+                for f in phases_dir.glob(pattern):
+                    if str(f) not in watched:
+                        self._watcher.addPath(str(f))
 
     def _reload(self) -> None:
         """Reload workflow and state from files."""
