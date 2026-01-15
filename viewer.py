@@ -134,52 +134,99 @@ def compute_layout(workflow: dict) -> dict:
         if not pos_str:
             continue
 
-        points = parse_edge_spline(pos_str, bounds["maxY"])
-        if points:
+        spline_data = parse_edge_spline(pos_str, bounds["maxY"])
+        curve_points = spline_data.get("curvePoints", [])
+
+        if curve_points:
             # Get source and target node names
             tail_idx = edge.get("tail", 0)
             head_idx = edge.get("head", 0)
             source = result["objects"][tail_idx]["name"] if tail_idx < len(result.get("objects", [])) else ""
             target = result["objects"][head_idx]["name"] if head_idx < len(result.get("objects", [])) else ""
 
+            # Build SVG path string for cubic bezier segments
+            # Format: M startX,startY C c1x,c1y c2x,c2y endx,endy C ...
+            svg_path = f"M {curve_points[0]['x']},{curve_points[0]['y']}"
+
+            # Graphviz gives us: start, then groups of 3 (c1, c2, end) for cubic bezier
+            i = 1
+            while i + 2 < len(curve_points):
+                c1 = curve_points[i]
+                c2 = curve_points[i + 1]
+                end = curve_points[i + 2]
+                svg_path += f" C {c1['x']},{c1['y']} {c2['x']},{c2['y']} {end['x']},{end['y']}"
+                i += 3
+
+            # Handle any remaining points with line segments
+            while i < len(curve_points):
+                svg_path += f" L {curve_points[i]['x']},{curve_points[i]['y']}"
+                i += 1
+
             edges.append({
                 "source": source,
                 "target": target,
-                "points": points,
+                "svgPath": svg_path,
+                "arrowEnd": spline_data.get("arrowEnd"),
+                "prevPoint": spline_data.get("prevPoint"),
             })
 
     return {"nodes": nodes, "edges": edges, "bounds": bounds}
 
 
-def parse_edge_spline(pos_str: str, max_y: float) -> list:
+def parse_edge_spline(pos_str: str, max_y: float) -> dict:
     """
     Parse Graphviz edge spline format.
 
     Format: "e,endX,endY startX,startY control1X,control1Y control2X,control2Y ..."
     Or: "s,startX,startY endX,endY control1X,control1Y ..."
 
-    Returns list of {x, y} dicts for the spline points.
+    Returns dict with:
+        - arrowEnd: {x, y} for arrow head position
+        - curvePoints: list of {x, y} for the bezier curve
+        - prevPoint: {x, y} for second-to-last point (for arrow angle)
     """
     parts = pos_str.split()
-    points = []
+    arrow_end = None
+    curve_points = []
 
     for part in parts:
         # Handle endpoint markers
-        if part.startswith("e,") or part.startswith("s,"):
+        if part.startswith("e,"):
             coords = part[2:].split(",")
             if len(coords) >= 2:
-                x = float(coords[0])
-                y = max_y - float(coords[1])  # Flip Y
-                points.append({"x": x, "y": y})
+                arrow_end = {
+                    "x": float(coords[0]),
+                    "y": max_y - float(coords[1])
+                }
+        elif part.startswith("s,"):
+            # Start marker - just parse as regular point
+            coords = part[2:].split(",")
+            if len(coords) >= 2:
+                curve_points.append({
+                    "x": float(coords[0]),
+                    "y": max_y - float(coords[1])
+                })
         else:
             # Regular control point
             coords = part.split(",")
             if len(coords) >= 2:
-                x = float(coords[0])
-                y = max_y - float(coords[1])  # Flip Y
-                points.append({"x": x, "y": y})
+                curve_points.append({
+                    "x": float(coords[0]),
+                    "y": max_y - float(coords[1])
+                })
 
-    return points
+    # If no arrow end specified, use last curve point
+    if not arrow_end and curve_points:
+        arrow_end = curve_points[-1]
+
+    # Get second-to-last point for arrow direction
+    prev_point = curve_points[-2] if len(curve_points) >= 2 else arrow_end
+
+    return {
+        "arrowEnd": arrow_end,
+        "curvePoints": curve_points,
+        "prevPoint": prev_point,
+    }
 
 
 class WorkflowModel(QObject):

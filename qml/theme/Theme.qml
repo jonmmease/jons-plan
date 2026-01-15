@@ -78,4 +78,10 @@ QtObject {
     // Panel dimensions
     readonly property int detailsPanelWidth: 300
     readonly property int timelinePanelHeight: 150
+
+    // Task tree styling
+    readonly property int treeIndent: 20              // Indentation per level
+    readonly property color treeConnectorColor: textMuted  // Color for tree lines
+    readonly property int taskNodeHeight: 28          // Height of each task row
+    readonly property color taskSelectedBg: "#e3f2fd" // Selected task background
 }

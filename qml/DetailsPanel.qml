@@ -187,8 +187,73 @@ Rectangle {
                         }
                     }
 
-                    TaskList {
+                    TaskTree {
+                        id: taskTree
                         Layout.fillWidth: true
+                        tasks: workflowModel.selectedPhaseDetails.tasks || []
+
+                        // Clear selection when phase changes
+                        Connections {
+                            target: workflowModel
+                            function onSelectedPhaseChanged() {
+                                taskTree.selectedTask = null
+                            }
+                        }
+                    }
+
+                    // Selected task details
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: taskDetailsColumn.implicitHeight + Theme.spacingSmall * 2
+                        visible: taskTree.selectedTask !== null
+                        color: Theme.taskSelectedBg
+                        radius: Theme.radiusSmall
+
+                        ColumnLayout {
+                            id: taskDetailsColumn
+                            anchors.fill: parent
+                            anchors.margins: Theme.spacingSmall
+                            spacing: Theme.spacingTiny
+
+                            // Task ID
+                            Text {
+                                text: taskTree.selectedTask ? taskTree.selectedTask.id : ""
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: Font.Medium
+                                color: Theme.textPrimary
+                            }
+
+                            // Status
+                            Text {
+                                text: "Status: " + (taskTree.selectedTask ? taskTree.selectedTask.status : "")
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: Theme.textSecondary
+                            }
+
+                            // Steps header
+                            Text {
+                                visible: taskTree.selectedTask && taskTree.selectedTask.steps && taskTree.selectedTask.steps.length > 0
+                                text: "Steps:"
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: Font.Medium
+                                color: Theme.textPrimary
+                                Layout.topMargin: Theme.spacingTiny
+                            }
+
+                            // Steps list
+                            Repeater {
+                                model: taskTree.selectedTask ? (taskTree.selectedTask.steps || []) : []
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: (index + 1) + ". " + modelData
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.textSecondary
+                                    wrapMode: Text.WordWrap
+                                    leftPadding: Theme.spacingSmall
+                                }
+                            }
+                        }
                     }
                 }
             }

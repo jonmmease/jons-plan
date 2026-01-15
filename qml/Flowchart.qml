@@ -9,13 +9,13 @@ import "theme"
 Item {
     id: root
 
-    // Coordinate transformation
-    // Graphviz positions are in points, we scale to fit the view
-    property real scale: 1.0
+    // Coordinate transformation - offset only, no scaling
+    // Since node sizes are fixed in pixels, we just center the Graphviz layout
+    property real scale: 1.0  // Fixed at 1.0 - no scaling
     property real offsetX: 50
     property real offsetY: 50
 
-    // Compute bounds and scale on model change
+    // Compute offset to center graph on model change
     Component.onCompleted: computeTransform()
     Connections {
         target: workflowModel
@@ -25,42 +25,47 @@ Item {
     function computeTransform() {
         if (workflowModel.nodes.length === 0) return
 
-        // Find bounds
+        // Find bounds of the graph
         let minX = Infinity, minY = Infinity
         let maxX = -Infinity, maxY = -Infinity
 
         for (let node of workflowModel.nodes) {
-            minX = Math.min(minX, node.x - node.width/2)
-            minY = Math.min(minY, node.y - node.height/2)
-            maxX = Math.max(maxX, node.x + node.width/2)
-            maxY = Math.max(maxY, node.y + node.height/2)
+            // Use fixed node sizes from Theme for bounds calculation
+            minX = Math.min(minX, node.x - Theme.nodeWidth/2)
+            minY = Math.min(minY, node.y - Theme.nodeHeight/2)
+            maxX = Math.max(maxX, node.x + Theme.nodeWidth/2)
+            maxY = Math.max(maxY, node.y + Theme.nodeHeight/2)
         }
 
-        // Add padding
-        const padding = 60
-        const graphWidth = maxX - minX + padding * 2
-        const graphHeight = maxY - minY + padding * 2
+        // Calculate graph dimensions
+        const graphWidth = maxX - minX
+        const graphHeight = maxY - minY
 
-        // Calculate scale to fit
-        const scaleX = (root.width - padding * 2) / graphWidth
-        const scaleY = (root.height - padding * 2) / graphHeight
-        root.scale = Math.min(scaleX, scaleY, 1.5)  // Cap at 1.5x
-
-        // Center the graph
-        root.offsetX = (root.width - graphWidth * root.scale) / 2 - minX * root.scale + padding
-        root.offsetY = (root.height - graphHeight * root.scale) / 2 - minY * root.scale + padding
+        // Center the graph in the view
+        root.offsetX = (root.width - graphWidth) / 2 - minX
+        root.offsetY = (root.height - graphHeight) / 2 - minY
     }
 
     onWidthChanged: computeTransform()
     onHeightChanged: computeTransform()
 
-    // Edges (rendered behind nodes)
+    // Helper function to transform SVG path coordinates
+    function transformSvgPath(path) {
+        if (!path) return ""
+        return path.replace(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g, function(match, x, y) {
+            let tx = parseFloat(x) * root.scale + root.offsetX
+            let ty = parseFloat(y) * root.scale + root.offsetY
+            return tx.toFixed(2) + "," + ty.toFixed(2)
+        })
+    }
+
+    // Edge lines (rendered behind nodes) - use Graphviz cubic bezier splines
     Repeater {
         model: workflowModel.edges
 
         Shape {
-            id: edgeShape
             anchors.fill: parent
+            visible: (modelData.svgPath || "").length > 0
 
             ShapePath {
                 strokeColor: Theme.edgeDefault
@@ -68,59 +73,8 @@ Item {
                 fillColor: "transparent"
                 capStyle: ShapePath.RoundCap
 
-                // Start at first point
-                startX: modelData.points.length > 0 ? modelData.points[0].x * root.scale + root.offsetX : 0
-                startY: modelData.points.length > 0 ? modelData.points[0].y * root.scale + root.offsetY : 0
-
-                // Draw path through remaining points
-                PathPolyline {
-                    path: {
-                        let pts = []
-                        for (let i = 0; i < modelData.points.length; i++) {
-                            pts.push(Qt.point(
-                                modelData.points[i].x * root.scale + root.offsetX,
-                                modelData.points[i].y * root.scale + root.offsetY
-                            ))
-                        }
-                        return pts
-                    }
-                }
-            }
-
-            // Arrow head at end (only render if we have valid points)
-            Shape {
-                id: arrowShape
-                property bool hasValidPoints: modelData.points && modelData.points.length >= 2
-                property var pts: hasValidPoints ? modelData.points : []
-                property real lastX: pts.length >= 1 ? (pts[pts.length - 1].x || 0) : 0
-                property real lastY: pts.length >= 1 ? (pts[pts.length - 1].y || 0) : 0
-                property real prevX: pts.length >= 2 ? (pts[pts.length - 2].x || 0) : lastX
-                property real prevY: pts.length >= 2 ? (pts[pts.length - 2].y || 0) : lastY
-                property real arrowEndX: lastX * root.scale + root.offsetX
-                property real arrowEndY: lastY * root.scale + root.offsetY
-                property real arrowAngle: Math.atan2(lastY - prevY, lastX - prevX)
-
-                visible: hasValidPoints
-
-                ShapePath {
-                    strokeColor: "transparent"
-                    fillColor: Theme.edgeDefault
-
-                    startX: arrowShape.arrowEndX
-                    startY: arrowShape.arrowEndY
-
-                    PathLine {
-                        x: arrowShape.arrowEndX - 10 * Math.cos(arrowShape.arrowAngle - 0.4)
-                        y: arrowShape.arrowEndY - 10 * Math.sin(arrowShape.arrowAngle - 0.4)
-                    }
-                    PathLine {
-                        x: arrowShape.arrowEndX - 10 * Math.cos(arrowShape.arrowAngle + 0.4)
-                        y: arrowShape.arrowEndY - 10 * Math.sin(arrowShape.arrowAngle + 0.4)
-                    }
-                    PathLine {
-                        x: arrowShape.arrowEndX
-                        y: arrowShape.arrowEndY
-                    }
+                PathSvg {
+                    path: root.transformSvgPath(modelData.svgPath || "")
                 }
             }
         }
@@ -209,6 +163,51 @@ Item {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: workflowModel.selectPhase(modelData.id)
+            }
+        }
+    }
+
+    // Arrow heads (rendered on top of nodes)
+    Repeater {
+        model: workflowModel.edges
+
+        Shape {
+            id: arrowShape
+            anchors.fill: parent
+
+            property var arrowEnd: modelData.arrowEnd
+            property var prevPoint: modelData.prevPoint
+            property bool valid: arrowEnd !== null && arrowEnd !== undefined
+
+            visible: valid
+
+            ShapePath {
+                id: arrowPath
+                strokeColor: "transparent"
+                fillColor: Theme.edgeDefault
+
+                property real endX: arrowShape.valid ? arrowShape.arrowEnd.x * root.scale + root.offsetX : 0
+                property real endY: arrowShape.valid ? arrowShape.arrowEnd.y * root.scale + root.offsetY : 0
+                property real prevX: arrowShape.valid && arrowShape.prevPoint ? arrowShape.prevPoint.x * root.scale + root.offsetX : endX
+                property real prevY: arrowShape.valid && arrowShape.prevPoint ? arrowShape.prevPoint.y * root.scale + root.offsetY : endY
+                property real angle: arrowShape.valid ? Math.atan2(endY - prevY, endX - prevX) : 0
+                property real arrowSize: 10
+
+                startX: endX
+                startY: endY
+
+                PathLine {
+                    x: arrowShape.valid ? arrowPath.endX - arrowPath.arrowSize * Math.cos(arrowPath.angle - 0.4) : 0
+                    y: arrowShape.valid ? arrowPath.endY - arrowPath.arrowSize * Math.sin(arrowPath.angle - 0.4) : 0
+                }
+                PathLine {
+                    x: arrowShape.valid ? arrowPath.endX - arrowPath.arrowSize * Math.cos(arrowPath.angle + 0.4) : 0
+                    y: arrowShape.valid ? arrowPath.endY - arrowPath.arrowSize * Math.sin(arrowPath.angle + 0.4) : 0
+                }
+                PathLine {
+                    x: arrowShape.valid ? arrowPath.endX : 0
+                    y: arrowShape.valid ? arrowPath.endY : 0
+                }
             }
         }
     }
