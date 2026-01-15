@@ -16,14 +16,9 @@ INPUT=$(cat)
 # Our termination condition is "no available tasks", which naturally
 # prevents infinite loops. We want Claude to keep working until done.
 
-# Find project root (where .claude/ lives)
-PROJECT_DIR="$(pwd)"
-while [[ "$PROJECT_DIR" != "/" ]]; do
-    if [[ -d "${PROJECT_DIR}/.claude" ]]; then
-        break
-    fi
-    PROJECT_DIR="$(dirname "$PROJECT_DIR")"
-done
+# Find project root - use git root like plan.py does for consistency
+# This ensures session-mode file path matches between set-mode and this hook
+PROJECT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 # Get active plan
 ACTIVE_PLAN=$(plan active-plan 2>/dev/null || echo "")

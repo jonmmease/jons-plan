@@ -13,8 +13,13 @@ plan() {
 INPUT=$(cat)
 
 # Extract the user's message from the JSON input
-# The input format is: {"session_id": "...", "prompt": "..."}
-MESSAGE=$(echo "$INPUT" | grep -o '"prompt"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"prompt"[[:space:]]*:[[:space:]]*"//' | sed 's/"$//' || echo "")
+# Try jq first (handles all JSON edge cases), fall back to grep/sed
+if command -v jq &>/dev/null; then
+    MESSAGE=$(echo "$INPUT" | jq -r '.prompt // empty' 2>/dev/null || echo "")
+else
+    # Fallback: The input format is: {"session_id": "...", "prompt": "..."}
+    MESSAGE=$(echo "$INPUT" | grep -o '"prompt"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"prompt"[[:space:]]*:[[:space:]]*"//' | sed 's/"$//' || echo "")
+fi
 
 # Check for /jons-plan:* commands and set appropriate mode
 if [[ "$MESSAGE" == "/jons-plan:plan"* ]]; then
