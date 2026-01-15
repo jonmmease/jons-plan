@@ -291,37 +291,55 @@ class WorkflowModel(QObject):
         # File watcher for live updates
         self._watcher = QFileSystemWatcher()
         self._watcher.fileChanged.connect(self._on_file_changed)
+        self._watcher.directoryChanged.connect(self._on_directory_changed)
         self._setup_watches()
 
         # Initial load
         self._reload()
 
     def _setup_watches(self) -> None:
-        """Watch key files for changes."""
+        """Watch key files and directories for changes."""
         watch_files = [
             self._plan_path / "state.json",
             self._plan_path / "workflow.toml",
             self._plan_path / "claude-progress.txt",
         ]
-        # Also watch files in phase directories
+        watch_dirs = []
+
+        # Watch phases directory and subdirectories for new file creation
         phases_dir = self._plan_path / "phases"
         if phases_dir.exists():
-            # Watch tasks.json files
+            watch_dirs.append(phases_dir)
+            # Watch each phase directory
+            for phase_subdir in phases_dir.iterdir():
+                if phase_subdir.is_dir():
+                    watch_dirs.append(phase_subdir)
+                    # Watch tasks subdirectory if it exists
+                    tasks_subdir = phase_subdir / "tasks"
+                    if tasks_subdir.exists():
+                        watch_dirs.append(tasks_subdir)
+                        for task_dir in tasks_subdir.iterdir():
+                            if task_dir.is_dir():
+                                watch_dirs.append(task_dir)
+
+            # Watch existing files
             for tasks_file in phases_dir.glob("*/tasks.json"):
                 watch_files.append(tasks_file)
-            # Watch phase-level progress and artifacts
             for phase_file in phases_dir.glob("*/*.txt"):
                 watch_files.append(phase_file)
             for phase_file in phases_dir.glob("*/*.md"):
                 watch_files.append(phase_file)
-            # Watch task progress and output files
             for task_file in phases_dir.glob("*/tasks/*/*.txt"):
                 watch_files.append(task_file)
             for task_file in phases_dir.glob("*/tasks/*/*.md"):
                 watch_files.append(task_file)
+
         for f in watch_files:
             if f.exists():
                 self._watcher.addPath(str(f))
+        for d in watch_dirs:
+            if d.exists():
+                self._watcher.addPath(str(d))
 
     def _on_file_changed(self, path: str) -> None:
         """Reload when watched files change."""
@@ -331,6 +349,33 @@ class WorkflowModel(QObject):
             self._watcher.addPath(path)
         # Check for new files that weren't being watched
         self._watch_new_phase_files()
+
+    def _on_directory_changed(self, path: str) -> None:
+        """Reload when directory contents change (new files created)."""
+        self._reload()
+        # Watch any new files/directories that were created
+        self._watch_new_phase_files()
+        self._watch_new_directories()
+
+    def _watch_new_directories(self) -> None:
+        """Add watches for any new directories."""
+        phases_dir = self._plan_path / "phases"
+        if phases_dir.exists():
+            watched = set(self._watcher.directories())
+            # Watch phases dir itself
+            if str(phases_dir) not in watched:
+                self._watcher.addPath(str(phases_dir))
+            # Watch phase subdirectories
+            for phase_subdir in phases_dir.iterdir():
+                if phase_subdir.is_dir() and str(phase_subdir) not in watched:
+                    self._watcher.addPath(str(phase_subdir))
+                    # Watch tasks subdirectory
+                    tasks_subdir = phase_subdir / "tasks"
+                    if tasks_subdir.exists() and str(tasks_subdir) not in watched:
+                        self._watcher.addPath(str(tasks_subdir))
+                        for task_dir in tasks_subdir.iterdir():
+                            if task_dir.is_dir() and str(task_dir) not in watched:
+                                self._watcher.addPath(str(task_dir))
 
     def _watch_new_phase_files(self) -> None:
         """Add watches for any new phase/task files."""
