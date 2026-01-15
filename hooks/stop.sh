@@ -86,8 +86,9 @@ elif [[ "$SESSION_MODE" == "awaiting-feedback" ]]; then
     :
 fi
 
-# If we get here, allow the stop - log it
+# If we get here, allow the stop - log it and clear session mode
 plan log "SESSION_STOP" 2>/dev/null || true
+plan clear-mode 2>/dev/null || true
 
 # Calculate session statistics
 PROGRESS_FILE="${ACTIVE_PLAN_DIR}/claude-progress.txt"
