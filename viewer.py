@@ -497,7 +497,12 @@ class WorkflowModel(QObject):
 
     def _load_phase_tasks(self, phase_dir: str) -> list:
         """Load tasks for a specific phase directory."""
-        tasks_file = self._plan_path / phase_dir / "tasks.json"
+        if not phase_dir:
+            return []
+        phase_path = Path(phase_dir)
+        if not phase_path.is_absolute():
+            phase_path = self._plan_path / phase_path
+        tasks_file = phase_path / "tasks.json"
         if tasks_file.exists():
             with open(tasks_file) as f:
                 return json.load(f)
