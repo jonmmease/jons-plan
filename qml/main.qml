@@ -14,103 +14,341 @@ ApplicationWindow {
 
     color: Theme.bgWindow
 
-    SplitView {
+    // Track which sections are expanded
+    property bool flowchartExpanded: true
+    property bool historyExpanded: true
+    property bool timelineExpanded: false
+
+    // Computed: are all panels collapsed?
+    property bool allCollapsed: !flowchartExpanded && !historyExpanded && !timelineExpanded
+
+    // Header height for collapsed sections
+    readonly property int sectionHeaderHeight: 32
+
+    // Collapsed sidebar width
+    readonly property int collapsedSidebarWidth: 36
+
+    RowLayout {
         anchors.fill: parent
-        orientation: Qt.Horizontal
+        spacing: 0
 
-        // Left side: Flowchart
+        // Collapsed sidebar (shown when all panels collapsed)
         Rectangle {
-            SplitView.fillWidth: true
-            SplitView.minimumWidth: 300
-            color: Theme.bgPanel
-
-            Flowchart {
-                id: flowchart
-                anchors.fill: parent
-                anchors.margins: Theme.spacingMedium
-            }
-        }
-
-        // Right side: Details Panel
-        Rectangle {
-            SplitView.preferredWidth: Theme.detailsPanelWidth
-            SplitView.minimumWidth: 250
-            SplitView.maximumWidth: 500
-            color: Theme.bgPanel
-
-            DetailsPanel {
-                id: detailsPanel
-                anchors.fill: parent
-            }
-        }
-    }
-
-    // Bottom: Timeline Panel (collapsible)
-    Rectangle {
-        id: timelineContainer
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        height: timelineExpanded ? Theme.timelinePanelHeight : timelineHeader.height
-        color: Theme.bgTimeline
-
-        Behavior on height {
-            NumberAnimation { duration: Theme.animNormal }
-        }
-
-        property bool timelineExpanded: false
-
-        // Timeline header
-        Rectangle {
-            id: timelineHeader
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: 32
+            Layout.preferredWidth: root.collapsedSidebarWidth
+            Layout.fillHeight: true
+            visible: root.allCollapsed
             color: Theme.bgPanelHeader
 
-            RowLayout {
+            ColumnLayout {
                 anchors.fill: parent
-                anchors.leftMargin: Theme.spacingMedium
-                anchors.rightMargin: Theme.spacingMedium
+                spacing: 1
 
-                Text {
-                    text: "Progress Timeline"
-                    font.pixelSize: Theme.fontSizeNormal
-                    font.weight: Font.Medium
-                    color: Theme.textPrimary
-                }
+                // Workflow button
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 80
+                    color: flowchartBtn.containsMouse ? Theme.hoverHighlight : "transparent"
 
-                Text {
-                    text: "(" + workflowModel.progressEntries.length + " entries)"
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.textSecondary
-                }
-
-                Item { Layout.fillWidth: true }
-
-                Text {
-                    text: timelineContainer.timelineExpanded ? "Hide" : "Show"
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.textLink
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Workflow"
+                        rotation: -90
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.Medium
+                        color: Theme.textPrimary
+                    }
 
                     MouseArea {
+                        id: flowchartBtn
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: timelineContainer.timelineExpanded = !timelineContainer.timelineExpanded
+                        onClicked: root.flowchartExpanded = true
+                    }
+                }
+
+                // History button
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 80
+                    color: historyBtn.containsMouse ? Theme.hoverHighlight : "transparent"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "History"
+                        rotation: -90
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.Medium
+                        color: Theme.textPrimary
+                    }
+
+                    MouseArea {
+                        id: historyBtn
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.historyExpanded = true
+                    }
+                }
+
+                // Timeline button
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 80
+                    color: timelineBtn.containsMouse ? Theme.hoverHighlight : "transparent"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Timeline"
+                        rotation: -90
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.Medium
+                        color: Theme.textPrimary
+                    }
+
+                    MouseArea {
+                        id: timelineBtn
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.timelineExpanded = true
+                    }
+                }
+
+                Item { Layout.fillHeight: true }
+            }
+        }
+
+        // Main content area
+        SplitView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            orientation: Qt.Horizontal
+
+            // Left side: Vertical SplitView with panels (hidden when all collapsed)
+            SplitView {
+                SplitView.fillWidth: false
+                SplitView.preferredWidth: root.allCollapsed ? 0 : 450
+                SplitView.minimumWidth: root.allCollapsed ? 0 : 200
+                visible: !root.allCollapsed
+                orientation: Qt.Vertical
+
+                // Section 1: Workflow Diagram
+                Rectangle {
+                    SplitView.fillHeight: root.flowchartExpanded
+                    SplitView.minimumHeight: root.sectionHeaderHeight
+                    SplitView.preferredHeight: root.flowchartExpanded ? 300 : root.sectionHeaderHeight
+                    color: Theme.bgPanel
+                    clip: true
+
+                    // Header
+                    Rectangle {
+                        id: flowchartHeader
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        height: root.sectionHeaderHeight
+                        color: flowchartHeaderMouse.containsMouse ? Theme.hoverHighlight : Theme.bgPanelHeader
+                        z: 1
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: Theme.spacingSmall
+                            anchors.rightMargin: Theme.spacingMedium
+                            spacing: Theme.spacingSmall
+
+                            Text {
+                                text: root.flowchartExpanded ? "▼" : "▶"
+                                font.pixelSize: 10
+                                color: Theme.textMuted
+                            }
+
+                            Text {
+                                text: "Workflow Diagram"
+                                font.pixelSize: Theme.fontSizeNormal
+                                font.weight: Font.Medium
+                                color: Theme.textPrimary
+                            }
+
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        MouseArea {
+                            id: flowchartHeaderMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.flowchartExpanded = !root.flowchartExpanded
+                        }
+                    }
+
+                    // Scrollable flowchart content
+                    Flickable {
+                        id: flowchartFlickable
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: flowchartHeader.bottom
+                        anchors.bottom: parent.bottom
+                        visible: root.flowchartExpanded
+                        clip: true
+                        contentWidth: Math.max(flowchart.minContentWidth, width)
+                        contentHeight: Math.max(flowchart.minContentHeight, height)
+                        boundsBehavior: Flickable.StopAtBounds
+
+                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                        ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                        Flowchart {
+                            id: flowchart
+                            width: flowchartFlickable.contentWidth
+                            height: flowchartFlickable.contentHeight
+                        }
+                    }
+                }
+
+                // Section 2: Phase History
+                Rectangle {
+                    SplitView.fillHeight: root.historyExpanded && !root.flowchartExpanded
+                    SplitView.minimumHeight: root.sectionHeaderHeight
+                    SplitView.preferredHeight: root.historyExpanded ? 200 : root.sectionHeaderHeight
+                    color: Theme.bgPanel
+                    clip: true
+
+                    // Header
+                    Rectangle {
+                        id: historyHeader
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        height: root.sectionHeaderHeight
+                        color: historyHeaderMouse.containsMouse ? Theme.hoverHighlight : Theme.bgPanelHeader
+                        z: 1
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: Theme.spacingSmall
+                            anchors.rightMargin: Theme.spacingMedium
+                            spacing: Theme.spacingSmall
+
+                            Text {
+                                text: root.historyExpanded ? "▼" : "▶"
+                                font.pixelSize: 10
+                                color: Theme.textMuted
+                            }
+
+                            Text {
+                                text: "Phase History"
+                                font.pixelSize: Theme.fontSizeNormal
+                                font.weight: Font.Medium
+                                color: Theme.textPrimary
+                            }
+
+                            Text {
+                                text: "(" + workflowModel.phaseHistory.length + ")"
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: Theme.textSecondary
+                            }
+
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        MouseArea {
+                            id: historyHeaderMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.historyExpanded = !root.historyExpanded
+                        }
+                    }
+
+                    // Phase history list
+                    PhaseHistoryList {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: historyHeader.bottom
+                        anchors.bottom: parent.bottom
+                        visible: root.historyExpanded
+                    }
+                }
+
+                // Section 3: Progress Timeline
+                Rectangle {
+                    SplitView.fillHeight: root.timelineExpanded && !root.flowchartExpanded && !root.historyExpanded
+                    SplitView.minimumHeight: root.sectionHeaderHeight
+                    SplitView.preferredHeight: root.timelineExpanded ? 150 : root.sectionHeaderHeight
+                    color: Theme.bgTimeline
+                    clip: true
+
+                    // Header
+                    Rectangle {
+                        id: timelineHeader
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        height: root.sectionHeaderHeight
+                        color: timelineHeaderMouse.containsMouse ? Theme.hoverHighlight : Theme.bgPanelHeader
+                        z: 1
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: Theme.spacingSmall
+                            anchors.rightMargin: Theme.spacingMedium
+                            spacing: Theme.spacingSmall
+
+                            Text {
+                                text: root.timelineExpanded ? "▼" : "▶"
+                                font.pixelSize: 10
+                                color: Theme.textMuted
+                            }
+
+                            Text {
+                                text: "Progress Timeline"
+                                font.pixelSize: Theme.fontSizeNormal
+                                font.weight: Font.Medium
+                                color: Theme.textPrimary
+                            }
+
+                            Text {
+                                text: "(" + workflowModel.progressEntries.length + ")"
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: Theme.textSecondary
+                            }
+
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        MouseArea {
+                            id: timelineHeaderMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.timelineExpanded = !root.timelineExpanded
+                        }
+                    }
+
+                    // Timeline content
+                    TimelinePanel {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: timelineHeader.bottom
+                        anchors.bottom: parent.bottom
+                        visible: root.timelineExpanded
                     }
                 }
             }
-        }
 
-        // Timeline content
-        TimelinePanel {
-            id: timelinePanel
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: timelineHeader.bottom
-            anchors.bottom: parent.bottom
-            visible: timelineContainer.timelineExpanded
+            // Right side: Details Panel
+            Rectangle {
+                SplitView.fillWidth: true
+                SplitView.preferredWidth: Theme.detailsPanelWidth
+                SplitView.minimumWidth: 300
+                color: Theme.bgPanel
+
+                DetailsPanel {
+                    id: detailsPanel
+                    anchors.fill: parent
+                }
+            }
         }
     }
 }

@@ -15,6 +15,17 @@ Item {
     property real offsetX: 50
     property real offsetY: 50
 
+    // Graph dimensions for scrolling (computed once on data change)
+    property real graphWidth: 200
+    property real graphHeight: 200
+
+    // Add padding around the graph
+    readonly property real padding: Theme.spacingMedium
+
+    // Minimum size for content (set from graph bounds, allows scrolling)
+    property real minContentWidth: 200
+    property real minContentHeight: 200
+
     // Compute offset to center graph on model change
     Component.onCompleted: computeTransform()
     Connections {
@@ -37,17 +48,36 @@ Item {
             maxY = Math.max(maxY, node.y + Theme.nodeHeight/2)
         }
 
-        // Calculate graph dimensions
-        const graphWidth = maxX - minX
-        const graphHeight = maxY - minY
+        // Store graph dimensions (only once to avoid binding loops)
+        root.graphWidth = maxX - minX
+        root.graphHeight = maxY - minY
+        root.minContentWidth = root.graphWidth + padding * 2
+        root.minContentHeight = root.graphHeight + padding * 2
 
-        // Center the graph in the view
-        root.offsetX = (root.width - graphWidth) / 2 - minX
-        root.offsetY = (root.height - graphHeight) / 2 - minY
+        // Offset to position graph with padding (for scrollable view)
+        // If view is larger than graph, center it; otherwise position at padding
+        if (root.width > root.graphWidth + padding * 2) {
+            root.offsetX = (root.width - root.graphWidth) / 2 - minX
+        } else {
+            root.offsetX = padding - minX
+        }
+
+        if (root.height > root.graphHeight + padding * 2) {
+            root.offsetY = (root.height - root.graphHeight) / 2 - minY
+        } else {
+            root.offsetY = padding - minY
+        }
     }
 
-    onWidthChanged: computeTransform()
-    onHeightChanged: computeTransform()
+    // Recompute when size changes, but use timer to avoid binding loops
+    onWidthChanged: recomputeTimer.restart()
+    onHeightChanged: recomputeTimer.restart()
+
+    Timer {
+        id: recomputeTimer
+        interval: 10
+        onTriggered: root.computeTransform()
+    }
 
     // Helper function to transform SVG path coordinates
     function transformSvgPath(path) {

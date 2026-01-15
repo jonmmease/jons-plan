@@ -100,8 +100,8 @@ Item {
                 depth: 0
                 isRepeat: modelData.isRepeat
                 children: modelData.children
-                isSelected: root.selectedTask && modelData.task &&
-                           root.selectedTask.id === modelData.task.id
+                isSelected: Boolean(root.selectedTask && modelData.task &&
+                           root.selectedTask.id === modelData.task.id)
 
                 onTaskClicked: function(clickedTask) {
                     root.selectedTask = clickedTask

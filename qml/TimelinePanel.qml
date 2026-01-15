@@ -65,7 +65,7 @@ Rectangle {
                 Text {
                     text: modelData.message
                     font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.textSecondary
+                    color: Theme.textPrimary
                     elide: Text.ElideRight
                     Layout.fillWidth: true
                 }
