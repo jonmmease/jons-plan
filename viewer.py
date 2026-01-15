@@ -380,14 +380,17 @@ class WorkflowModel(QObject):
             # Watch phases dir itself
             if str(phases_dir) not in watched:
                 self._watcher.addPath(str(phases_dir))
-            # Watch phase subdirectories
+            # Watch phase subdirectories and their contents
             for phase_subdir in phases_dir.iterdir():
-                if phase_subdir.is_dir() and str(phase_subdir) not in watched:
-                    self._watcher.addPath(str(phase_subdir))
-                    # Watch tasks subdirectory
+                if phase_subdir.is_dir():
+                    if str(phase_subdir) not in watched:
+                        self._watcher.addPath(str(phase_subdir))
+                    # Always check for tasks subdirectory (may be created later)
                     tasks_subdir = phase_subdir / "tasks"
-                    if tasks_subdir.exists() and str(tasks_subdir) not in watched:
-                        self._watcher.addPath(str(tasks_subdir))
+                    if tasks_subdir.exists():
+                        if str(tasks_subdir) not in watched:
+                            self._watcher.addPath(str(tasks_subdir))
+                        # Watch individual task directories
                         for task_dir in tasks_subdir.iterdir():
                             if task_dir.is_dir() and str(task_dir) not in watched:
                                 self._watcher.addPath(str(task_dir))
