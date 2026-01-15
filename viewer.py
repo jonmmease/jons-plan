@@ -7,10 +7,8 @@
 JonsPlan Workflow Viewer
 
 A PySide6/QML application for visualizing jons-plan workflows.
-Launched via jons-plan:// URL scheme.
 
 Usage:
-    uv run viewer.py jons-plan:///path/to/plan
     uv run viewer.py /path/to/plan
 """
 
@@ -19,10 +17,8 @@ import logging
 import os
 import re
 import shutil
-import subprocess
 import sys
 from pathlib import Path
-from urllib.parse import unquote, urlparse
 
 import graphviz
 import markdown
@@ -77,14 +73,8 @@ def check_graphviz() -> None:
         sys.exit(1)
 
 
-def parse_url(url_str: str) -> Path:
-    """Parse jons-plan:// URL or direct path to plan directory."""
-    if url_str.startswith("jons-plan://"):
-        parsed = urlparse(url_str)
-        path_str = unquote(parsed.path)
-    else:
-        path_str = url_str
-
+def parse_plan_path(path_str: str) -> Path:
+    """Parse and validate plan directory path."""
     plan_path = Path(path_str)
     if not plan_path.exists():
         print(f"Error: Plan not found: {plan_path}", file=sys.stderr)
@@ -1024,11 +1014,10 @@ def main() -> int:
 
     # Parse arguments
     if len(sys.argv) < 2:
-        print("Usage: viewer.py jons-plan:///path/to/plan")
-        print("       viewer.py /path/to/plan")
+        print("Usage: viewer.py /path/to/plan")
         return 1
 
-    plan_path = parse_url(sys.argv[1])
+    plan_path = parse_plan_path(sys.argv[1])
 
     # Create Qt application
     app = QGuiApplication(sys.argv)
