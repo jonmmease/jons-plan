@@ -621,10 +621,12 @@ class WorkflowModel(QObject):
             self._selected_phase_details = details
             self._load_phase_artifacts(phase_dir)
             self._load_phase_logs(phase_dir)
+            self.selectedPhaseChanged.emit()  # Notify QML of updated details
         else:
             self._selected_phase_details = {}
             self._selected_phase_artifacts = []
             self._selected_phase_logs = ""
+            self.selectedPhaseChanged.emit()
             self.selectedPhaseArtifactsChanged.emit()
             self.selectedPhaseLogsChanged.emit()
 
