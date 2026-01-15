@@ -194,11 +194,17 @@ Rectangle {
         }
 
         // Tab bar with navigation buttons
-        RowLayout {
+        Rectangle {
             Layout.fillWidth: true
-            spacing: 0
+            Layout.preferredHeight: tabRowLayout.implicitHeight
+            color: Theme.bgPanelHeader
 
-            TabBar {
+            RowLayout {
+                id: tabRowLayout
+                anchors.fill: parent
+                spacing: 0
+
+                TabBar {
                 id: tabBar
                 Layout.fillWidth: true
                 background: Rectangle { color: Theme.bgPanelHeader }
@@ -260,36 +266,63 @@ Rectangle {
             Row {
                 Layout.alignment: Qt.AlignVCenter
                 Layout.rightMargin: Theme.spacingSmall
-                spacing: Theme.spacingTiny
                 visible: workflowModel.selectedPhaseEntry > 0
+                spacing: Theme.spacingSmall
 
-                Text {
-                    text: "‹"
-                    font.pixelSize: 18
-                    color: workflowModel.selectedPhaseEntry > 1 ? Theme.textLink : Theme.textMuted
-                    opacity: workflowModel.selectedPhaseEntry > 1 ? 1 : 0.3
+                Rectangle {
+                    width: 28
+                    height: 28
+                    radius: Theme.radiusSmall
+                    color: prevMouse.containsMouse && prevMouse.enabled ? Theme.hoverHighlight : "transparent"
+                    border.width: 1
+                    border.color: prevMouse.containsMouse && prevMouse.enabled ? Theme.borderLight : "transparent"
+                    opacity: workflowModel.selectedPhaseEntry > 1 ? 1 : 0.4
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "‹"
+                        font.pixelSize: 16
+                        font.weight: Font.Bold
+                        color: workflowModel.selectedPhaseEntry > 1 ? Theme.textLink : Theme.textMuted
+                    }
 
                     MouseArea {
+                        id: prevMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         enabled: workflowModel.selectedPhaseEntry > 1
                         cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                         onClicked: workflowModel.selectPhaseEntry(workflowModel.selectedPhaseEntry - 1)
                     }
                 }
 
-                Text {
-                    text: "›"
-                    font.pixelSize: 18
-                    color: workflowModel.selectedPhaseEntry < workflowModel.phaseHistory.length ? Theme.textLink : Theme.textMuted
-                    opacity: workflowModel.selectedPhaseEntry < workflowModel.phaseHistory.length ? 1 : 0.3
+                Rectangle {
+                    width: 28
+                    height: 28
+                    radius: Theme.radiusSmall
+                    color: nextMouse.containsMouse && nextMouse.enabled ? Theme.hoverHighlight : "transparent"
+                    border.width: 1
+                    border.color: nextMouse.containsMouse && nextMouse.enabled ? Theme.borderLight : "transparent"
+                    opacity: workflowModel.selectedPhaseEntry < workflowModel.phaseHistory.length ? 1 : 0.4
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "›"
+                        font.pixelSize: 16
+                        font.weight: Font.Bold
+                        color: workflowModel.selectedPhaseEntry < workflowModel.phaseHistory.length ? Theme.textLink : Theme.textMuted
+                    }
 
                     MouseArea {
+                        id: nextMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         enabled: workflowModel.selectedPhaseEntry < workflowModel.phaseHistory.length
                         cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                         onClicked: workflowModel.selectPhaseEntry(workflowModel.selectedPhaseEntry + 1)
                     }
                 }
+            }
             }
         }
 
