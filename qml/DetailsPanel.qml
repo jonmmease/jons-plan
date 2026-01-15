@@ -17,6 +17,10 @@ Rectangle {
         function onRequestTabSwitch(tabIndex) {
             tabBar.currentIndex = tabIndex
         }
+        function onSelectedPhaseChanged() {
+            // Switch to Phase tab when a new phase is selected
+            tabBar.currentIndex = 0
+        }
     }
 
     // Empty state when no phase selected
