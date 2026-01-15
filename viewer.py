@@ -297,6 +297,7 @@ class WorkflowModel(QObject):
         self._task_log_watcher = None  # QFileSystemWatcher for task logs
         self._selected_phase_artifacts = []  # List of {name, content, rawContent, isHtml}
         self._selected_phase_logs = ""  # Phase progress logs
+        self._current_phase = None  # Track current phase for auto-follow
 
         # File watcher for live updates
         self._watcher = QFileSystemWatcher()
@@ -425,16 +426,41 @@ class WorkflowModel(QObject):
         state = self._load_state()
         layout = compute_layout(workflow)
 
+        # Track current phase for auto-follow
+        old_current = self._current_phase
+        new_current = state.get("current_phase")
+
         self._build_nodes(workflow, state, layout)
         self._edges = layout["edges"]
         self._build_phase_details(workflow, state)
         self._build_phase_history(state)
         self._load_progress()
 
-        # Update selected phase details if an entry is selected
-        if self._selected_phase_entry:
-            logger.debug(f"Updating selected phase entry: {self._selected_phase_entry}")
-            self._update_selected_phase_details()
+        # Auto-follow current phase logic:
+        # 1. On initial load (nothing selected), select current phase
+        # 2. If user was viewing current phase and it changed, follow it
+        # 3. Otherwise, keep user's selection
+        if self._selected_phase is None and new_current:
+            # Initial load - select current phase
+            logger.debug(f"Initial load: selecting current phase {new_current}")
+            self._current_phase = new_current
+            self.selectPhase(new_current)
+        elif (
+            self._selected_phase == old_current
+            and new_current
+            and new_current != old_current
+        ):
+            # User was following current, and it changed
+            logger.debug(f"Auto-following current phase: {old_current} -> {new_current}")
+            self._current_phase = new_current
+            self.selectPhase(new_current)
+        else:
+            # User has a different selection, keep it
+            self._current_phase = new_current
+            # Update selected phase details if an entry is selected
+            if self._selected_phase_entry:
+                logger.debug(f"Updating selected phase entry: {self._selected_phase_entry}")
+                self._update_selected_phase_details()
 
         self.dataChanged.emit()
         logger.debug("Reload complete, dataChanged emitted")
