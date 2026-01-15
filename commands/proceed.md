@@ -57,7 +57,23 @@ If exit code is 0 (has blockers):
 
 ## Phase-Based Execution
 
-Tasks are scoped to the **current phase** of the workflow:
+Tasks are scoped to the **current phase** of the workflow.
+
+### When to Ask Questions vs. Document and Continue
+
+**Do NOT use AskUserQuestion** during task execution unless the phase has `requires_user_input: true`. Most phases should:
+- Complete the work autonomously
+- Document findings, trade-offs, and recommendations in artifacts
+- Transition to the next phase where decisions are made
+
+**Research phases** gather information and document options - they don't ask for decisions.
+**Draft phases** produce artifacts based on research - they don't ask for approval.
+**Review phases** provide feedback - they don't ask for direction.
+**User-decision phases** (with `requires_user_input: true`) are where you stop and ask for user input.
+
+If you're unsure whether to ask, **don't ask** - document your recommendation and continue.
+
+### Execution Steps
 
 1. **Get current phase context**:
    ```bash
