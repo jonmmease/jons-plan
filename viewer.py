@@ -289,6 +289,7 @@ class WorkflowModel(QObject):
         self._task_log_watcher = None  # QFileSystemWatcher for task logs
         self._selected_phase_artifacts = []  # List of {name, content, rawContent, isHtml}
         self._selected_phase_logs = ""  # Phase progress logs
+        self._phase_log_watcher = None  # QFileSystemWatcher for phase logs
         self._current_phase = None  # Track current phase for auto-follow
 
         # Theme mode: "system", "light", "dark"
@@ -687,7 +688,12 @@ class WorkflowModel(QObject):
         self.selectedPhaseArtifactsChanged.emit()
 
     def _load_phase_logs(self, phase_dir: str) -> None:
-        """Load phase progress logs."""
+        """Load phase progress logs with live watching."""
+        # Clean up previous watcher
+        if self._phase_log_watcher:
+            self._phase_log_watcher.deleteLater()
+            self._phase_log_watcher = None
+
         logs = ""
         if phase_dir:
             phase_path = Path(phase_dir)
@@ -698,10 +704,28 @@ class WorkflowModel(QObject):
             if progress_file.exists():
                 try:
                     logs = progress_file.read_text(encoding="utf-8")
+                    # Set up file watcher for live updates
+                    self._phase_log_watcher = QFileSystemWatcher()
+                    self._phase_log_watcher.addPath(str(progress_file))
+                    self._phase_log_watcher.fileChanged.connect(
+                        lambda: self._reload_phase_logs(progress_file)
+                    )
                 except Exception:
                     pass
         self._selected_phase_logs = logs
         self.selectedPhaseLogsChanged.emit()
+
+    def _reload_phase_logs(self, log_file: Path) -> None:
+        """Reload phase logs when file changes."""
+        try:
+            if log_file.exists():
+                self._selected_phase_logs = log_file.read_text(encoding="utf-8")
+                self.selectedPhaseLogsChanged.emit()
+                # Re-add path (Qt removes it after change)
+                if self._phase_log_watcher:
+                    self._phase_log_watcher.addPath(str(log_file))
+        except Exception:
+            pass
 
     # Qt Properties for QML binding
 

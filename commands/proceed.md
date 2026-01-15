@@ -163,7 +163,44 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
 
 ## Progress Logging
 
-Log significant progress:
+### Task-Level Logging (Required)
+
+During task execution, log key actions to enable resumption and provide visibility:
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "<message>"
+```
+
+**What to log:**
+- **File modifications**: `"Edited src/auth.py: Added login validation"`
+- **Key decisions**: `"Chose JWT over sessions for stateless auth"`
+- **Blockers encountered**: `"BLOCKED: Missing database schema for users table"`
+- **Completion summary**: `"Implemented auth middleware with token validation"`
+
+**Example log sequence:**
+```bash
+task-log implement-auth "Starting auth implementation"
+task-log implement-auth "Edited src/middleware/auth.py: Created AuthMiddleware class"
+task-log implement-auth "Edited src/routes/login.py: Added /login endpoint"
+task-log implement-auth "Chose bcrypt for password hashing (industry standard)"
+task-log implement-auth "Added tests in tests/test_auth.py"
+task-log implement-auth "Complete: Auth middleware with JWT tokens and login endpoint"
+```
+
+### Phase-Level Logging
+
+Log significant phase-level progress and decisions:
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py phase-log "<message>"
+```
+
+Use for cross-task observations, phase decisions, and major milestones.
+
+### Plan-Level Logging
+
+Log high-level progress visible across sessions:
+
 ```bash
 uv run ~/.claude-plugins/jons-plan/plan.py log "Completed task X: brief description"
 ```

@@ -199,6 +199,21 @@ def log_task_progress(plan_dir: Path, task_id: str, message: str) -> None:
         f.write(f"[{timestamp}] {message}\n")
 
 
+def log_phase_progress(plan_dir: Path, message: str) -> None:
+    """Append entry to current phase's progress.txt."""
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    current_dir = state.get("current_phase_dir")
+    if not current_dir:
+        return
+    phase_dir = plan_dir / current_dir
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    progress_file = phase_dir / "progress.txt"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(progress_file, "a") as f:
+        f.write(f"[{timestamp}] {message}\n")
+
+
 # --- State Management Classes ---
 
 
@@ -1762,6 +1777,31 @@ def cmd_task_log(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_phase_log(args: argparse.Namespace) -> int:
+    """Append message to current phase's progress.txt."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    current_dir = state.get("current_phase_dir")
+    if not current_dir:
+        print("No current phase", file=sys.stderr)
+        return 1
+
+    phase_dir = plan_dir / current_dir
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    progress_file = phase_dir / "progress.txt"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(progress_file, "a") as f:
+        f.write(f"[{timestamp}] {args.message}\n")
+
+    return 0
+
+
 def cmd_task_progress(args: argparse.Namespace) -> int:
     """Show recent entries from task's progress.txt."""
     project_dir = get_project_dir()
@@ -2217,11 +2257,18 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
 
     # 6. Progress logging (required for resumption)
     prompt_parts.append("\n\n## Progress Logging (Required)")
-    prompt_parts.append(f"Log progress as you work to enable resumption after interruptions:")
-    prompt_parts.append(f"```bash")
+    prompt_parts.append("Log key actions as you work to enable resumption and provide visibility:")
+    prompt_parts.append("```bash")
     prompt_parts.append(f"uv run {PLUGIN_ROOT}/plan.py task-log {args.task_id} \"<message>\"")
-    prompt_parts.append(f"```")
-    prompt_parts.append(f"Log after each significant step, file modification, or decision.")
+    prompt_parts.append("```")
+    prompt_parts.append("")
+    prompt_parts.append("**What to log:**")
+    prompt_parts.append("- File modifications: `\"Edited path/to/file.py: Brief description of change\"`")
+    prompt_parts.append("- Key decisions: `\"Chose approach X because Y\"`")
+    prompt_parts.append("- Blockers: `\"BLOCKED: Description of issue\"`")
+    prompt_parts.append("- Completion: `\"Complete: Summary of what was accomplished\"`")
+    prompt_parts.append("")
+    prompt_parts.append("Log after each file edit, decision, or significant step.")
 
     # 7. Task output directory (for artifacts)
     output_dir = get_task_output_dir(plan_dir, args.task_id)
@@ -2542,9 +2589,15 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
     relative_phase_dir = f"phases/{phase_dir_name}"
     state_mgr.update_phase(args.phase_id, relative_phase_dir, args.reason or "")
 
-    # Log to progress
+    # Log to progress (both plan-level and phase-level)
     plan_name = get_active_plan(project_dir)
     log_progress(plan_dir, f"PHASE_ENTERED: {args.phase_id} -> {relative_phase_dir}")
+
+    # Log to phase progress
+    entry_msg = f"PHASE_STARTED: {args.phase_id}"
+    if args.reason:
+        entry_msg += f" - {args.reason}"
+    log_phase_progress(plan_dir, entry_msg)
 
     print(f"Entered: {phase_dir}")
     if is_reentry:
@@ -4637,6 +4690,10 @@ def main() -> int:
     p_task_log.add_argument("task_id", help="Task ID")
     p_task_log.add_argument("message", help="Message to log")
 
+    # phase-log
+    p_phase_log = subparsers.add_parser("phase-log", help="Append message to phase progress")
+    p_phase_log.add_argument("message", help="Message to log")
+
     # task-progress
     p_task_progress = subparsers.add_parser("task-progress", help="Show task progress entries")
     p_task_progress.add_argument("task_id", help="Task ID")
@@ -4860,6 +4917,7 @@ def main() -> int:
         "parent-dirs": cmd_parent_dirs,
         "has-outputs": cmd_has_outputs,
         "task-log": cmd_task_log,
+        "phase-log": cmd_phase_log,
         "task-progress": cmd_task_progress,
         "build-task-prompt": cmd_build_task_prompt,
         "record-confidence": cmd_record_confidence,
