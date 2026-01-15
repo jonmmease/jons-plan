@@ -96,7 +96,7 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
     if [[ -d "$VIEWER_APP" ]]; then
         echo "**View:** \`jons-plan://${ACTIVE_PLAN_DIR}\`"
     else
-        echo "**View:** _Run \`uv run plan.py install-viewer\` to enable clickable links_"
+        echo "**View:** _(run \`uv run ~/.claude-plugins/jons-plan/plan.py install-viewer\` to enable)_"
     fi
     echo ""
 

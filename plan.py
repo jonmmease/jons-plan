@@ -4153,7 +4153,7 @@ def cmd_status(args: argparse.Namespace) -> int:
             if viewer_app.exists():
                 print(f"  View: jons-plan://{plan_dir}")
             else:
-                print("  View: (run `uv run plan.py install-viewer` to enable)")
+                print("  View: (run `uv run ~/.claude-plugins/jons-plan/plan.py install-viewer` to enable)")
 
             if blocked_count > 0:
                 print(f"  Progress: {done}/{total} done, {in_progress_count} in-progress, {blocked_count} blocked, {todo} todo")
