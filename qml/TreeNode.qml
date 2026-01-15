@@ -13,8 +13,9 @@ Item {
     property int depth: 0           // Nesting depth (0 = root)
     property bool isRepeat: false   // True if this task appears elsewhere in tree
     property var children: []       // Array of child node objects
+    property string selectedTaskId: ""  // ID of selected task (for highlighting)
 
-    property bool isSelected: false
+    property bool isSelected: root.task && root.selectedTaskId === root.task.id
     property bool isHovered: mouseArea.containsMouse
 
     signal taskClicked(var task)
@@ -116,6 +117,7 @@ Item {
                     item.depth = root.depth + 1
                     item.isRepeat = childData.isRepeat
                     item.children = childData.children
+                    item.selectedTaskId = Qt.binding(function() { return root.selectedTaskId })
                     item.taskClicked.connect(function(clickedTask) {
                         root.taskClicked(clickedTask)
                     })
