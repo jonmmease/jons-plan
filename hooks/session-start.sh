@@ -93,10 +93,9 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
 
     # Check if viewer is installed
     VIEWER_APP="$HOME/.local/share/JonsPlanViewer.app"
-    if [[ -d "$VIEWER_APP" ]]; then
-        echo "**View:** \`jons-plan://${ACTIVE_PLAN_DIR}\`"
-    else
-        echo "**View:** _(run \`uv run ~/.claude-plugins/jons-plan/plan.py install-viewer\` to enable)_"
+    echo "**View:** \`jons-plan://${ACTIVE_PLAN_DIR}\`"
+    if [[ ! -d "$VIEWER_APP" ]]; then
+        echo "_(First time? Run \`uv run ~/.claude-plugins/jons-plan/plan.py install-viewer\` then click the link)_"
     fi
     echo ""
 

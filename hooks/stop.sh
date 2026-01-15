@@ -116,8 +116,9 @@ echo "Task progress: ${STATS}"
 
 # Viewer link
 VIEWER_APP="$HOME/.local/share/JonsPlanViewer.app"
-if [[ -d "$VIEWER_APP" ]]; then
-    echo "View: jons-plan://${ACTIVE_PLAN_DIR}"
+echo "View: jons-plan://${ACTIVE_PLAN_DIR}"
+if [[ ! -d "$VIEWER_APP" ]]; then
+    echo "(First time? Run: uv run ~/.claude-plugins/jons-plan/plan.py install-viewer)"
 fi
 
 # Check for uncommitted changes
