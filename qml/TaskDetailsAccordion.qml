@@ -195,10 +195,9 @@ Rectangle {
                             width: parent ? parent.width - Theme.spacingSmall * 2 : 100
                             x: Theme.spacingSmall
                             y: Theme.spacingTiny
-                            text: workflowModel.selectedTaskPrompt || "<i>No prompt available</i>"
+                            text: Theme.wrapHtml(workflowModel.selectedTaskPrompt || "<i>No prompt available</i>", Theme.textSecondary)
                             textFormat: TextEdit.RichText
                             font.pixelSize: Theme.fontSizeSmall
-                            color: Theme.textSecondary
                             wrapMode: Text.WordWrap
                             readOnly: true
                             selectByMouse: true
@@ -364,10 +363,9 @@ Rectangle {
                                             anchors.fill: parent
                                             anchors.margins: Theme.spacingSmall
                                             visible: showRichText
-                                            text: modelData.content
+                                            text: Theme.wrapHtml(modelData.content, Theme.textSecondary)
                                             textFormat: TextEdit.RichText
                                             font.pixelSize: Theme.fontSizeSmall
-                                            color: Theme.textSecondary
                                             wrapMode: Text.WordWrap
                                             readOnly: true
                                             selectByMouse: true

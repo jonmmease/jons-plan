@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["pyside6>=6.6", "graphviz>=0.20", "tomli>=2.0", "markdown>=3.5"]
+# dependencies = ["pyside6>=6.6", "graphviz>=0.20", "tomli>=2.0", "markdown>=3.5", "darkdetect>=0.8"]
 # ///
 """
 JonsPlan Workflow Viewer
@@ -20,6 +20,7 @@ import shutil
 import sys
 from pathlib import Path
 
+import darkdetect
 import graphviz
 import markdown
 import tomli
@@ -58,8 +59,8 @@ def md_to_html(text: str) -> str:
         flags=re.DOTALL
     )
     html = html.replace("<code>", '<code style="font-family: Menlo, monospace;">')
-    # Wrap in div with dark text color
-    return f"""<div style="color: #222;"><style>
+    # Wrap in div (color set by QML Theme.wrapHtml)
+    return f"""<div><style>
         ul, ol {{ margin-left: 4px; padding-left: 12px; }}
         li {{ margin-bottom: 2px; }}
     </style>{html}</div>"""
@@ -266,6 +267,7 @@ class WorkflowModel(QObject):
     selectedTaskLogsChanged = Signal()
     selectedTaskFindingsChanged = Signal()
     requestTabSwitch = Signal(int)  # Signal to switch tabs (0=Phase, 1=Tasks)
+    themeModeChanged = Signal()  # Emitted when theme mode changes
 
     def __init__(self, plan_path: Path):
         super().__init__()
@@ -288,6 +290,10 @@ class WorkflowModel(QObject):
         self._selected_phase_artifacts = []  # List of {name, content, rawContent, isHtml}
         self._selected_phase_logs = ""  # Phase progress logs
         self._current_phase = None  # Track current phase for auto-follow
+
+        # Theme mode: "system", "light", "dark"
+        self._theme_mode = "system"
+        self._system_is_dark = darkdetect.isDark() or False
 
         # File watcher for live updates
         self._watcher = QFileSystemWatcher()
@@ -706,6 +712,31 @@ class WorkflowModel(QObject):
     @Property(str, constant=True)
     def planPath(self) -> str:
         return str(self._plan_path)
+
+    @Property(str, notify=themeModeChanged)
+    def themeMode(self) -> str:
+        """Current theme mode: 'system', 'light', or 'dark'."""
+        return self._theme_mode
+
+    @Property(bool, notify=themeModeChanged)
+    def systemIsDark(self) -> bool:
+        """Whether the system is in dark mode."""
+        return self._system_is_dark
+
+    @Property(bool, notify=themeModeChanged)
+    def isDark(self) -> bool:
+        """Computed dark mode state based on theme mode and system setting."""
+        if self._theme_mode == "system":
+            return self._system_is_dark
+        return self._theme_mode == "dark"
+
+    @Slot()
+    def cycleTheme(self) -> None:
+        """Cycle through theme modes: system -> light -> dark -> system."""
+        modes = ["system", "light", "dark"]
+        current_index = modes.index(self._theme_mode)
+        self._theme_mode = modes[(current_index + 1) % len(modes)]
+        self.themeModeChanged.emit()
 
     @Property("QVariantList", notify=dataChanged)
     def nodes(self) -> list:

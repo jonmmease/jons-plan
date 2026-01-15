@@ -14,6 +14,13 @@ ApplicationWindow {
 
     color: Theme.bgWindow
 
+    // Bind theme to model
+    Binding {
+        target: Theme
+        property: "isDark"
+        value: workflowModel.isDark
+    }
+
     // Track which sections are expanded
     property bool flowchartExpanded: true
     property bool historyExpanded: true
@@ -27,6 +34,54 @@ ApplicationWindow {
 
     // Collapsed sidebar width
     readonly property int collapsedSidebarWidth: 36
+
+    // Theme toggle button (floating, top-right)
+    Rectangle {
+        id: themeToggle
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: Theme.spacingSmall
+        z: 100  // Float above everything
+        width: 28
+        height: 28
+        radius: Theme.radiusSmall
+        color: themeToggleMouse.containsMouse ? Theme.hoverHighlight : Theme.bgPanelHeader
+        border.width: 1
+        border.color: Theme.borderLight
+
+        Text {
+            anchors.centerIn: parent
+            text: {
+                switch(workflowModel.themeMode) {
+                    case "light": return "☀"
+                    case "dark": return "☾"
+                    default: return "◐"  // system
+                }
+            }
+            font.pixelSize: 14
+            color: Theme.textPrimary
+        }
+
+        MouseArea {
+            id: themeToggleMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: workflowModel.cycleTheme()
+        }
+
+        ToolTip {
+            visible: themeToggleMouse.containsMouse
+            delay: 500
+            text: {
+                switch(workflowModel.themeMode) {
+                    case "light": return "Light mode (click to switch)"
+                    case "dark": return "Dark mode (click to switch)"
+                    default: return "System theme (click to switch)"
+                }
+            }
+        }
+    }
 
     RowLayout {
         anchors.fill: parent

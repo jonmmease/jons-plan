@@ -3,44 +3,50 @@ import QtQuick
 
 /**
  * Centralized theme for the JonsPlan Workflow Viewer.
- * All colors, fonts, and spacing constants are defined here.
+ * Supports light and dark modes based on workflowModel.isDark.
  */
 QtObject {
+    // Dark mode state - bound to workflowModel in main.qml
+    property bool isDark: false
+
     // Node status colors
-    readonly property color nodeCurrentBg: "#e3f2fd"      // Light blue
-    readonly property color nodeCurrentBorder: "#1976d2"  // Blue
-    readonly property color nodeCompletedBg: "#e8f5e9"    // Light green
-    readonly property color nodeCompletedBorder: "#4caf50" // Green
-    readonly property color nodePendingBg: "#ffffff"      // White
-    readonly property color nodePendingBorder: "#bdbdbd"  // Gray
-    readonly property color nodeTerminalBg: "#fafafa"     // Very light gray
-    readonly property color nodeTerminalBorder: "#9e9e9e" // Medium gray
+    property color nodeCurrentBg: isDark ? "#1e3a5f" : "#e3f2fd"
+    property color nodeCurrentBorder: isDark ? "#4fc3f7" : "#1976d2"
+    property color nodeCompletedBg: isDark ? "#1e3a2f" : "#e8f5e9"
+    property color nodeCompletedBorder: isDark ? "#81c784" : "#4caf50"
+    property color nodePendingBg: isDark ? "#2d2d30" : "#ffffff"
+    property color nodePendingBorder: isDark ? "#5a5a5a" : "#bdbdbd"
+    property color nodeTerminalBg: isDark ? "#252526" : "#fafafa"
+    property color nodeTerminalBorder: isDark ? "#6e6e6e" : "#9e9e9e"
 
     // Selection colors
-    readonly property color selectionHighlight: "#ff9800" // Orange
-    readonly property color hoverHighlight: "#90caf9"     // Light blue
+    property color selectionHighlight: "#ff9800"  // Orange - same in both
+    property color hoverHighlight: isDark ? "#3a4a5a" : "#90caf9"
 
-    // Status indicator colors
-    readonly property color statusCurrent: "#2196f3"      // Blue dot
-    readonly property color statusCompleted: "#4caf50"    // Green dot
-    readonly property color statusInProgress: "#ff9800"   // Orange dot
-    readonly property color statusTodo: "#bdbdbd"         // Gray dot
+    // Status indicator colors (same in both modes for consistency)
+    readonly property color statusCurrent: "#2196f3"
+    readonly property color statusCompleted: "#4caf50"
+    readonly property color statusInProgress: "#ff9800"
+    readonly property color statusTodo: isDark ? "#6e6e6e" : "#bdbdbd"
 
     // Edge colors
-    readonly property color edgeDefault: "#78909c"        // Blue-gray
-    readonly property color edgeHover: "#546e7a"          // Darker blue-gray
+    property color edgeDefault: isDark ? "#6e7681" : "#78909c"
+    property color edgeHover: isDark ? "#8b949e" : "#546e7a"
 
     // Text colors
-    readonly property color textPrimary: "#212121"        // Near black
-    readonly property color textSecondary: "#757575"      // Medium gray
-    readonly property color textMuted: "#9e9e9e"          // Light gray
-    readonly property color textLink: "#1976d2"           // Blue
+    property color textPrimary: isDark ? "#d4d4d4" : "#212121"
+    property color textSecondary: isDark ? "#9e9e9e" : "#757575"
+    property color textMuted: isDark ? "#6e6e6e" : "#9e9e9e"
+    property color textLink: isDark ? "#3794ff" : "#1976d2"
 
     // Background colors
-    readonly property color bgWindow: "#fafafa"           // Very light gray
-    readonly property color bgPanel: "#ffffff"            // White
-    readonly property color bgPanelHeader: "#f5f5f5"      // Light gray
-    readonly property color bgTimeline: "#eceff1"         // Blue-gray tint
+    property color bgWindow: isDark ? "#1e1e1e" : "#fafafa"
+    property color bgPanel: isDark ? "#252526" : "#ffffff"
+    property color bgPanelHeader: isDark ? "#2d2d30" : "#f5f5f5"
+    property color bgTimeline: isDark ? "#1e1e1e" : "#eceff1"
+
+    // Border colors (for separators)
+    property color borderLight: isDark ? "#3e3e42" : "#e0e0e0"
 
     // Font sizes
     readonly property int fontSizeSmall: 11
@@ -80,8 +86,18 @@ QtObject {
     readonly property int timelinePanelHeight: 150
 
     // Task tree styling
-    readonly property int treeIndent: 20              // Indentation per level
-    readonly property color treeConnectorColor: textMuted  // Color for tree lines
-    readonly property int taskNodeHeight: 28          // Height of each task row
-    readonly property color taskSelectedBg: "#e3f2fd" // Selected task background
+    readonly property int treeIndent: 20
+    property color treeConnectorColor: textMuted
+    readonly property int taskNodeHeight: 28
+    property color taskSelectedBg: isDark ? "#1e3a5f" : "#e3f2fd"
+
+    // Helper to wrap HTML content with text color for RichText display
+    function wrapHtml(content, color) {
+        var c = color || textPrimary
+        // Convert QML color to CSS hex format
+        var hex = "#" + Math.round(c.r * 255).toString(16).padStart(2, '0') +
+                        Math.round(c.g * 255).toString(16).padStart(2, '0') +
+                        Math.round(c.b * 255).toString(16).padStart(2, '0')
+        return "<div style='color: " + hex + ";'>" + (content || "") + "</div>"
+    }
 }

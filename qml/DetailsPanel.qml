@@ -415,10 +415,9 @@ Rectangle {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.margins: Theme.spacingSmall
-                            text: workflowModel.selectedPhasePromptHtml || ""
+                            text: Theme.wrapHtml(workflowModel.selectedPhasePromptHtml)
                             textFormat: TextEdit.RichText
                             font.pixelSize: Theme.fontSizeSmall
-                            color: Theme.textPrimary
                             wrapMode: Text.WordWrap
                             readOnly: true
                             selectByMouse: true
@@ -593,10 +592,9 @@ Rectangle {
                                             anchors.fill: parent
                                             anchors.margins: Theme.spacingSmall
                                             visible: showRichText
-                                            text: modelData.content
+                                            text: Theme.wrapHtml(modelData.content)
                                             textFormat: TextEdit.RichText
                                             font.pixelSize: Theme.fontSizeSmall
-                                            color: Theme.textPrimary
                                             wrapMode: Text.WordWrap
                                             readOnly: true
                                             selectByMouse: true
