@@ -254,14 +254,23 @@ Rectangle {
             TabButton {
                 text: "Phase"
                 width: implicitWidth
+                padding: 8
                 background: Rectangle {
                     color: tabBar.currentIndex === 0 ? Theme.bgPanel : Theme.bgPanelHeader
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        height: 2
+                        color: Theme.textLink
+                        visible: tabBar.currentIndex === 0
+                    }
                 }
                 contentItem: Text {
                     text: parent.text
                     font.pixelSize: Theme.fontSizeNormal
-                    font.weight: tabBar.currentIndex === 0 ? Font.Medium : Font.Normal
-                    color: tabBar.currentIndex === 0 ? Theme.textPrimary : Theme.textSecondary
+                    font.weight: tabBar.currentIndex === 0 ? Font.DemiBold : Font.Normal
+                    color: tabBar.currentIndex === 0 ? Theme.textLink : Theme.textMuted
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
@@ -272,14 +281,23 @@ Rectangle {
                 text: "Tasks" + ((workflowModel.selectedPhaseDetails.tasks || []).length > 0 ?
                       " (" + (workflowModel.selectedPhaseDetails.tasks || []).length + ")" : "")
                 width: visible ? implicitWidth : 0
+                padding: 8
                 background: Rectangle {
                     color: tabBar.currentIndex === 1 ? Theme.bgPanel : Theme.bgPanelHeader
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        height: 2
+                        color: Theme.textLink
+                        visible: tabBar.currentIndex === 1
+                    }
                 }
                 contentItem: Text {
                     text: parent.text
                     font.pixelSize: Theme.fontSizeNormal
-                    font.weight: tabBar.currentIndex === 1 ? Font.Medium : Font.Normal
-                    color: tabBar.currentIndex === 1 ? Theme.textPrimary : Theme.textSecondary
+                    font.weight: tabBar.currentIndex === 1 ? Font.DemiBold : Font.Normal
+                    color: tabBar.currentIndex === 1 ? Theme.textLink : Theme.textMuted
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
