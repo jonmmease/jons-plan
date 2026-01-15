@@ -90,13 +90,6 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
     echo "**Active Plan:** \`${ACTIVE_PLAN}\`"
     echo "**Path:** \`${ACTIVE_PLAN_DIR}\`"
     echo "**Working Directory:** \`$(pwd)\`"
-
-    # Check if viewer is installed
-    VIEWER_APP="$HOME/.local/share/JonsPlanViewer.app"
-    echo "**View:** \`jons-plan://${ACTIVE_PLAN_DIR}\`"
-    if [[ ! -d "$VIEWER_APP" ]]; then
-        echo "_(First time? Run \`uv run ~/.claude-plugins/jons-plan/plan.py install-viewer\` then click the link)_"
-    fi
     echo ""
 
     # Check for blocked tasks first - most important status

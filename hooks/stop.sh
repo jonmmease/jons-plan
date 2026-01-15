@@ -114,13 +114,6 @@ echo "=== Session Summary: ${ACTIVE_PLAN} ==="
 echo "Files modified this session: ${FILE_MODS}"
 echo "Task progress: ${STATS}"
 
-# Viewer link
-VIEWER_APP="$HOME/.local/share/JonsPlanViewer.app"
-echo "View: jons-plan://${ACTIVE_PLAN_DIR}"
-if [[ ! -d "$VIEWER_APP" ]]; then
-    echo "(First time? Run: uv run ~/.claude-plugins/jons-plan/plan.py install-viewer)"
-fi
-
 # Check for uncommitted changes
 if git rev-parse --git-dir > /dev/null 2>&1; then
     DIRTY=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
