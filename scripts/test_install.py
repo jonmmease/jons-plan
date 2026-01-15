@@ -50,13 +50,8 @@ class TestInstallUninstall:
         assert "enabledPlugins" in settings
         assert settings["enabledPlugins"].get("jons-plan@jons-plan-local") is True
 
-        # Check hooks were added
-        assert "hooks" in settings
-        assert "SessionStart" in settings["hooks"]
-        assert "PreCompact" in settings["hooks"]
-        assert "Stop" in settings["hooks"]
-        assert "PostToolUse" in settings["hooks"]
-        assert "UserPromptSubmit" in settings["hooks"]
+        # Hooks are now defined in plugin's hooks.json, not settings.json
+        # (bug #12151 was fixed in Claude Code v2.1.3)
 
     def test_install_is_idempotent(self, tmp_path: Path):
         """Running install twice doesn't duplicate entries."""
@@ -73,16 +68,12 @@ class TestInstallUninstall:
             )
             assert result.returncode == 0
 
-        # Check no duplicate hooks
+        # Check no duplicate plugin entries
         settings_file = tmp_path / ".claude" / "settings.json"
         settings = json.loads(settings_file.read_text())
 
-        for hook_name in ["SessionStart", "PreCompact", "Stop"]:
-            hooks = settings["hooks"][hook_name]
-            plugin_hooks = [
-                h for h in hooks for hook in h.get("hooks", []) if "jons-plan" in hook.get("command", "")
-            ]
-            assert len(plugin_hooks) == 1, f"Duplicate {hook_name} hooks found"
+        # Should have exactly one plugin entry
+        assert settings["enabledPlugins"].get("jons-plan@jons-plan-local") is True
 
     def test_uninstall_removes_entries(self, tmp_path: Path):
         """Uninstall removes all plugin entries."""
@@ -154,7 +145,7 @@ class TestInstallUninstall:
         assert settings.get("apiKey") == "sk-test-key"
         assert settings["enabledPlugins"].get("other-plugin@marketplace") is True
 
-        # Verify existing hook preserved
+        # Verify existing hooks preserved (install no longer modifies hooks)
         session_hooks = settings["hooks"]["SessionStart"]
         echo_hooks = [h for h in session_hooks for hook in h.get("hooks", []) if "echo hello" in hook.get("command", "")]
         assert len(echo_hooks) == 1

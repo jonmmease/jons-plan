@@ -229,20 +229,6 @@ uv run /path/to/viewer.py /path/to/plan
 
 ---
 
-## Known Issue: Plugin Hook Output Not Passed to Agent
-
-**Bug:** https://github.com/anthropics/claude-code/issues/12151
-
-Plugin-based hooks execute successfully but their stdout is not passed to the agent's context. This affects all hooks defined in `hooks/hooks.json`.
-
-The install script works around this by adding hooks directly to `~/.claude/settings.json`.
-
-### When Issue #12151 is Fixed
-
-The `hooks/hooks.json` file already uses `${CLAUDE_PLUGIN_ROOT}` for portable paths. Once the bug is fixed:
-1. Run `./scripts/uninstall.sh` to remove the workaround hooks
-2. The plugin's native hooks will work automatically
-
 ## References
 
 - [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) - Anthropic engineering blog post

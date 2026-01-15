@@ -38,7 +38,6 @@ def main():
     print("This will:")
     print("  1. Register plugin marketplace in ~/.claude/plugins/known_marketplaces.json")
     print("  2. Enable plugin in ~/.claude/settings.json")
-    print("  3. Add hooks to ~/.claude/settings.json (workaround for bug #12151)")
     print()
 
     response = input("Continue? [y/N] ").strip().lower()
@@ -88,49 +87,6 @@ def main():
         settings["enabledPlugins"] = {}
     settings["enabledPlugins"][f"{plugin_name}@{marketplace_name}"] = True
     print(f"  [OK] Enabled plugin: {plugin_name}@{marketplace_name}")
-
-    # Add hooks (bug #12151 workaround)
-    hooks_config = {
-        "SessionStart": [
-            {"hooks": [{"type": "command", "command": f"{plugin_dir}/hooks/session-start.sh", "timeout": 10000}]}
-        ],
-        "PreCompact": [
-            {"hooks": [{"type": "command", "command": f"{plugin_dir}/hooks/pre-compact.sh", "timeout": 5000}]}
-        ],
-        "UserPromptSubmit": [
-            {"hooks": [{"type": "command", "command": f"{plugin_dir}/hooks/user-prompt-submit.sh", "timeout": 5000}]}
-        ],
-        "PostToolUse": [
-            {
-                "matcher": "Write|Edit",
-                "hooks": [{"type": "command", "command": f"{plugin_dir}/hooks/post-tool-use.sh", "timeout": 5000}],
-            }
-        ],
-        "Stop": [{"hooks": [{"type": "command", "command": f"{plugin_dir}/hooks/stop.sh", "timeout": 10000}]}],
-    }
-
-    if "hooks" not in settings:
-        settings["hooks"] = {}
-
-    for hook_name, hook_config in hooks_config.items():
-        if hook_name not in settings["hooks"]:
-            settings["hooks"][hook_name] = []
-
-        # Check if hook already exists (by command path containing plugin_name)
-        existing = settings["hooks"][hook_name]
-        already_present = False
-        for entry in existing:
-            for hook in entry.get("hooks", []):
-                if plugin_name in hook.get("command", ""):
-                    already_present = True
-                    break
-            if already_present:
-                break
-
-        if not already_present:
-            settings["hooks"][hook_name].extend(hook_config)
-
-    print("  [OK] Added hooks to settings.json")
 
     settings_file.write_text(json.dumps(settings, indent=2))
     print("  [OK] Saved settings.json")
