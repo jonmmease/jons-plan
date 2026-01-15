@@ -4,49 +4,20 @@ A Claude Code plugin inspired by Anthropic's [Effective Harnesses for Long-Runni
 
 ## Prerequisites
 
-- **Claude Code** - The Anthropic CLI tool
+- **Claude Code** v2.1.3+ (the Anthropic CLI tool)
 - **uv** - Python package runner (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - **graphviz** (optional) - For workflow viewer (`brew install graphviz`)
-- **macOS** - Linux/Windows (WSL) support is untested
 
-## Quick Start
+## Installation
 
-```bash
-# 1. Clone anywhere you want
-git clone https://github.com/youruser/jons-plan ~/path/to/jons-plan
+Install via Claude Code's plugin marketplace:
 
-# 2. Run the installer
-cd ~/path/to/jons-plan
-uv run scripts/install.py
-
-# 3. Restart Claude Code and test
-/jons-plan:status
+```
+/plugin marketplace add jonmmease/jons-plan
+/plugin install jons-plan@jonmmease-jons-plan
 ```
 
-The install script will:
-- Register the plugin with Claude Code
-- Configure all necessary hooks
-- Verify the installation
-
-## Verify Installation
-
-```bash
-# Run the verification script
-uv run scripts/verify.py
-
-# Or test in Claude Code
-/jons-plan:status
-```
-
-You should see: "No plans exist yet..." or a list of your plans.
-
-## Uninstallation
-
-```bash
-uv run scripts/uninstall.py
-```
-
-This removes the plugin registration and hooks but leaves the plugin directory intact.
+Then restart Claude Code and test with `/jons-plan:status`.
 
 ---
 

@@ -1,0 +1,14 @@
+{
+  "name": "jons-plan-marketplace",
+  "description": "Marketplace for jons-plan - a long-running agent harness for Claude Code",
+  "owner": {
+    "name": "Jon Mease"
+  },
+  "plugins": [
+    {
+      "name": "jons-plan",
+      "description": "Long-running agent harness with task management, progress tracking, and parallel task execution",
+      "source": "./"
+    }
+  ]
+}
