@@ -303,6 +303,11 @@ class WorkflowModel(QObject):
             self._plan_path / "workflow.toml",
             self._plan_path / "claude-progress.txt",
         ]
+        # Also watch tasks.json in all phase directories
+        phases_dir = self._plan_path / "phases"
+        if phases_dir.exists():
+            for tasks_file in phases_dir.glob("*/tasks.json"):
+                watch_files.append(tasks_file)
         for f in watch_files:
             if f.exists():
                 self._watcher.addPath(str(f))
@@ -313,6 +318,17 @@ class WorkflowModel(QObject):
         # Re-add watch (Qt removes after change notification)
         if Path(path).exists():
             self._watcher.addPath(path)
+        # Check for new tasks.json files that weren't being watched
+        self._watch_new_tasks_files()
+
+    def _watch_new_tasks_files(self) -> None:
+        """Add watches for any new tasks.json files."""
+        phases_dir = self._plan_path / "phases"
+        if phases_dir.exists():
+            watched = set(self._watcher.files())
+            for tasks_file in phases_dir.glob("*/tasks.json"):
+                if str(tasks_file) not in watched:
+                    self._watcher.addPath(str(tasks_file))
 
     def _reload(self) -> None:
         """Reload workflow and state from files."""
