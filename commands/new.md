@@ -136,11 +136,13 @@ Convert topic to kebab-case (e.g., "add user authentication" → "add-user-authe
    uv run ~/.claude-plugins/jons-plan/plan.py workflow-diagram
    ```
 2. Show current phase and its prompt
-3. Launch the workflow viewer in the background (fully detached):
+3. Launch the workflow viewer in the background and show the command:
    ```bash
-   nohup uv run ~/.claude-plugins/jons-plan/viewer.py "$(uv run ~/.claude-plugins/jons-plan/plan.py active-plan-dir)" &>/dev/null &
+   PLAN_DIR="$(uv run ~/.claude-plugins/jons-plan/plan.py active-plan-dir)"
+   echo "Launching viewer: uv run ~/.claude-plugins/jons-plan/viewer.py \"$PLAN_DIR\""
+   nohup uv run ~/.claude-plugins/jons-plan/viewer.py "$PLAN_DIR" &>/dev/null &
    ```
-4. Tell user: "Type `/jons-plan:proceed` to start, or `/jons-plan:plan` to refine the request."
+4. Tell user: "Type `/jons-plan:proceed` to start, or `/jons-plan:plan` to refine the request. To relaunch the viewer, ask me to 'launch the viewer'."
 
 ## Task Schema
 
