@@ -84,10 +84,10 @@ If browser/UI MCP servers are available, list verification steps:
 What must be true for implementation to be complete?
 ```
 
-Record both artifacts:
+Record both artifacts (use filename only, relative to current phase directory):
 ```bash
-uv run plan.py record-artifact implementation-plan <path>
-uv run plan.py record-artifact verification-plan <path>
+uv run plan.py record-artifact implementation-plan implementation-plan.md
+uv run plan.py record-artifact verification-plan verification-plan.md
 ```
 
 Note: The implement phase will create its own tasks.json from the implementation plan.

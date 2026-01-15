@@ -3185,7 +3185,7 @@ def cmd_record_artifact(args: argparse.Namespace) -> int:
 
     # Build path relative to plan directory
     current_phase_dir = state.get("current_phase_dir")
-    if current_phase_dir:
+    if current_phase_dir and not args.path.startswith(current_phase_dir):
         rel_path = f"{current_phase_dir}/{args.path}"
     else:
         rel_path = args.path

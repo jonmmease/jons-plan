@@ -105,10 +105,10 @@ Specific criteria that must be true:
 - [ ] <criterion derived from design>
 ```
 
-Record artifacts:
+Record artifacts (use filename only, relative to current phase directory):
 ```bash
-uv run plan.py record-artifact design <path-to-design.md>
-uv run plan.py record-artifact verification-plan <path-to-verification-plan.md>
+uv run plan.py record-artifact design design.md
+uv run plan.py record-artifact verification-plan verification-plan.md
 ```
 """
 suggested_next = ["review"]
