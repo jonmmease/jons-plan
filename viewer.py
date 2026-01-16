@@ -275,6 +275,7 @@ class WorkflowModel(QObject):
     selectedTaskFindingsChanged = Signal()
     requestTabSwitch = Signal(int)  # Signal to switch tabs (0=Phase, 1=Tasks)
     themeModeChanged = Signal()  # Emitted when theme mode changes
+    progressFilterChanged = Signal()  # Emitted when progress filter changes
 
     def __init__(self, plan_path: Path):
         super().__init__()
@@ -288,6 +289,7 @@ class WorkflowModel(QObject):
         self._selected_phase_entry = None  # Entry number (1, 2, 3, ...)
         self._selected_phase_details = {}
         self._progress_entries = []
+        self._progress_filter = ""  # Filter string for progress entries
         self._selected_task = None  # Currently selected task dict
         self._selected_task_id = None  # Task ID string
         self._selected_task_prompt = ""  # Full task prompt from CLI
@@ -813,7 +815,21 @@ class WorkflowModel(QObject):
 
     @Property("QVariantList", notify=dataChanged)
     def progressEntries(self) -> list:
-        return self._progress_entries
+        if not self._progress_filter:
+            return self._progress_entries
+        filter_lower = self._progress_filter.lower()
+        return [e for e in self._progress_entries if filter_lower in e.get("message", "").lower()]
+
+    @Property(str, notify=progressFilterChanged)
+    def progressFilter(self) -> str:
+        return self._progress_filter
+
+    @progressFilter.setter
+    def progressFilter(self, value: str) -> None:
+        if self._progress_filter != value:
+            self._progress_filter = value
+            self.progressFilterChanged.emit()
+            self.dataChanged.emit()  # Trigger re-filter of progressEntries
 
     @Property("QVariantList", notify=dataChanged)
     def phaseHistory(self) -> list:

@@ -10,75 +10,97 @@ Rectangle {
     id: root
     color: Theme.bgTimeline
 
-    ListView {
-        id: listView
+    ColumnLayout {
         anchors.fill: parent
         anchors.margins: Theme.spacingSmall
-        clip: true
-        model: workflowModel.progressEntries
-        spacing: Theme.spacingTiny
+        spacing: Theme.spacingSmall
 
-        // Auto-scroll to bottom when entries change
-        onCountChanged: {
-            if (count > 0) {
-                positionViewAtEnd()
+        // Filter input
+        TextField {
+            id: filterInput
+            Layout.fillWidth: true
+            placeholderText: "Filter timeline..."
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.textPrimary
+            background: Rectangle {
+                color: Theme.bgSecondary
+                border.color: filterInput.activeFocus ? Theme.statusCurrent : Theme.border
+                border.width: 1
+                radius: 4
             }
+            onTextChanged: workflowModel.progressFilter = text
         }
 
-        delegate: Rectangle {
-            width: listView.width
-            height: entryRow.height + Theme.spacingSmall
-            color: "transparent"
+        ListView {
+            id: listView
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            clip: true
+            model: workflowModel.progressEntries
+            spacing: Theme.spacingTiny
 
-            RowLayout {
-                id: entryRow
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.spacingSmall
+            // Auto-scroll to bottom when entries change
+            onCountChanged: {
+                if (count > 0) {
+                    positionViewAtEnd()
+                }
+            }
 
-                // Type indicator
-                Rectangle {
-                    width: 4
-                    height: parent.height
-                    radius: 2
-                    color: {
-                        switch(modelData.type) {
-                            case "phase": return Theme.statusCurrent
-                            case "task": return Theme.statusCompleted
-                            case "session": return Theme.statusInProgress
-                            default: return Theme.textMuted
+            delegate: Rectangle {
+                width: listView.width
+                height: entryRow.height + Theme.spacingSmall
+                color: "transparent"
+
+                RowLayout {
+                    id: entryRow
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spacingSmall
+
+                    // Type indicator
+                    Rectangle {
+                        width: 4
+                        height: parent.height
+                        radius: 2
+                        color: {
+                            switch(modelData.type) {
+                                case "phase": return Theme.statusCurrent
+                                case "task": return Theme.statusCompleted
+                                case "session": return Theme.statusInProgress
+                                default: return Theme.textMuted
+                            }
                         }
                     }
-                }
 
-                // Timestamp
-                Text {
-                    text: modelData.timestamp.split(" ")[1] || modelData.timestamp
-                    font.pixelSize: Theme.fontSizeSmall
-                    font.family: "Menlo"
-                    color: Theme.textMuted
-                    Layout.preferredWidth: 60
-                }
+                    // Timestamp
+                    Text {
+                        text: modelData.timestamp.split(" ")[1] || modelData.timestamp
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.family: "Menlo"
+                        color: Theme.textMuted
+                        Layout.preferredWidth: 60
+                    }
 
-                // Message
-                Text {
-                    text: modelData.message
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.textPrimary
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
+                    // Message
+                    Text {
+                        text: modelData.message
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.textPrimary
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
                 }
             }
-        }
 
-        // Empty state
-        Text {
-            anchors.centerIn: parent
-            text: "No progress entries"
-            font.pixelSize: Theme.fontSizeNormal
-            color: Theme.textMuted
-            visible: listView.count === 0
+            // Empty state
+            Text {
+                anchors.centerIn: parent
+                text: "No progress entries"
+                font.pixelSize: Theme.fontSizeNormal
+                color: Theme.textMuted
+                visible: listView.count === 0
+            }
         }
     }
 }

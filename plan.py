@@ -2349,8 +2349,18 @@ def cmd_set_mode(args: argparse.Namespace) -> int:
 
     project_dir = get_project_dir()
     mode_file = get_session_mode_file(project_dir)
+
+    # Get old mode for logging
+    old_mode = mode_file.read_text().strip() if mode_file.exists() else "(none)"
+
     mode_file.parent.mkdir(parents=True, exist_ok=True)
     mode_file.write_text(args.mode)
+
+    # Log mode change to plan progress
+    plan_dir = get_active_plan_dir(project_dir)
+    if plan_dir:
+        log_progress(plan_dir, f"MODE_CHANGE: {old_mode} -> {args.mode} (command: set-mode {args.mode})")
+
     return 0
 
 
@@ -2369,8 +2379,18 @@ def cmd_clear_mode(args: argparse.Namespace) -> int:
     """Clear the session mode."""
     project_dir = get_project_dir()
     mode_file = get_session_mode_file(project_dir)
+
+    # Get old mode for logging
+    old_mode = mode_file.read_text().strip() if mode_file.exists() else "(none)"
+
     if mode_file.exists():
         mode_file.unlink()
+
+    # Log mode change to plan progress
+    plan_dir = get_active_plan_dir(project_dir)
+    if plan_dir:
+        log_progress(plan_dir, f"MODE_CHANGE: {old_mode} -> (cleared) (command: clear-mode)")
+
     return 0
 
 
