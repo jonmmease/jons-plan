@@ -92,6 +92,7 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
    **If tasks.json doesn't exist or is empty**, you MUST create it before proceeding:
    - Write tasks.json to the path returned by `phase-tasks-file`
    - Follow the Task Schema from the `/jons-plan:new` command documentation
+   - Follow the Task Sizing Guidelines: ~10 steps max per task, scope research to single topic, implementation to single file or related files
    - Break the phase work into discrete, trackable tasks
    - Use appropriate subagents (Explore for research, general-purpose for implementation)
 
@@ -211,6 +212,36 @@ Log high-level progress visible across sessions:
 ```bash
 uv run ~/.claude-plugins/jons-plan/plan.py log "Completed task X: brief description"
 ```
+
+### Decision Logging
+
+When making significant technical choices, log them with context so future phases (especially loopbacks) understand why an approach was chosen.
+
+**Use this format for decisions:**
+```
+DECISION: <what you chose>
+  Context: <why this choice was made>
+  Alternatives: <what was rejected and why>
+```
+
+**Task-level decisions:**
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "DECISION: Chose SQLite over PostgreSQL. Context: Single-user app, no concurrent writes needed. Alternatives: PostgreSQL (rejected: overkill for this use case)"
+```
+
+**Plan-level decisions:**
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py log "DECISION: Using JWT for auth. Context: Need stateless auth for horizontal scaling. Alternatives: Sessions (rejected: requires sticky sessions)"
+```
+
+**When to log decisions:**
+- Choosing between libraries or frameworks
+- Selecting architectural patterns
+- Deciding on data formats or schemas
+- Rejecting an approach that seemed viable
+- Any choice that could be questioned in future phases
+
+**Why this matters:** When a validation phase fails and loops back to research or implementation, these decision logs explain what was already tried and why. Without them, agents may repeat failed approaches.
 
 ## When All Tasks Complete
 

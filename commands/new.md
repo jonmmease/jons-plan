@@ -208,6 +208,14 @@ Tasks can run in parallel ONLY if they won't conflict:
 | Test definition | (omit) | (omit) | (omit) |
 | Validation/verification | (omit) | (omit) | (omit) |
 
+## Task Sizing Guidelines
+
+- Tasks should complete in one subagent session (~10 steps max)
+- Each step should be independently verifiable
+- If task exceeds scope, decompose into subtasks with parent dependencies
+- Research tasks: scope to single topic/question
+- Implementation tasks: scope to single file or closely related files
+
 ## Test-First Planning Pattern
 
 For features with clear acceptance criteria, consider structuring tasks in a test-first pattern:
