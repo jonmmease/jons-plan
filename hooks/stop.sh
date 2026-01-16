@@ -75,8 +75,9 @@ if [[ "$SESSION_MODE" == "proceed" ]]; then
                 fi
 
                 # Check if there are suggested next phases (workflow not complete)
-                SUGGESTED_NEXT=$(echo "$PHASE_JSON" | grep -o '"suggested_next": *\[[^]]*\]' | grep -v '\[\]' || echo "")
-                if [[ -n "$SUGGESTED_NEXT" ]]; then
+                # Use jq to properly parse multi-line JSON
+                SUGGESTED_NEXT_COUNT=$(echo "$PHASE_JSON" | jq -r '.suggested_next | length' 2>/dev/null || echo "0")
+                if [[ "$SUGGESTED_NEXT_COUNT" -gt 0 ]]; then
                     echo '{"decision": "block", "reason": "Current phase complete but workflow continues. Check suggested_next phases and transition. Run: uv run ${PLUGIN_ROOT}/plan.py suggested-next"}'
                     exit 2
                 fi
