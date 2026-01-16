@@ -33,6 +33,12 @@ if [[ "$MESSAGE" == "<"* ]]; then
     exit 0
 fi
 
+# Skip if no active plan (except for /jons-plan:new which creates plans)
+ACTIVE_PLAN=$(plan active-plan 2>/dev/null || echo "")
+if [[ -z "$ACTIVE_PLAN" && "$MESSAGE" != "/jons-plan:new"* ]]; then
+    exit 0
+fi
+
 # Check for /jons-plan:* commands and set appropriate mode
 if [[ "$MESSAGE" == "/jons-plan:plan"* ]]; then
     plan set-mode plan 2>/dev/null || true
