@@ -55,14 +55,14 @@ if [[ "$SESSION_MODE" == "proceed" ]]; then
         PHASE_JSON=$(plan phase-context --json 2>/dev/null || echo "{}")
 
         # Check if current phase is terminal - allow stop at terminal phases
-        IS_TERMINAL=$(echo "$PHASE_JSON" | grep -o '"terminal": *true' || echo "")
-        if [[ -n "$IS_TERMINAL" ]]; then
+        IS_TERMINAL=$(echo "$PHASE_JSON" | jq -r '.terminal // false' 2>/dev/null)
+        if [[ "$IS_TERMINAL" == "true" ]]; then
             # At terminal phase - allow stop
             :
         else
             # Check if phase requires user input
-            REQUIRES_USER=$(echo "$PHASE_JSON" | grep -o '"requires_user_input": *true' || echo "")
-            if [[ -n "$REQUIRES_USER" ]]; then
+            REQUIRES_USER=$(echo "$PHASE_JSON" | jq -r '.requires_user_input // false' 2>/dev/null)
+            if [[ "$REQUIRES_USER" == "true" ]]; then
                 # Phase needs user input - allow stop (user will review and proceed)
                 :
             else

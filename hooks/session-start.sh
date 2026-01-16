@@ -221,9 +221,12 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
     # Show input artifacts if any
     INPUT_ARTIFACTS=$(plan input-artifacts --json 2>/dev/null || echo "")
     if [[ -n "$INPUT_ARTIFACTS" && "$INPUT_ARTIFACTS" != "{}" ]]; then
-        FOUND_COUNT=$(echo "$INPUT_ARTIFACTS" | grep -c '"found":\s*\[' 2>/dev/null || echo "0")
-        echo "**Input Artifacts:** Available from upstream phases"
-        echo ""
+        # Check if there are any found artifacts using jq
+        FOUND_COUNT=$(echo "$INPUT_ARTIFACTS" | jq -r '.found | length' 2>/dev/null || echo "0")
+        if [[ "$FOUND_COUNT" -gt 0 ]]; then
+            echo "**Input Artifacts:** Available from upstream phases"
+            echo ""
+        fi
     fi
 
     # Show recent dead-ends (last 3)
