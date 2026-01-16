@@ -28,6 +28,11 @@ else
     MESSAGE=$(echo "$INPUT" | grep -o '"prompt"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"prompt"[[:space:]]*:[[:space:]]*"//' | sed 's/"$//' || echo "")
 fi
 
+# Skip system-injected messages (task notifications, etc.)
+if [[ "$MESSAGE" == "<"* ]]; then
+    exit 0
+fi
+
 # Check for /jons-plan:* commands and set appropriate mode
 if [[ "$MESSAGE" == "/jons-plan:plan"* ]]; then
     plan set-mode plan 2>/dev/null || true
