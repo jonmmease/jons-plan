@@ -501,7 +501,8 @@ class WorkflowModel(QObject):
 
             # Determine status
             if phase_id == current_phase:
-                status = "current"
+                # Terminal phases that are current should show as completed
+                status = "completed" if phase.get("terminal") else "current"
             elif phase_id in completed_phases:
                 status = "completed"
             elif phase.get("terminal"):
