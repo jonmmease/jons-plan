@@ -78,7 +78,9 @@ if [[ "$SESSION_MODE" == "proceed" ]]; then
                 # Use jq to properly parse multi-line JSON
                 SUGGESTED_NEXT_COUNT=$(echo "$PHASE_JSON" | jq -r '.suggested_next | length' 2>/dev/null || echo "0")
                 if [[ "$SUGGESTED_NEXT_COUNT" -gt 0 ]]; then
-                    echo '{"decision": "block", "reason": "Current phase complete but workflow continues. Check suggested_next phases and transition. Run: uv run ${PLUGIN_ROOT}/plan.py suggested-next"}'
+                    # Get suggested phases for the message
+                    SUGGESTED_PHASES=$(plan suggested-next 2>/dev/null | head -3 | tr '\n' ', ' | sed 's/,$//')
+                    echo '{"decision": "block", "reason": "TRANSITION REQUIRED: Phase complete but workflow continues. You MUST transition to the next phase before stopping.\n\nAvailable transitions: '"${SUGGESTED_PHASES}"'\n\nRun these commands:\n  1. uv run ~/.claude-plugins/jons-plan/plan.py suggested-next\n  2. uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <phase-id>\n\nIf scope exceeded, see proceed.md Scope Exceeded Handling section.\n\nDO NOT manually edit state.json or invent statuses."}'
                     exit 2
                 fi
             fi

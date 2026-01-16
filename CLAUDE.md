@@ -62,11 +62,21 @@ todo → in-progress → done
                   → blocked (requires replanning)
 ```
 
+**Valid statuses**: `todo`, `in-progress`, `done`, `blocked` - these are the ONLY valid values.
+
+**CRITICAL prohibitions**:
+- **Never invent new statuses** - "deferred", "skipped", "partial" etc. are NOT valid
+- **Never manually edit state.json** - always use CLI commands (`enter-phase`, `set-status`)
+- **Never mark done if incomplete** - use `blocked` if task cannot be completed
+
 **Critical**: Always use CLI to update status (ensures proper logging):
 ```bash
 uv run plan.py set-status <task-id> in-progress
 uv run plan.py set-status <task-id> done
+uv run plan.py set-status <task-id> blocked
 ```
+
+When a task is blocked due to scope issues, transition back to planning phase - see proceed.md "Scope Exceeded Handling" section.
 
 ## Phase Transitions
 

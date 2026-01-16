@@ -103,6 +103,111 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
 
    Execute tasks from the phase's tasks.json using the Task Execution Loop below.
 
+### Task Execution Loop
+
+For each available task:
+
+1. **Set status to in-progress**:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> in-progress
+   ```
+
+2. **Execute the task steps**: Work through each step in the task's `steps` array.
+
+3. **Log progress** as you work:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "Completed step: ..."
+   ```
+
+4. **On successful completion**:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> done
+   ```
+
+5. **If task cannot be completed** (see When to Block below):
+   - Create blockers.md explaining the issue
+   - Mark as blocked and transition to planning
+
+### Valid Task Statuses
+
+There are exactly **four valid statuses**. You MUST use only these:
+
+| Status | Meaning |
+|--------|---------|
+| `todo` | Not yet started |
+| `in-progress` | Currently being worked on |
+| `done` | Successfully completed |
+| `blocked` | Cannot proceed - requires replanning |
+
+**CRITICAL**: Never invent new statuses. "deferred", "skipped", "partial", etc. are NOT valid.
+
+### When to Mark a Task as Blocked
+
+Mark a task as `blocked` when you encounter issues that **require replanning**:
+
+1. **Scope exceeded**: Task is much larger than anticipated and needs decomposition
+2. **Missing prerequisites**: Required dependency, API, or resource isn't available
+3. **Technical impossibility**: The approach described won't work
+4. **Unclear requirements**: Task steps are ambiguous and you cannot make a reasonable choice
+5. **External blockers**: Need user input, permissions, or third-party action
+
+**Do NOT mark as blocked for:**
+- Errors you can fix by trying a different approach
+- Missing information you can find by exploring the codebase
+- Test failures that just need debugging
+
+### Scope Exceeded Handling
+
+**When you realize a task is too large to complete:**
+
+1. **Stop working on the task immediately** - do not attempt partial completion
+
+2. **Create blockers.md** in the task directory:
+   ```bash
+   TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
+   ```
+
+   Write to `$TASK_DIR/blockers.md`:
+   ```markdown
+   # Blocker Report: <task-id>
+
+   ## Scope Assessment
+
+   Task requires significantly more work than anticipated:
+   - Estimated: <original scope>
+   - Actual: <discovered scope>
+
+   ## Work Completed
+
+   <what was accomplished before stopping>
+
+   ## Recommended Decomposition
+
+   Suggest breaking into these subtasks:
+   1. <subtask 1>
+   2. <subtask 2>
+   3. ...
+   ```
+
+3. **Mark task as blocked**:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> blocked
+   ```
+
+4. **Transition back to planning phase**:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py suggested-next
+   uv run ~/.claude-plugins/jons-plan/plan.py enter-phase plan --reason "Task <task-id> requires decomposition"
+   ```
+
+5. **STOP execution** - Do not continue with other tasks. The plan needs to be updated.
+
+**NEVER do these when scope is exceeded:**
+- Invent new statuses like "deferred" or "partial"
+- Manually edit state.json to skip phases
+- Mark the task as "done" with incomplete work
+- Continue to other tasks without addressing the blocker
+
 4. **After phase tasks complete**:
    - Check `suggested-next` for the next phase
    - If phase has `requires_user_input: true`, set mode to `awaiting-feedback` and stop
