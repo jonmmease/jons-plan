@@ -51,17 +51,20 @@ if [[ "$SESSION_MODE" == "proceed" ]]; then
         # Don't auto-continue if there are blocked tasks
         :
     else
-        # Get current phase info from phase-context --json
-        PHASE_JSON=$(plan phase-context --json 2>/dev/null || echo "{}")
+        # Get current phase info - write to temp file to avoid bash variable corruption
+        # (bash command substitution corrupts multi-line JSON with certain characters)
+        PHASE_JSON_FILE=$(mktemp)
+        trap "rm -f '$PHASE_JSON_FILE'" EXIT
+        plan phase-context --json > "$PHASE_JSON_FILE" 2>/dev/null || echo "{}" > "$PHASE_JSON_FILE"
 
         # Check if current phase is terminal - allow stop at terminal phases
-        IS_TERMINAL=$(echo "$PHASE_JSON" | jq -r '.terminal // false' 2>/dev/null)
+        IS_TERMINAL=$(jq -r '.terminal // false' < "$PHASE_JSON_FILE" 2>/dev/null)
         if [[ "$IS_TERMINAL" == "true" ]]; then
             # At terminal phase - allow stop
             :
         else
             # Check if phase requires user input
-            REQUIRES_USER=$(echo "$PHASE_JSON" | jq -r '.requires_user_input // false' 2>/dev/null)
+            REQUIRES_USER=$(jq -r '.requires_user_input // false' < "$PHASE_JSON_FILE" 2>/dev/null)
             if [[ "$REQUIRES_USER" == "true" ]]; then
                 # Phase needs user input - allow stop (user will review and proceed)
                 :
@@ -75,8 +78,7 @@ if [[ "$SESSION_MODE" == "proceed" ]]; then
                 fi
 
                 # Check if there are suggested next phases (workflow not complete)
-                # Use jq to properly parse multi-line JSON
-                SUGGESTED_NEXT_COUNT=$(echo "$PHASE_JSON" | jq -r '.suggested_next | length' 2>/dev/null || echo "0")
+                SUGGESTED_NEXT_COUNT=$(jq -r '.suggested_next | length' < "$PHASE_JSON_FILE" 2>/dev/null || echo "0")
                 if [[ "$SUGGESTED_NEXT_COUNT" -gt 0 ]]; then
                     # Get suggested phases for the message
                     SUGGESTED_PHASES=$(plan suggested-next 2>/dev/null | head -3 | tr '\n' ', ' | sed 's/,$//')
