@@ -401,12 +401,22 @@ Rectangle {
 
                     // Phase Prompt section
                     Rectangle {
+                        id: promptSection
                         Layout.fillWidth: true
                         Layout.preferredHeight: promptExpanded ? promptContentEdit.contentHeight + 28 + Theme.spacingSmall * 2 : 28
                         color: Theme.bgPanel
                         clip: true
 
                         property bool promptExpanded: true
+                        property bool showFullPrompt: false
+
+                        // Reset showFullPrompt when phase changes
+                        Connections {
+                            target: workflowModel
+                            function onSelectedPhaseChanged() {
+                                promptSection.showFullPrompt = false
+                            }
+                        }
 
                         Rectangle {
                             id: promptHeader
@@ -419,7 +429,7 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: parent.parent.promptExpanded = !parent.parent.promptExpanded
+                                onClicked: promptSection.promptExpanded = !promptSection.promptExpanded
                             }
 
                             RowLayout {
@@ -428,7 +438,7 @@ Rectangle {
                                 anchors.rightMargin: Theme.spacingSmall
 
                                 Text {
-                                    text: parent.parent.parent.promptExpanded ? "▼" : "▶"
+                                    text: promptSection.promptExpanded ? "▼" : "▶"
                                     font.pixelSize: 10
                                     color: Theme.textMuted
                                 }
@@ -439,6 +449,45 @@ Rectangle {
                                     color: Theme.textPrimary
                                 }
                                 Item { Layout.fillWidth: true }
+
+                                // Full/TOML toggle button
+                                Rectangle {
+                                    visible: workflowModel.selectedPhaseEntry > 0
+                                    width: promptToggleLabel.width + 16
+                                    height: 18
+                                    radius: 3
+                                    color: promptToggleMouse.containsMouse ? Theme.bgPanelHeader : "transparent"
+                                    border.width: 1
+                                    border.color: promptSection.showFullPrompt ? Theme.textLink : Theme.textMuted
+
+                                    Text {
+                                        id: promptToggleLabel
+                                        anchors.centerIn: parent
+                                        text: promptSection.showFullPrompt ? "TOML" : "Full"
+                                        font.pixelSize: 10
+                                        color: promptSection.showFullPrompt ? Theme.textLink : Theme.textSecondary
+                                    }
+                                    MouseArea {
+                                        id: promptToggleMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            promptSection.showFullPrompt = !promptSection.showFullPrompt
+                                            if (promptSection.showFullPrompt && workflowModel.fullPhasePromptHtml === "") {
+                                                workflowModel.loadFullPhasePrompt()
+                                            }
+                                        }
+                                    }
+
+                                    ToolTip {
+                                        visible: promptToggleMouse.containsMouse
+                                        delay: 500
+                                        text: promptSection.showFullPrompt ?
+                                            "Show TOML prompt only" :
+                                            "Show full assembled prompt (includes artifacts and guidance)"
+                                    }
+                                }
                             }
                         }
 
@@ -448,7 +497,9 @@ Rectangle {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.margins: Theme.spacingSmall
-                            text: Theme.wrapHtml(workflowModel.selectedPhasePromptHtml)
+                            text: Theme.wrapHtml(promptSection.showFullPrompt ?
+                                workflowModel.fullPhasePromptHtml :
+                                workflowModel.selectedPhasePromptHtml)
                             textFormat: TextEdit.RichText
                             font.pixelSize: Theme.fontSizeSmall
                             wrapMode: Text.WordWrap

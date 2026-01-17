@@ -3382,7 +3382,23 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
 
     state_mgr = StateManager(plan_dir)
     state = state_mgr.load()
-    current_phase = state.get("current_phase")
+
+    # If --entry specified, look up that specific entry from history
+    if args.entry:
+        history = state.get("phase_history", [])
+        entry = None
+        for h in history:
+            if h.get("entry") == args.entry:
+                entry = h
+                break
+        if not entry:
+            print(f"Phase entry #{args.entry} not found", file=sys.stderr)
+            return 1
+        current_phase = entry.get("phase")
+        current_phase_dir = entry.get("dir")
+    else:
+        current_phase = state.get("current_phase")
+        current_phase_dir = state.get("current_phase_dir")
 
     if not current_phase:
         print("No current phase", file=sys.stderr)
@@ -3397,7 +3413,6 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
     found, missing = resolver.verify_inputs(current_phase)
 
     # Get re-entry context if applicable
-    current_phase_dir = state.get("current_phase_dir")
     reentry_context = None
     if current_phase_dir:
         reentry_file = plan_dir / current_phase_dir / "reentry-context.md"
@@ -4966,6 +4981,7 @@ def main() -> int:
     # Phase display commands
     p_phase_ctx = subparsers.add_parser("phase-context", help="Display full phase context")
     p_phase_ctx.add_argument("--json", action="store_true", help="Output as JSON")
+    p_phase_ctx.add_argument("--entry", type=int, help="Show context for specific phase entry number")
 
     subparsers.add_parser("phase-summary", help="Display compact phase summary")
 

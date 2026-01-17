@@ -276,6 +276,7 @@ class WorkflowModel(QObject):
     requestTabSwitch = Signal(int)  # Signal to switch tabs (0=Phase, 1=Tasks)
     themeModeChanged = Signal()  # Emitted when theme mode changes
     progressFilterChanged = Signal()  # Emitted when progress filter changes
+    fullPhasePromptChanged = Signal()  # Emitted when full prompt is loaded
 
     def __init__(self, plan_path: Path):
         super().__init__()
@@ -300,6 +301,7 @@ class WorkflowModel(QObject):
         self._selected_phase_logs = ""  # Phase progress logs
         self._phase_log_watcher = None  # QFileSystemWatcher for phase logs
         self._current_phase = None  # Track current phase for auto-follow
+        self._full_phase_prompt = ""  # Full prompt from phase-context CLI
 
         # Theme mode: "system", "light", "dark"
         self._theme_mode = "system"
@@ -647,6 +649,10 @@ class WorkflowModel(QObject):
     def _update_selected_phase_details(self) -> None:
         """Update details for the selected phase entry."""
         logger.debug(f"_update_selected_phase_details: entry={self._selected_phase_entry}")
+        # Clear full prompt when phase changes (loaded on demand)
+        self._full_phase_prompt = ""
+        self.fullPhasePromptChanged.emit()
+
         if not self._selected_phase_entry:
             self._selected_phase_details = {}
             return
@@ -804,6 +810,41 @@ class WorkflowModel(QObject):
         """Phase prompt converted to HTML for rich text display."""
         prompt = self._selected_phase_details.get("prompt", "")
         return md_to_html(prompt) if prompt else ""
+
+    @Property(str, notify=fullPhasePromptChanged)
+    def fullPhasePromptHtml(self) -> str:
+        """Full assembled prompt converted to HTML for rich text display."""
+        return md_to_html(self._full_phase_prompt) if self._full_phase_prompt else ""
+
+    @Slot()
+    def loadFullPhasePrompt(self) -> None:
+        """Load the full phase prompt from CLI (called on demand from QML)."""
+        import subprocess
+
+        if not self._selected_phase_entry:
+            self._full_phase_prompt = ""
+            self.fullPhasePromptChanged.emit()
+            return
+
+        try:
+            # Get plugin root from environment or infer from this file's location
+            plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", str(Path(__file__).parent))
+            result = subprocess.run(
+                ["uv", "run", f"{plugin_root}/plan.py", "phase-context",
+                 "--entry", str(self._selected_phase_entry)],
+                capture_output=True,
+                text=True,
+                cwd=str(self._plan_path.parent.parent.parent),  # Project dir
+                timeout=10,
+            )
+            if result.returncode == 0:
+                self._full_phase_prompt = result.stdout
+            else:
+                self._full_phase_prompt = f"Error loading full prompt: {result.stderr}"
+        except Exception as e:
+            self._full_phase_prompt = f"Error loading full prompt: {e}"
+
+        self.fullPhasePromptChanged.emit()
 
     @Property("QVariantList", notify=selectedPhaseArtifactsChanged)
     def selectedPhaseArtifacts(self) -> list:
