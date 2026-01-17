@@ -12,14 +12,19 @@ Protected files (always blocked):
 - dead-ends.json  - Dead-end tracking
 
 Validated files (allowed if valid):
-- tasks.json      - Task definitions (validated against schema)
+- tasks.json      - Task definitions (validated against JSON schema)
 """
 
 import json
 import os
-import re
 import sys
 from pathlib import Path
+
+try:
+    import jsonschema
+    HAS_JSONSCHEMA = True
+except ImportError:
+    HAS_JSONSCHEMA = False
 
 
 # Files that are always blocked (must use CLI)
@@ -30,18 +35,6 @@ ALWAYS_BLOCKED = {
     "dead-ends.json": "Use 'uv run plan.py add-dead-end ...' to record dead ends",
 }
 
-# Valid task statuses
-VALID_STATUSES = {"todo", "in-progress", "done", "blocked"}
-
-# Valid task types
-VALID_TASK_TYPES = {"cache-reference", "prototype"}
-
-# Valid models
-VALID_MODELS = {"sonnet", "haiku", "opus"}
-
-# Task ID pattern (lowercase alphanumeric with hyphens)
-TASK_ID_PATTERN = re.compile(r"^[a-z0-9-]+$")
-
 
 def is_in_jons_plan_dir(file_path: str) -> bool:
     """Check if file is within a .claude/jons-plan/ directory."""
@@ -49,91 +42,23 @@ def is_in_jons_plan_dir(file_path: str) -> bool:
     return "/.claude/jons-plan/" in normalized or "\\.claude\\jons-plan\\" in normalized
 
 
-def validate_task(task: dict, index: int, all_ids: set) -> list[str]:
-    """Validate a single task and return list of errors."""
-    errors = []
-    prefix = f"Task {index}"
-
-    if not isinstance(task, dict):
-        return [f"{prefix}: Must be an object"]
-
-    task_id = task.get("id")
-    if task_id:
-        prefix = f"Task '{task_id}'"
-
-    # Required fields
-    if "id" not in task:
-        errors.append(f"{prefix}: Missing required field 'id'")
-    elif not isinstance(task["id"], str):
-        errors.append(f"{prefix}: 'id' must be a string")
-    elif not TASK_ID_PATTERN.match(task["id"]):
-        errors.append(f"{prefix}: 'id' must be lowercase alphanumeric with hyphens (got '{task['id']}')")
-
-    if "description" not in task:
-        errors.append(f"{prefix}: Missing required field 'description'")
-    elif not isinstance(task["description"], str) or not task["description"].strip():
-        errors.append(f"{prefix}: 'description' must be a non-empty string")
-
-    if "status" not in task:
-        errors.append(f"{prefix}: Missing required field 'status'")
-    elif task["status"] not in VALID_STATUSES:
-        errors.append(f"{prefix}: Invalid status '{task['status']}'. Must be one of: {', '.join(sorted(VALID_STATUSES))}")
-
-    # Optional fields with type checking
-    if "type" in task and task["type"] not in VALID_TASK_TYPES:
-        errors.append(f"{prefix}: Invalid type '{task['type']}'. Must be one of: {', '.join(sorted(VALID_TASK_TYPES))}")
-
-    if "steps" in task:
-        if not isinstance(task["steps"], list):
-            errors.append(f"{prefix}: 'steps' must be an array")
-        elif not all(isinstance(s, str) for s in task["steps"]):
-            errors.append(f"{prefix}: All items in 'steps' must be strings")
-
-    if "parents" in task:
-        if not isinstance(task["parents"], list):
-            errors.append(f"{prefix}: 'parents' must be an array")
-        elif not all(isinstance(p, str) for p in task["parents"]):
-            errors.append(f"{prefix}: All items in 'parents' must be strings")
-
-    if "context_artifacts" in task:
-        if not isinstance(task["context_artifacts"], list):
-            errors.append(f"{prefix}: 'context_artifacts' must be an array")
-        elif not all(isinstance(a, str) for a in task["context_artifacts"]):
-            errors.append(f"{prefix}: All items in 'context_artifacts' must be strings")
-
-    if "subagent" in task and not isinstance(task["subagent"], str):
-        errors.append(f"{prefix}: 'subagent' must be a string")
-
-    if "subagent_prompt" in task and not isinstance(task["subagent_prompt"], str):
-        errors.append(f"{prefix}: 'subagent_prompt' must be a string")
-
-    if "model" in task and task["model"] not in VALID_MODELS:
-        errors.append(f"{prefix}: Invalid model '{task['model']}'. Must be one of: {', '.join(sorted(VALID_MODELS))}")
-
-    if "question" in task and not isinstance(task["question"], str):
-        errors.append(f"{prefix}: 'question' must be a string")
-
-    if "hypothesis" in task and not isinstance(task["hypothesis"], str):
-        errors.append(f"{prefix}: 'hypothesis' must be a string")
-
-    if "inject_project_context" in task and not isinstance(task["inject_project_context"], bool):
-        errors.append(f"{prefix}: 'inject_project_context' must be a boolean")
-
-    # Check for unknown fields
-    known_fields = {
-        "id", "description", "status", "type", "steps", "parents",
-        "context_artifacts", "subagent", "subagent_prompt", "model",
-        "question", "hypothesis", "inject_project_context"
-    }
-    unknown = set(task.keys()) - known_fields
-    if unknown:
-        errors.append(f"{prefix}: Unknown fields: {', '.join(sorted(unknown))}")
-
-    return errors
+def get_schema_path() -> Path | None:
+    """Get path to tasks schema file."""
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+    if plugin_root:
+        schema_path = Path(plugin_root) / "schemas" / "tasks-schema.json"
+        if schema_path.exists():
+            return schema_path
+    # Fallback: relative to this script
+    script_dir = Path(__file__).parent.parent
+    schema_path = script_dir / "schemas" / "tasks-schema.json"
+    if schema_path.exists():
+        return schema_path
+    return None
 
 
 def validate_tasks_json(content: str) -> tuple[bool, list[str]]:
-    """Validate tasks.json content. Returns (is_valid, errors)."""
+    """Validate tasks.json content against JSON schema. Returns (is_valid, errors)."""
     errors = []
 
     # Parse JSON
@@ -142,14 +67,44 @@ def validate_tasks_json(content: str) -> tuple[bool, list[str]]:
     except json.JSONDecodeError as e:
         return False, [f"Invalid JSON: {e}"]
 
-    # Must be an array
+    # Must be an array (basic check before schema validation)
     if not isinstance(data, list):
         return False, ["tasks.json must be a JSON array of tasks"]
 
-    # Collect all task IDs for duplicate checking
+    # Load and validate against schema
+    schema_path = get_schema_path()
+    if not schema_path:
+        errors.append("Warning: Could not find tasks-schema.json, skipping schema validation")
+        return True, errors  # Allow but warn
+
+    if not HAS_JSONSCHEMA:
+        errors.append("Warning: jsonschema not installed, skipping schema validation")
+        return True, errors  # Allow but warn
+
+    try:
+        schema = json.loads(schema_path.read_text())
+    except (json.JSONDecodeError, OSError) as e:
+        errors.append(f"Warning: Could not load schema: {e}")
+        return True, errors  # Allow but warn
+
+    # Validate against schema
+    validator = jsonschema.Draft7Validator(schema)
+    schema_errors = list(validator.iter_errors(data))
+
+    if schema_errors:
+        for error in schema_errors[:10]:  # Limit to 10 errors
+            # Format the error path nicely
+            path = " -> ".join(str(p) for p in error.absolute_path) if error.absolute_path else "root"
+            errors.append(f"[{path}] {error.message}")
+        if len(schema_errors) > 10:
+            errors.append(f"... and {len(schema_errors) - 10} more errors")
+        return False, errors
+
+    # Additional validations not easily expressed in JSON schema
+
+    # Check for duplicate IDs
     all_ids = set()
     duplicate_ids = set()
-
     for task in data:
         if isinstance(task, dict) and "id" in task:
             tid = task["id"]
@@ -159,11 +114,6 @@ def validate_tasks_json(content: str) -> tuple[bool, list[str]]:
 
     if duplicate_ids:
         errors.append(f"Duplicate task IDs: {', '.join(sorted(duplicate_ids))}")
-
-    # Validate each task
-    for i, task in enumerate(data):
-        task_errors = validate_task(task, i, all_ids)
-        errors.extend(task_errors)
 
     # Validate parent references
     for task in data:
@@ -234,7 +184,7 @@ def main():
                     "permissionDecisionReason": (
                         "BLOCKED: Cannot use Edit tool on tasks.json.\n\n"
                         "To modify task status, use: uv run plan.py set-status <task-id> <status>\n"
-                        "To add tasks, use Write to replace the entire file with valid JSON.\n"
+                        "To rewrite tasks, use Write tool with the complete file.\n"
                         "To add a single task, use: uv run plan.py add-task <json-file>"
                     ),
                 }
@@ -247,17 +197,10 @@ def main():
         is_valid, errors = validate_tasks_json(content)
 
         if not is_valid:
-            # Get path to schema for reference
-            plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
-            schema_hint = ""
-            if plugin_root:
-                schema_path = os.path.join(plugin_root, "schemas", "tasks-schema.json")
-                if os.path.exists(schema_path):
-                    schema_hint = f"\n\nSee schema at: {schema_path}"
+            schema_path = get_schema_path()
+            schema_hint = f"\n\nSchema: {schema_path}" if schema_path else ""
 
-            error_list = "\n".join(f"  - {e}" for e in errors[:10])  # Limit to 10 errors
-            if len(errors) > 10:
-                error_list += f"\n  ... and {len(errors) - 10} more errors"
+            error_list = "\n".join(f"  - {e}" for e in errors)
 
             output = {
                 "hookSpecificOutput": {
