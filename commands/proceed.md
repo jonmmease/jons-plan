@@ -90,7 +90,15 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
    ```
 
    **If tasks.json doesn't exist or is empty**, you MUST create it before proceeding:
-   - Write tasks.json to the path returned by `phase-tasks-file`
+   - Use `add-bulk-tasks` CLI to create tasks (do NOT use Write tool for tasks.json):
+     ```bash
+     cat << 'EOF' | uv run ~/.claude-plugins/jons-plan/plan.py add-bulk-tasks -
+     [
+       { "id": "task-1", "description": "...", "parents": [], "steps": [...], "status": "todo" },
+       { "id": "task-2", "description": "...", "parents": ["task-1"], "steps": [...], "status": "todo" }
+     ]
+     EOF
+     ```
    - Follow the Task Schema from the `/jons-plan:new` command documentation
    - Follow the Task Sizing Guidelines: ~10 steps max per task, scope research to single topic, implementation to single file or related files
    - Break the phase work into discrete, trackable tasks

@@ -200,7 +200,8 @@ All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 ### Dynamic Task Modification
 | Command | Description |
 |---------|-------------|
-| `add-task <json-file>` | Add task from JSON |
+| `add-task <json-file>` | Add single task from JSON |
+| `add-bulk-tasks <json-file>` | Add multiple tasks from JSON array (creates file if needed) |
 | `update-task-parents <task-id> <ids...>` | Update parents |
 | `update-task-steps <task-id> <json-file>` | Update steps |
 
