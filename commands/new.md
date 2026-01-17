@@ -169,6 +169,7 @@ Each task should follow this schema:
 | `subagent` | No | `general-purpose` (default), `Explore`, `Plan`, `claude-code-guide` |
 | `subagent_prompt` | No | Additional context (e.g., "very thorough analysis") |
 | `model` | No | `sonnet` (default), `haiku`, `opus` |
+| `resources` | No | Array of resource identifiers requiring exclusive access |
 
 Example task:
 ```json
@@ -197,6 +198,33 @@ Tasks can run in parallel ONLY if they won't conflict:
 - Multiple tasks editing files in the same directory
 - Tasks that both modify the same config files
 - Implementation tasks that build on each other's code
+
+**Resource-based exclusion** (use `resources` field):
+When tasks need exclusive access to shared resources but don't have a logical parent dependency, use the `resources` field:
+
+```json
+{
+  "id": "browser-test-login",
+  "description": "Test login flow in browser",
+  "resources": ["chrome-devtools"],
+  "parents": [],
+  "steps": ["..."],
+  "status": "todo"
+},
+{
+  "id": "browser-test-checkout",
+  "description": "Test checkout flow in browser",
+  "resources": ["chrome-devtools"],
+  "parents": [],
+  "steps": ["..."],
+  "status": "todo"
+}
+```
+
+Tasks sharing resources are serialized even without parent dependencies. Use for:
+- MCP servers that maintain state (browser automation, database connections)
+- Shared files that multiple tasks may modify
+- External services with rate limits or connection constraints
 
 ## Task Type Guidelines
 

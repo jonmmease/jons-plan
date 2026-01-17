@@ -67,6 +67,11 @@
       "inject_project_context": {
         "type": "boolean",
         "description": "Include project CLAUDE.md in task prompt (default: false)"
+      },
+      "resources": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Resource identifiers requiring exclusive access. Tasks sharing resources are serialized."
       }
     }
   }

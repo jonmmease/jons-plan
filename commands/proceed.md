@@ -102,7 +102,8 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
        "steps": ["step 1", ...],  // ordered list of steps
        "parents": ["other-id"],   // task IDs that must complete first
        "subagent": "Explore",     // agent type (Explore, general-purpose)
-       "model": "sonnet"          // optional: sonnet, haiku, opus
+       "model": "sonnet",         // optional: sonnet, haiku, opus
+       "resources": ["chrome"]    // optional: exclusive resource access
      }
    ]
    ```

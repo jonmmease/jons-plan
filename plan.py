@@ -1606,6 +1606,26 @@ def cmd_has_blockers(args: argparse.Namespace) -> int:
     return 1  # No blockers
 
 
+def has_resource_conflict(task: dict, all_tasks: list) -> bool:
+    """Check if task's resources conflict with any in-progress tasks.
+
+    Returns True if the task requires exclusive access to a resource
+    that is currently held by an in-progress task.
+    """
+    task_resources = set(task.get("resources", []))
+    if not task_resources:
+        return False  # No resources = no conflict possible
+
+    for other in all_tasks:
+        if other["id"] == task["id"]:
+            continue
+        if other.get("status") == "in-progress":
+            other_resources = set(other.get("resources", []))
+            if task_resources & other_resources:  # Set intersection
+                return True
+    return False
+
+
 def cmd_next_tasks(args: argparse.Namespace) -> int:
     """List available tasks (todo with all parents done)."""
     project_dir = get_project_dir()
@@ -1621,7 +1641,8 @@ def cmd_next_tasks(args: argparse.Namespace) -> int:
             continue
         parents = task.get("parents", [])
         if all(task_status.get(pid) == "done" for pid in parents):
-            print(f"{task['id']}: {task.get('description', '')}")
+            if not has_resource_conflict(task, tasks):
+                print(f"{task['id']}: {task.get('description', '')}")
     return 0
 
 
@@ -3595,7 +3616,8 @@ def cmd_phase_next_tasks(args: argparse.Namespace) -> int:
             continue
         parents = task.get("parents", [])
         if all(task_status.get(pid) == "done" for pid in parents):
-            next_tasks.append(task)
+            if not has_resource_conflict(task, tasks):
+                next_tasks.append(task)
 
     if next_tasks:
         for task in next_tasks:
