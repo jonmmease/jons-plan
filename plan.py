@@ -2380,7 +2380,17 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
         prompt_parts.append(f"- Output path: `{output_dir}/`")
         prompt_parts.append(f"- Create files as needed (e.g., findings.md, analysis.md)")
 
-    # 8. CLI reference for task completion
+    # 8. CLAUDE.md proposals (if phase supports it)
+    workflow_mgr = WorkflowManager(plan_dir)
+    state = load_state(plan_dir)
+    current_phase_id = state.get("current_phase")
+    if current_phase_id and workflow_mgr.supports_proposals(current_phase_id):
+        prompts_dir = Path(__file__).parent / "prompts"
+        proposals_file = prompts_dir / "claude-md-proposals.md"
+        if proposals_file.exists():
+            prompt_parts.append("\n\n" + proposals_file.read_text().strip())
+
+    # 9. CLI reference for task completion
     prompt_parts.append("\n\n## When Done")
     prompt_parts.append(f"Mark this task complete: `uv run {PLUGIN_ROOT}/plan.py set-status {args.task_id} done`")
 

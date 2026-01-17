@@ -148,6 +148,7 @@ This command outputs a complete prompt containing:
 - Steps as bullet list
 - Parent task outputs (contents of output files from parent tasks)
 - Prior progress entries (if any, with resumption instructions)
+- CLAUDE.md proposals guidance (if phase has `supports_proposals = true`)
 
 Use this prompt directly when launching the subagent via the Task tool:
 ```
