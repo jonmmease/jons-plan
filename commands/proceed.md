@@ -103,7 +103,7 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
        "parents": ["other-id"],   // task IDs that must complete first
        "subagent": "Explore",     // agent type (Explore, general-purpose)
        "model": "sonnet",         // optional: sonnet, haiku, opus
-       "resources": ["chrome"]    // optional: exclusive resource access
+       "locks": ["cargo"]         // optional: exclusive access (files, tools, resources)
      }
    ]
    ```

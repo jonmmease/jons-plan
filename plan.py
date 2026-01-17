@@ -42,7 +42,7 @@ Create `tasks.json` as a JSON array of task objects:
 | `question` | No | For prototype tasks: the question being answered |
 | `hypothesis` | No | For prototype tasks: expected outcome |
 | `inject_project_context` | No | Include project CLAUDE.md in task prompt (default: false) |
-| `resources` | No | Resource identifiers requiring exclusive access |
+| `locks` | No | Lock names for exclusive access (files, tools, or resources) |
 | `cache_id` | No | Cache entry ID for cache-reference type tasks |
 
 ### Example
@@ -62,6 +62,7 @@ Create `tasks.json` as a JSON array of task objects:
     "id": "implement-feature",
     "description": "Implement the feature",
     "parents": ["research-patterns"],
+    "locks": ["cargo"],
     "steps": ["Create module", "Add tests"],
     "status": "todo"
   }
@@ -74,7 +75,10 @@ Tasks without shared parents can run in parallel, but add parent dependencies wh
 - Tasks edit the same config files
 - Tasks have logical ordering requirements
 
-Use `resources` field to serialize tasks that need exclusive access to shared resources.
+Use `locks` to serialize tasks needing exclusive access to the same resource:
+- `"cargo"` - Rust builds (cargo build/check/test)
+- `"browser"` - Browser automation tools
+- `"src/config.rs"` - Specific files edited by multiple tasks
 """.strip()
 
 
@@ -1648,22 +1652,22 @@ def cmd_has_blockers(args: argparse.Namespace) -> int:
     return 1  # No blockers
 
 
-def has_resource_conflict(task: dict, all_tasks: list) -> bool:
-    """Check if task's resources conflict with any in-progress tasks.
+def has_lock_conflict(task: dict, all_tasks: list) -> bool:
+    """Check if task's locks conflict with any in-progress tasks.
 
-    Returns True if the task requires exclusive access to a resource
+    Returns True if the task requires exclusive access to a lock
     that is currently held by an in-progress task.
     """
-    task_resources = set(task.get("resources", []))
-    if not task_resources:
-        return False  # No resources = no conflict possible
+    task_locks = set(task.get("locks", []))
+    if not task_locks:
+        return False  # No locks = no conflict possible
 
     for other in all_tasks:
         if other["id"] == task["id"]:
             continue
         if other.get("status") == "in-progress":
-            other_resources = set(other.get("resources", []))
-            if task_resources & other_resources:  # Set intersection
+            other_locks = set(other.get("locks", []))
+            if task_locks & other_locks:  # Set intersection
                 return True
     return False
 
@@ -1683,7 +1687,7 @@ def cmd_next_tasks(args: argparse.Namespace) -> int:
             continue
         parents = task.get("parents", [])
         if all(task_status.get(pid) == "done" for pid in parents):
-            if not has_resource_conflict(task, tasks):
+            if not has_lock_conflict(task, tasks):
                 print(f"{task['id']}: {task.get('description', '')}")
     return 0
 
@@ -3697,7 +3701,7 @@ def cmd_phase_next_tasks(args: argparse.Namespace) -> int:
             continue
         parents = task.get("parents", [])
         if all(task_status.get(pid) == "done" for pid in parents):
-            if not has_resource_conflict(task, tasks):
+            if not has_lock_conflict(task, tasks):
                 next_tasks.append(task)
 
     if next_tasks:

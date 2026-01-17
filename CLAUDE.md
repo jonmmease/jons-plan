@@ -131,7 +131,7 @@ Tasks in `tasks.json` support these fields:
 | `question` | For prototype tasks: the question being answered |
 | `hypothesis` | For prototype tasks: expected outcome |
 | `inject_project_context` | Include project CLAUDE.md in task prompt (default: false) |
-| `resources` | Resource identifiers requiring exclusive access (tasks sharing resources are serialized) |
+| `locks` | Lock names for exclusive access - files, tools, or resources (e.g., `"cargo"`, `"browser"`) |
 
 The `context_artifacts` field lets tasks selectively request artifacts from phase history. Use `build-task-prompt` to resolve them.
 
