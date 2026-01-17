@@ -24,7 +24,7 @@ import sys
 # Protected filenames in .claude/jons-plan/ directories
 PROTECTED_FILES = {
     "state.json": "Use 'uv run plan.py enter-phase <phase>' to change phases",
-    "tasks.json": "Use 'uv run plan.py set-status <task-id> <status>' to update task status",
+    "tasks.json": "Use 'uv run plan.py add-bulk-tasks' to create/add tasks, 'set-status <task-id> <status>' to update",
     "workflow.toml": "workflow.toml should not be modified during execution",
     "active-plan": "Use 'uv run plan.py set-active <plan-name>' to change active plan",
     "dead-ends.json": "Use 'uv run plan.py add-dead-end ...' to record dead ends",
