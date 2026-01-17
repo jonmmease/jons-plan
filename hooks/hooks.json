@@ -45,18 +45,6 @@
         ]
       }
     ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use.sh",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [

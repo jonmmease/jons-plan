@@ -155,7 +155,6 @@ Subagents launched via the Task tool have access to:
 | SessionStart | `hooks/session-start.sh` | Show plan state on startup |
 | PreCompact | `hooks/pre-compact.sh` | Preserve state during compaction |
 | Stop | `hooks/stop.sh` | Auto-continue or show summary |
-| PostToolUse | `hooks/post-tool-use.sh` | Log file modifications |
 
 ## CLI Reference
 
