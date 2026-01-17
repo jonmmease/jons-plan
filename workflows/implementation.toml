@@ -35,6 +35,7 @@ suggested_next = ["research", "plan"]
 [[phases]]
 id = "plan"
 use_tasks = true
+requires_user_input = true
 prompt = """
 # Plan Phase
 
@@ -92,7 +93,7 @@ uv run plan.py record-artifact verification-plan verification-plan.md
 
 Note: The implement phase will create its own tasks.json from the implementation plan.
 """
-suggested_next = ["implement"]
+suggested_next = ["implement", "plan"]
 
 [[phases]]
 id = "implement"

@@ -920,6 +920,38 @@ def get_assembled_prompts(workflow_mgr: "WorkflowManager", phase_id: str) -> str
         if proposals_file.exists():
             prompt_parts.append(proposals_file.read_text())
 
+    # User review instructions for phases requiring user input
+    if workflow_mgr.requires_user_input(phase_id):
+        suggested_next = workflow_mgr.get_suggested_next(phase_id)
+        if suggested_next:
+            # Build numbered options list
+            options_lines = []
+            for i, opt in enumerate(suggested_next, 1):
+                # Handle both string and object formats
+                phase_name = opt if isinstance(opt, str) else opt.get("phase", "")
+                if phase_name:
+                    options_lines.append(f"{i}. **{phase_name}**")
+
+            if options_lines:
+                user_review = """# User Review Required
+
+This phase requires your approval before proceeding.
+
+## Options
+Present these numbered options to the user:
+"""
+                user_review += "\n".join(options_lines)
+                user_review += """
+
+After presenting options, show: `Use /jons-plan:proceed <number> [optional feedback]` to select.
+
+Examples:
+- `/jons-plan:proceed 1` - Select first option
+- `/jons-plan:proceed 2 <feedback>` - Select second option with guidance
+
+**Stop and await user input.**"""
+                prompt_parts.append(user_review)
+
     return "\n\n".join(prompt_parts)
 
 

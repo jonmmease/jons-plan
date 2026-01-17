@@ -242,6 +242,7 @@ suggested_next = ["process-feedback"]
 
 [[phases]]
 id = "process-feedback"
+requires_user_input = true
 prompt = """
 # Process Feedback Phase
 
@@ -327,7 +328,7 @@ If investigations were needed, write `investigation-findings.md`:
 If confidence >= 4: proceed to implement
 If confidence < 4: back to synthesize with new info
 """
-suggested_next = ["implement"]
+suggested_next = ["implement", "synthesize"]
 on_blocked = "synthesize"
 
 [[phases]]

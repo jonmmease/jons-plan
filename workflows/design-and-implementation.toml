@@ -218,21 +218,6 @@ Present the design to the user for approval.
 The user should review:
 - design.md - The proposed solution
 - review-feedback.md - External feedback received
-
-## Options
-Present these numbered options to the user:
-1. **implement** - Proceed with implementation
-2. **complete-design-only** - End workflow with design document only
-3. **revise** - Provide feedback for another revision
-
-After listing options, show: `Use /jons-plan:proceed <number> [optional guidance]` to select.
-
-Examples:
-- `/jons-plan:proceed 1` - Implement the design
-- `/jons-plan:proceed 2` - Complete with design only
-- `/jons-plan:proceed 3 add error handling for network failures` - Revise with specific feedback
-
-This phase requires user input. Stop and await user feedback.
 """
 requires_user_input = true
 user_review_artifacts = ["design.md", "review-feedback.md"]

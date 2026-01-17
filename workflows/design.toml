@@ -179,6 +179,7 @@ suggested_next = ["revise"]
 
 [[phases]]
 id = "revise"
+requires_user_input = true
 prompt = """
 # Revise Phase
 
@@ -229,7 +230,7 @@ Updated design.md with:
 - Investigation findings (if any)
 - Final confidence score (1-5) with rationale
 """
-suggested_next = ["complete"]
+suggested_next = ["complete", "revise"]
 
 [[phases]]
 id = "complete"

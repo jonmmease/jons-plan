@@ -7,6 +7,7 @@ description = "Simple plan-implement-verify workflow for familiar code changes"
 
 [[phases]]
 id = "plan"
+requires_user_input = true
 prompt = """
 # Plan Phase
 
@@ -45,7 +46,7 @@ uv run plan.py record-artifact implementation-plan implementation-plan.md
 uv run plan.py record-artifact verification-plan verification-plan.md
 ```
 """
-suggested_next = ["implement"]
+suggested_next = ["implement", "plan"]
 
 [[phases]]
 id = "implement"
