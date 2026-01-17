@@ -89,19 +89,27 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
    uv run ~/.claude-plugins/jons-plan/plan.py phase-tasks
    ```
 
-   **If tasks.json doesn't exist or is empty**, you MUST create it before proceeding:
-   - Use `add-bulk-tasks` CLI to create tasks (do NOT use Write tool for tasks.json):
-     ```bash
-     cat << 'EOF' | uv run ~/.claude-plugins/jons-plan/plan.py add-bulk-tasks -
-     [
-       { "id": "task-1", "description": "...", "parents": [], "steps": [...], "status": "todo" },
-       { "id": "task-2", "description": "...", "parents": ["task-1"], "steps": [...], "status": "todo" }
-     ]
-     EOF
-     ```
-   - Follow the Task Schema from the `/jons-plan:new` command documentation
-   - Follow the Task Sizing Guidelines: ~10 steps max per task, scope research to single topic, implementation to single file or related files
-   - Break the phase work into discrete, trackable tasks
+   **If tasks.json doesn't exist or is empty**, create it using the Write tool.
+   The file will be validated automatically - invalid content will be rejected with helpful error messages.
+
+   **Task Schema** (required fields marked with *):
+   ```json
+   [
+     {
+       "id": "task-id",           // *lowercase alphanumeric with hyphens
+       "description": "...",      // *what the task accomplishes
+       "status": "todo",          // *one of: todo, in-progress, done, blocked
+       "steps": ["step 1", ...],  // ordered list of steps
+       "parents": ["other-id"],   // task IDs that must complete first
+       "subagent": "Explore",     // agent type (Explore, general-purpose)
+       "model": "sonnet"          // optional: sonnet, haiku, opus
+     }
+   ]
+   ```
+
+   **Guidelines:**
+   - ~10 steps max per task
+   - Scope research to single topic, implementation to single file or related files
    - Use appropriate subagents (Explore for research, general-purpose for implementation)
 
    **After tasks exist**, check what's available:

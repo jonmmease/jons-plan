@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Tasks Array",
+  "description": "Array of tasks for a jons-plan phase",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "description", "status"],
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+$",
+        "description": "Unique task identifier (lowercase alphanumeric with hyphens)"
+      },
+      "description": {
+        "type": "string",
+        "minLength": 1,
+        "description": "What the task accomplishes"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["todo", "in-progress", "done", "blocked"],
+        "description": "Task status"
+      },
+      "type": {
+        "type": "string",
+        "enum": ["cache-reference", "prototype"],
+        "description": "Optional task type for special handling"
+      },
+      "steps": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Ordered list of steps to complete the task"
+      },
+      "parents": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Task IDs that must complete before this task"
+      },
+      "context_artifacts": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Artifact names to include from phase history (e.g., [\"request\", \"design\"])"
+      },
+      "subagent": {
+        "type": "string",
+        "description": "Agent type for task execution (e.g., \"Explore\", \"general-purpose\")"
+      },
+      "subagent_prompt": {
+        "type": "string",
+        "description": "Additional context/instructions for the subagent"
+      },
+      "model": {
+        "type": "string",
+        "enum": ["sonnet", "haiku", "opus"],
+        "description": "Model override for this task"
+      },
+      "question": {
+        "type": "string",
+        "description": "For prototype tasks: the question being answered"
+      },
+      "hypothesis": {
+        "type": "string",
+        "description": "For prototype tasks: expected outcome"
+      },
+      "inject_project_context": {
+        "type": "boolean",
+        "description": "Include project CLAUDE.md in task prompt (default: false)"
+      }
+    }
+  }
+}
