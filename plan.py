@@ -2067,85 +2067,6 @@ def cmd_add_task(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_add_bulk_tasks(args: argparse.Namespace) -> int:
-    """Add multiple tasks to tasks.json from JSON array input."""
-    project_dir = get_project_dir()
-    plan_dir = get_active_plan_dir(project_dir)
-    if not plan_dir:
-        print("No active plan", file=sys.stderr)
-        return 1
-
-    # Read tasks JSON from file or stdin
-    if args.json_file == "-":
-        tasks_json = sys.stdin.read()
-    else:
-        json_path = Path(args.json_file)
-        if not json_path.exists():
-            print(f"File not found: {args.json_file}", file=sys.stderr)
-            return 1
-        tasks_json = json_path.read_text()
-
-    try:
-        new_tasks = json.loads(tasks_json)
-    except json.JSONDecodeError as e:
-        print(f"Invalid JSON: {e}", file=sys.stderr)
-        return 1
-
-    if not isinstance(new_tasks, list):
-        print("Expected a JSON array of tasks", file=sys.stderr)
-        return 1
-
-    # Load existing tasks
-    existing_tasks = get_tasks(plan_dir)
-    existing_ids = {t["id"] for t in existing_tasks}
-
-    # Validate all tasks before adding any
-    all_errors = []
-    new_ids = set()
-    for i, task in enumerate(new_tasks):
-        errors = validate_task_schema(task)
-        if errors:
-            all_errors.append(f"Task {i} ({task.get('id', 'unknown')}):")
-            for error in errors:
-                all_errors.append(f"  - {error}")
-
-        task_id = task.get("id")
-        if task_id in existing_ids:
-            all_errors.append(f"Task {i}: ID '{task_id}' already exists")
-        if task_id in new_ids:
-            all_errors.append(f"Task {i}: Duplicate ID '{task_id}' in input")
-        new_ids.add(task_id)
-
-    # Validate parent references (can reference existing or new tasks)
-    all_valid_ids = existing_ids | new_ids
-    for task in new_tasks:
-        for parent_id in task.get("parents", []):
-            if parent_id not in all_valid_ids:
-                all_errors.append(f"Task '{task['id']}': Parent task not found: {parent_id}")
-
-    if all_errors:
-        print("Validation failed:", file=sys.stderr)
-        for error in all_errors:
-            print(error, file=sys.stderr)
-        return 1
-
-    # Add all tasks
-    existing_tasks.extend(new_tasks)
-    tasks_file = save_tasks(plan_dir, existing_tasks)
-
-    if not tasks_file:
-        print("No current phase - cannot determine tasks.json location", file=sys.stderr)
-        return 1
-
-    # Log the modification
-    task_ids = [t["id"] for t in new_tasks]
-    log_progress(plan_dir, f"TASKS_ADDED: {len(new_tasks)} tasks - {', '.join(task_ids)}")
-    print(f"Added {len(new_tasks)} tasks: {', '.join(task_ids)}")
-    print(f"Updated: {tasks_file}")
-
-    return 0
-
-
 def cmd_update_task_parents(args: argparse.Namespace) -> int:
     """Update a task's parent dependencies."""
     project_dir = get_project_dir()
@@ -4924,10 +4845,6 @@ def main() -> int:
     p_add_task = subparsers.add_parser("add-task", help="Add a task from JSON file or stdin")
     p_add_task.add_argument("json_file", help="JSON file with task definition, or '-' for stdin")
 
-    # add-bulk-tasks
-    p_add_bulk = subparsers.add_parser("add-bulk-tasks", help="Add multiple tasks from JSON array")
-    p_add_bulk.add_argument("json_file", help="JSON file with tasks array, or '-' for stdin")
-
     # update-task-parents
     p_update_parents = subparsers.add_parser("update-task-parents", help="Update task parent dependencies")
     p_update_parents.add_argument("task_id", help="Task ID to update")
@@ -5132,7 +5049,6 @@ def main() -> int:
         "check-confidence": cmd_check_confidence,
         "low-confidence-tasks": cmd_low_confidence_tasks,
         "add-task": cmd_add_task,
-        "add-bulk-tasks": cmd_add_bulk_tasks,
         "update-task-parents": cmd_update_task_parents,
         "update-task-steps": cmd_update_task_steps,
         "status": cmd_status,
