@@ -112,8 +112,9 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
             task_id=$(echo "$task_id" | tr -d ' ')
             if [[ -n "$task_id" ]]; then
                 # Read first line of blocker reason
-                BLOCKER_FILE="${ACTIVE_PLAN_DIR}/tasks/${task_id}/blockers.md"
-                if [[ -f "$BLOCKER_FILE" ]]; then
+                TASK_DIR=$(plan task-dir "$task_id" 2>/dev/null || echo "")
+                BLOCKER_FILE="${TASK_DIR}/blockers.md"
+                if [[ -n "$TASK_DIR" && -f "$BLOCKER_FILE" ]]; then
                     REASON=$(grep -A1 "## Why It Failed" "$BLOCKER_FILE" 2>/dev/null | tail -1 | head -c 80)
                     echo "- \`${task_id}\`:${task_desc}"
                     if [[ -n "$REASON" && "$REASON" != "## Why It Failed" ]]; then
@@ -202,8 +203,10 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
                     echo "\`\`\`"
                     echo "$TASK_PROGRESS"
                     echo "\`\`\`"
-                    PROGRESS_FILE="${ACTIVE_PLAN_DIR}/tasks/${task_id}/progress.txt"
-                    echo "_Continue logging to: \`${PROGRESS_FILE}\`_"
+                    TASK_DIR=$(plan task-dir "$task_id" 2>/dev/null || echo "")
+                    if [[ -n "$TASK_DIR" ]]; then
+                        echo "_Continue logging to: \`${TASK_DIR}/progress.txt\`_"
+                    fi
                 else
                     echo "_No progress logged yet_"
                 fi

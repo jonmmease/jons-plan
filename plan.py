@@ -21,6 +21,7 @@ from pathlib import Path
 PLUGIN_ROOT = Path(__file__).parent
 
 # Task schema documentation injected into phases with use_tasks=true
+# Keep in sync with schemas/tasks-schema.json
 TASK_SCHEMA = """
 ## Task Schema
 
@@ -30,12 +31,19 @@ Create `tasks.json` as a JSON array of task objects:
 |-------|----------|-------------|
 | `id` | Yes | Unique identifier (kebab-case) |
 | `description` | Yes | What the task accomplishes |
-| `parents` | Yes | Task IDs that must complete first (empty `[]` if none) |
-| `steps` | Yes | Array of concrete steps |
 | `status` | Yes | Always `"todo"` when creating |
+| `type` | No | Task type: `cache-reference`, `prototype` |
+| `steps` | No | Array of concrete steps |
+| `parents` | No | Task IDs that must complete first (empty `[]` if none) |
+| `context_artifacts` | No | Artifact names to include (e.g., `["request", "design"]`) |
 | `subagent` | No | Agent type: `general-purpose` (default), `Explore`, `gemini-reviewer`, `codex-reviewer` |
 | `subagent_prompt` | No | Additional context (e.g., `"very thorough analysis"`) |
 | `model` | No | `sonnet` (default), `haiku`, `opus` |
+| `question` | No | For prototype tasks: the question being answered |
+| `hypothesis` | No | For prototype tasks: expected outcome |
+| `inject_project_context` | No | Include project CLAUDE.md in task prompt (default: false) |
+| `resources` | No | Resource identifiers requiring exclusive access |
+| `cache_id` | No | Cache entry ID for cache-reference type tasks |
 
 ### Example
 ```json
@@ -65,6 +73,8 @@ Tasks without shared parents can run in parallel, but add parent dependencies wh
 - Tasks modify files in the same directory
 - Tasks edit the same config files
 - Tasks have logical ordering requirements
+
+Use `resources` field to serialize tasks that need exclusive access to shared resources.
 """.strip()
 
 
@@ -1720,9 +1730,12 @@ def cmd_set_status(args: argparse.Namespace) -> int:
 
     # Update status
     found_task["status"] = args.status
-    tasks_file = plan_dir / "tasks.json"
-    save_tasks(plan_dir, tasks)
-    print(f"Updated: {tasks_file}")
+    tasks_file = save_tasks(plan_dir, tasks)
+    if tasks_file:
+        print(f"Updated: {tasks_file}")
+    else:
+        print("Warning: No current phase - could not determine tasks.json location", file=sys.stderr)
+        return 1
     log_progress(plan_dir, f"TASK_STATUS: {args.task_id} -> {args.status}")
 
     # Write task-level progress entries
@@ -3476,6 +3489,7 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             },
             "reentry_context": reentry_context,
             "request": request_content,
+            "user_guidance": state.get("user_guidance", ""),
         }
         print(json.dumps(output, indent=2))
     else:
@@ -3512,6 +3526,14 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
         if reentry_context:
             print("## Re-entry Context")
             print(reentry_context)
+            print()
+
+        # User guidance (if set)
+        guidance = state.get("user_guidance", "")
+        if guidance:
+            print("## User Guidance")
+            print(f"_Provided when entering this phase:_")
+            print(guidance)
             print()
 
         # Input artifacts
@@ -3600,7 +3622,19 @@ def cmd_phase_summary(args: argparse.Namespace) -> int:
     # Show suggested next
     suggested = phase.get("suggested_next", [])
     if suggested:
-        print(f"Next: {', '.join(suggested)}")
+        next_labels = []
+        for item in suggested:
+            if isinstance(item, str):
+                next_labels.append(item)
+            elif isinstance(item, dict):
+                next_labels.append(item.get("phase", ""))
+        print(f"Next: {', '.join(next_labels)}")
+
+    # Show user guidance (truncated for summary)
+    guidance = state.get("user_guidance", "")
+    if guidance:
+        display = guidance[:200] + "..." if len(guidance) > 200 else guidance
+        print(f"User Guidance: {display}")
 
     return 0
 

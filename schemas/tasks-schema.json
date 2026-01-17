@@ -72,6 +72,10 @@
         "type": "array",
         "items": { "type": "string" },
         "description": "Resource identifiers requiring exclusive access. Tasks sharing resources are serialized."
+      },
+      "cache_id": {
+        "type": "integer",
+        "description": "Cache entry ID for cache-reference type tasks"
       }
     }
   }

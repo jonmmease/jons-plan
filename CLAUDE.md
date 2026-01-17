@@ -161,6 +161,12 @@ Subagents launched via the Task tool have access to:
 
 All commands: `uv run ~/.claude-plugins/jons-plan/plan.py <subcommand>`
 
+### CLI Notes
+
+The `status` command shows tasks from the **current phase only**. Each phase has its own `tasks.json`. To see all phase entries, use `phase-history`.
+
+User guidance is set via `/jons-plan:proceed <number> <guidance>` and persists until the next phase transition or explicit `clear-user-guidance` call.
+
 ### Plan Management
 | Command | Description |
 |---------|-------------|
