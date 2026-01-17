@@ -302,6 +302,7 @@ class WorkflowModel(QObject):
         self._phase_log_watcher = None  # QFileSystemWatcher for phase logs
         self._current_phase = None  # Track current phase for auto-follow
         self._full_phase_prompt = ""  # Full prompt from phase-context CLI
+        self._request_html = ""  # HTML-rendered request.md content
 
         # Theme mode: "system", "light", "dark"
         self._theme_mode = "system"
@@ -322,6 +323,7 @@ class WorkflowModel(QObject):
             self._plan_path / "state.json",
             self._plan_path / "workflow.toml",
             self._plan_path / "claude-progress.txt",
+            self._plan_path / "request.md",
         ]
         watch_dirs = []
 
@@ -443,6 +445,7 @@ class WorkflowModel(QObject):
         self._build_phase_details(workflow, state)
         self._build_phase_history(state)
         self._load_progress()
+        self._load_request()
 
         # Auto-follow current phase logic:
         # 1. On initial load (nothing selected), select current phase
@@ -488,6 +491,15 @@ class WorkflowModel(QObject):
             with open(state_path) as f:
                 return json.load(f)
         return {}
+
+    def _load_request(self) -> None:
+        """Load request.md and convert to HTML."""
+        request_path = self._plan_path / "request.md"
+        if request_path.exists():
+            content = request_path.read_text()
+            self._request_html = md_to_html(content)
+        else:
+            self._request_html = ""
 
     def _build_nodes(self, workflow: dict, state: dict, layout: dict) -> None:
         """Build node list with layout positions and status."""
@@ -853,6 +865,10 @@ class WorkflowModel(QObject):
     @Property(str, notify=selectedPhaseLogsChanged)
     def selectedPhaseLogs(self) -> str:
         return self._selected_phase_logs
+
+    @Property(str, notify=dataChanged)
+    def requestHtml(self) -> str:
+        return self._request_html
 
     @Property("QVariantList", notify=dataChanged)
     def progressEntries(self) -> list:

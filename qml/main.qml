@@ -23,11 +23,12 @@ ApplicationWindow {
 
     // Track which sections are expanded
     property bool flowchartExpanded: true
+    property bool requestExpanded: false  // Request accordion collapsed by default
     property bool historyExpanded: true
     property bool timelineExpanded: false
 
     // Computed: are all panels collapsed?
-    property bool allCollapsed: !flowchartExpanded && !historyExpanded && !timelineExpanded
+    property bool allCollapsed: !flowchartExpanded && !requestExpanded && !historyExpanded && !timelineExpanded
 
     // Header height for collapsed sections
     readonly property int sectionHeaderHeight: 32
@@ -119,6 +120,30 @@ ApplicationWindow {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: root.flowchartExpanded = true
+                    }
+                }
+
+                // Request button
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 80
+                    color: requestBtn.containsMouse ? Theme.hoverHighlight : "transparent"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Request"
+                        rotation: -90
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.Medium
+                        color: Theme.textPrimary
+                    }
+
+                    MouseArea {
+                        id: requestBtn
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.requestExpanded = true
                     }
                 }
 
@@ -261,9 +286,81 @@ ApplicationWindow {
                     }
                 }
 
-                // Section 2: Phase History
+                // Section 2: Request (collapsed by default)
                 Rectangle {
-                    SplitView.fillHeight: root.historyExpanded && !root.flowchartExpanded
+                    SplitView.fillHeight: root.requestExpanded && !root.flowchartExpanded
+                    SplitView.minimumHeight: root.sectionHeaderHeight
+                    SplitView.preferredHeight: root.requestExpanded ? 200 : root.sectionHeaderHeight
+                    color: Theme.bgPanel
+                    clip: true
+
+                    // Header
+                    Rectangle {
+                        id: requestHeader
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        height: root.sectionHeaderHeight
+                        color: requestHeaderMouse.containsMouse ? Theme.hoverHighlight : Theme.bgPanelHeader
+                        z: 1
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: Theme.spacingSmall
+                            anchors.rightMargin: Theme.spacingMedium
+                            spacing: Theme.spacingSmall
+
+                            Text {
+                                text: root.requestExpanded ? "▼" : "▶"
+                                font.pixelSize: 10
+                                color: Theme.textMuted
+                            }
+
+                            Text {
+                                text: "Request"
+                                font.pixelSize: Theme.fontSizeNormal
+                                font.weight: Font.Medium
+                                color: Theme.textPrimary
+                            }
+
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        MouseArea {
+                            id: requestHeaderMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.requestExpanded = !root.requestExpanded
+                        }
+                    }
+
+                    // Request content
+                    ScrollView {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: requestHeader.bottom
+                        anchors.bottom: parent.bottom
+                        visible: root.requestExpanded
+                        clip: true
+
+                        Text {
+                            width: parent.width - Theme.spacingMedium * 2
+                            x: Theme.spacingMedium
+                            y: Theme.spacingSmall
+                            text: workflowModel.requestHtml
+                            textFormat: Text.RichText
+                            wrapMode: Text.Wrap
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeNormal
+                            lineHeight: 1.4
+                        }
+                    }
+                }
+
+                // Section 3: Phase History
+                Rectangle {
+                    SplitView.fillHeight: root.historyExpanded && !root.flowchartExpanded && !root.requestExpanded
                     SplitView.minimumHeight: root.sectionHeaderHeight
                     SplitView.preferredHeight: root.historyExpanded ? 200 : root.sectionHeaderHeight
                     color: Theme.bgPanel
