@@ -2055,6 +2055,10 @@ def cmd_add_task(args: argparse.Namespace) -> int:
     tasks.append(new_task)
     tasks_file = save_tasks(plan_dir, tasks)
 
+    if not tasks_file:
+        print("No current phase - cannot determine tasks.json location", file=sys.stderr)
+        return 1
+
     # Log the modification
     log_progress(plan_dir, f"TASK_ADDED: {new_task['id']} - {new_task['description']}")
     print(f"Added task: {new_task['id']}")
@@ -2128,6 +2132,10 @@ def cmd_add_bulk_tasks(args: argparse.Namespace) -> int:
     # Add all tasks
     existing_tasks.extend(new_tasks)
     tasks_file = save_tasks(plan_dir, existing_tasks)
+
+    if not tasks_file:
+        print("No current phase - cannot determine tasks.json location", file=sys.stderr)
+        return 1
 
     # Log the modification
     task_ids = [t["id"] for t in new_tasks]
