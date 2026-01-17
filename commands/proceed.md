@@ -365,9 +365,32 @@ uv run ~/.claude-plugins/jons-plan/plan.py log "DECISION: Using JWT for auth. Co
 
 **Why this matters:** When a validation phase fails and loops back to research or implementation, these decision logs explain what was already tried and why. Without them, agents may repeat failed approaches.
 
+### CLAUDE.md Proposals
+
+When you discover patterns, gotchas, or conventions that would help future agents, write a `proposals.md` file in the task output directory:
+
+```bash
+TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
+# Write proposals to $TASK_DIR/proposals.md
+```
+
+**When to propose:**
+- Common patterns that should be documented
+- Gotchas or pitfalls that tripped you up
+- File organization conventions
+- Tool usage patterns specific to this project
+
+See `phase-context` output for the full proposal format.
+
 ## When All Tasks Complete
 
 After all tasks are `done`:
 1. Run any verification/tests if appropriate
-2. Summarize what was accomplished
-3. Ask user if they want to commit the changes
+2. Collect and present CLAUDE.md proposals (if any were written):
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py collect-proposals
+   uv run ~/.claude-plugins/jons-plan/plan.py list-proposals
+   ```
+   If proposals exist, present them to the user for approval before committing.
+3. Summarize what was accomplished
+4. Ask user if they want to commit the changes
