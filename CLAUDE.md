@@ -27,6 +27,7 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 | Workflow | Purpose |
 |----------|---------|
 | `implementation` | Build features, fix bugs |
+| `direct-implementation` | Simple plan-implement-verify (no research) |
 | `design` | Research, explore, produce design.md |
 | `design-and-implementation` | Design first, optionally implement |
 | `deep-implementation` | Thorough research + external review |

@@ -1,0 +1,120 @@
+# Direct Implementation Workflow
+# Simple plan-implement-verify workflow when research is not needed
+
+[workflow]
+name = "direct-implementation"
+description = "Simple plan-implement-verify workflow for familiar code changes"
+
+[[phases]]
+id = "plan"
+prompt = """
+# Plan Phase
+
+Create an implementation plan directly. This workflow assumes you already understand the codebase and requirements.
+
+## Tasks
+
+1. Break down the work into atomic, testable tasks
+2. Identify file dependencies and task ordering
+3. Consider which tasks can run in parallel
+
+## Outputs
+
+### implementation-plan.md
+- Task breakdown (descriptions, dependencies, steps)
+- Parallelization strategy
+- Any assumptions being made
+
+### verification-plan.md
+Create a verification plan based on what's available in the project:
+
+```markdown
+# Verification Plan
+
+## Automated Checks
+List specific commands to run:
+- [ ] `<command>` - <what it verifies>
+
+## Acceptance Criteria
+What must be true for implementation to be complete?
+```
+
+Record both artifacts:
+```bash
+uv run plan.py record-artifact implementation-plan implementation-plan.md
+uv run plan.py record-artifact verification-plan verification-plan.md
+```
+"""
+suggested_next = ["implement"]
+
+[[phases]]
+id = "implement"
+use_tasks = true
+supports_proposals = true
+on_blocked = "self"
+max_retries = 3
+prompt = """
+# Implement Phase
+
+Execute the implementation plan.
+
+## Setup
+1. Read the implementation plan from the plan phase
+2. Create tasks.json in this phase directory based on the plan
+3. All tasks start with `status: "todo"`
+
+## Task Execution
+1. Work through tasks in dependency order
+2. Set each task to in-progress before starting
+3. Mark tasks done immediately after completion
+4. Log progress for each significant step
+
+## Guidelines
+- Make minimal, focused changes
+- Don't over-engineer or add unnecessary features
+- Test changes as you go
+"""
+suggested_next = ["verify"]
+
+[[phases]]
+id = "verify"
+prompt = """
+# Verify Phase
+
+Verify the implementation meets requirements using the verification plan.
+
+## Execution
+
+### 1. Run Automated Checks
+Execute each command from the verification plan's "Automated Checks" section.
+
+### 2. Check Acceptance Criteria
+Verify each criterion from the verification plan is met.
+
+## Outcomes
+
+**All checks pass:** Transition to complete.
+
+**Checks fail:**
+- If fixable: Fix and re-run checks
+- If needs significant work: Transition back to implement with notes on what failed
+"""
+suggested_next = ["complete", "implement"]
+on_blocked = "implement"
+
+[[phases]]
+id = "complete"
+prompt = """
+# Complete Phase
+
+Finalize the implementation.
+
+## Final Tasks
+1. Review all changes made
+2. Ensure tests pass
+3. Prepare commit message summarizing changes
+4. Note any follow-up work needed
+
+This is a terminal phase. The workflow is complete.
+"""
+terminal = true

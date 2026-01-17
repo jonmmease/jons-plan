@@ -51,6 +51,7 @@ When no `--workflow` is specified, analyze the user's request and suggest a work
 | Pattern | Suggested Workflow | Examples |
 |---------|-------------------|----------|
 | Bug fix, error, issue | `implementation` | "fix the login bug", "resolve crash", "handle edge case" |
+| Quick fix, simple change, familiar code | `direct-implementation` | "rename this function", "add a field", "update the config" |
 | Design, architecture, RFC | `design` | "design auth system", "plan API structure", "evaluate options" |
 | Implement, add, build feature | `implementation` | "add dark mode", "implement caching", "build search" |
 | Review code changes, create PR | `code-review` | "review my changes", "audit security", "analyze branch" |
@@ -72,6 +73,7 @@ When no `--workflow` is specified, analyze the user's request and suggest a work
 ### Available Workflows
 Built-in workflows in `~/.claude-plugins/jons-plan/workflows/`:
 - `implementation` - Feature implementation with research and validation
+- `direct-implementation` - Simple plan-implement-verify for familiar code (no research)
 - `design` - Research and produce a design document
 - `design-and-implementation` - Design first, optionally implement after approval
 - `deep-implementation` - Complex features with thorough research and review
