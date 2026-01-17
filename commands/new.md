@@ -112,14 +112,23 @@ Built-in workflows in `~/.claude-plugins/jons-plan/workflows/`:
 Convert topic to kebab-case (e.g., "add user authentication" → "add-user-authentication")
 
 ### Step 3: Create Plan Infrastructure
-1. Ensure `.claude/jons-plan/` is in `.git/info/exclude` (do NOT modify `.gitignore`)
-2. Create directory: `.claude/jons-plan/plans/[name]/`
+
+**IMPORTANT:** Use git root (or cwd if not in a repo) to avoid creating `.claude/` in subdirectories:
+```bash
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+```
+
+1. If in a git repo, ensure `.claude/jons-plan/` is in `.git/info/exclude` (do NOT modify `.gitignore`)
+2. Create directory:
+   ```bash
+   mkdir -p "$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>"
+   ```
 3. Copy workflow.toml to plan directory:
    ```bash
-   cp ~/.claude-plugins/jons-plan/workflows/<name>.toml .claude/jons-plan/plans/<plan-name>/workflow.toml
+   cp ~/.claude-plugins/jons-plan/workflows/<name>.toml "$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>/workflow.toml"
    ```
-4. Create `request.md` with the user's request
-5. Create `claude-progress.txt` with initial entry
+4. Create `request.md` with the user's request (use absolute path: `$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>/request.md`)
+5. Create `claude-progress.txt` with initial entry (use absolute path)
 6. Set as active plan:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py set-active <plan-name>

@@ -1,7 +1,7 @@
 {
   "name": "jons-plan",
   "description": "Long-running agent harness with task management, progress tracking, and parallel task execution",
-  "version": "2.3.24",
+  "version": "2.3.25",
   "author": {
     "name": "Jon Mease"
   }

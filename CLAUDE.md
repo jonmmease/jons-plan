@@ -41,6 +41,8 @@ Workflow templates are in `~/.claude-plugins/jons-plan/workflows/`.
 
 ## Plan Structure
 
+**IMPORTANT:** The `.claude/` directory must be at the **git repository root** (or working directory if not in a repo), not in subdirectories. The CLI uses `git rev-parse --show-toplevel` (falling back to cwd) to locate plans. When creating plans, always use absolute paths based on `$(git rev-parse --show-toplevel 2>/dev/null || pwd)`.
+
 ```
 .claude/jons-plan/plans/[plan-name]/
 ├── workflow.toml        # Phase definitions
