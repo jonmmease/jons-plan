@@ -123,6 +123,23 @@ Rectangle {
                         }
                     }
 
+                    // Locks row (if task has locks)
+                    RowLayout {
+                        visible: Boolean(root.task && root.task.locks && root.task.locks.length > 0)
+                        spacing: Theme.spacingSmall
+
+                        Text {
+                            text: "🔒 Locks:"
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.textMuted
+                        }
+                        Text {
+                            text: root.task && root.task.locks ? root.task.locks.join(", ") : ""
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.textSecondary
+                        }
+                    }
+
                     // Prototype question/hypothesis (only for prototype tasks)
                     ColumnLayout {
                         Layout.fillWidth: true
@@ -173,37 +190,116 @@ Rectangle {
                 }
             }
 
-            // Prompt section
+            // Prompt section with Full/JSON toggle
             Rectangle {
+                id: promptSection
                 Layout.fillWidth: true
-                Layout.preferredHeight: promptSection.expanded ? promptContent.height + 32 + Theme.spacingSmall : 32
+                Layout.preferredHeight: promptSection.promptExpanded ? promptContent.contentHeight + 32 + Theme.spacingSmall * 2 : 32
                 color: Theme.bgPanel
                 clip: true
 
-                property bool expanded: root.promptExpanded
+                property bool promptExpanded: root.promptExpanded
+                property bool showFullPrompt: false
 
-                AccordionSection {
-                    id: promptSection
-                    anchors.fill: parent
-                    title: "Prompt"
-                    expanded: parent.expanded
-                    onToggled: root.promptExpanded = !root.promptExpanded
+                // Reset showFullPrompt when task changes
+                Connections {
+                    target: workflowModel
+                    function onSelectedTaskChanged() {
+                        promptSection.showFullPrompt = false
+                    }
+                }
 
-                    contentItem: [
-                        TextEdit {
-                            id: promptContent
-                            width: parent ? parent.width - Theme.spacingSmall * 2 : 100
-                            x: Theme.spacingSmall
-                            y: Theme.spacingTiny
-                            text: Theme.wrapHtml(workflowModel.selectedTaskPrompt || "<i>No prompt available</i>", Theme.textSecondary)
-                            textFormat: TextEdit.RichText
-                            font.pixelSize: Theme.fontSizeSmall
-                            wrapMode: Text.WordWrap
-                            readOnly: true
-                            selectByMouse: true
-                            selectionColor: Theme.textLink
+                // Prompt header with toggle
+                Rectangle {
+                    id: promptHeader
+                    width: parent.width
+                    height: 32
+                    color: promptHeaderMouse.containsMouse ? Theme.hoverHighlight : Theme.bgPanelHeader
+
+                    MouseArea {
+                        id: promptHeaderMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.promptExpanded = !root.promptExpanded
+                    }
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Theme.spacingSmall
+                        anchors.rightMargin: Theme.spacingSmall
+                        spacing: Theme.spacingSmall
+
+                        Text {
+                            text: promptSection.promptExpanded ? "▼" : "▶"
+                            font.pixelSize: 10
+                            color: Theme.textMuted
                         }
-                    ]
+                        Text {
+                            text: "Prompt"
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: Font.Medium
+                            color: Theme.textPrimary
+                        }
+                        Item { Layout.fillWidth: true }
+
+                        // Full/JSON toggle button
+                        Rectangle {
+                            visible: workflowModel.selectedTaskId !== ""
+                            width: promptToggleLabel.width + 16
+                            height: 18
+                            radius: 3
+                            color: promptToggleMouse.containsMouse ? Theme.bgPanelHeader : "transparent"
+                            border.width: 1
+                            border.color: promptSection.showFullPrompt ? Theme.textLink : Theme.textMuted
+
+                            Text {
+                                id: promptToggleLabel
+                                anchors.centerIn: parent
+                                text: promptSection.showFullPrompt ? "JSON" : "Full"
+                                font.pixelSize: 10
+                                color: promptSection.showFullPrompt ? Theme.textLink : Theme.textSecondary
+                            }
+                            MouseArea {
+                                id: promptToggleMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    promptSection.showFullPrompt = !promptSection.showFullPrompt
+                                    if (promptSection.showFullPrompt && workflowModel.fullTaskPromptHtml === "") {
+                                        workflowModel.loadFullTaskPrompt()
+                                    }
+                                }
+                            }
+
+                            ToolTip {
+                                visible: promptToggleMouse.containsMouse
+                                delay: 500
+                                text: promptSection.showFullPrompt ?
+                                    "Show task fields only" :
+                                    "Show full assembled prompt (includes artifacts and parent outputs)"
+                            }
+                        }
+                    }
+                }
+
+                TextEdit {
+                    id: promptContent
+                    anchors.top: promptHeader.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.margins: Theme.spacingSmall
+                    visible: promptSection.promptExpanded
+                    text: Theme.wrapHtml(promptSection.showFullPrompt ?
+                        workflowModel.fullTaskPromptHtml :
+                        (workflowModel.selectedTaskPrompt || "<i>No prompt available</i>"), Theme.textSecondary)
+                    textFormat: TextEdit.RichText
+                    font.pixelSize: Theme.fontSizeSmall
+                    wrapMode: Text.WordWrap
+                    readOnly: true
+                    selectByMouse: true
+                    selectionColor: Theme.textLink
                 }
             }
 

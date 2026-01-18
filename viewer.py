@@ -273,6 +273,7 @@ class WorkflowModel(QObject):
     selectedTaskPromptChanged = Signal()
     selectedTaskLogsChanged = Signal()
     selectedTaskFindingsChanged = Signal()
+    fullTaskPromptChanged = Signal()  # Emitted when full task prompt is loaded
     requestTabSwitch = Signal(int)  # Signal to switch tabs (0=Phase, 1=Tasks)
     themeModeChanged = Signal()  # Emitted when theme mode changes
     progressFilterChanged = Signal()  # Emitted when progress filter changes
@@ -296,6 +297,7 @@ class WorkflowModel(QObject):
         self._selected_task_prompt = ""  # Full task prompt from CLI
         self._selected_task_logs = ""  # Task progress.txt content
         self._selected_task_findings = []  # List of {name, content} dicts
+        self._full_task_prompt = ""  # Full assembled task prompt from CLI
         self._task_log_watcher = None  # QFileSystemWatcher for task logs
         self._selected_phase_artifacts = []  # List of {name, content, rawContent, isHtml}
         self._selected_phase_logs = ""  # Phase progress logs
@@ -916,6 +918,39 @@ class WorkflowModel(QObject):
     def selectedTaskFindings(self) -> list:
         return self._selected_task_findings
 
+    @Property(str, notify=fullTaskPromptChanged)
+    def fullTaskPromptHtml(self) -> str:
+        """Full assembled task prompt converted to HTML for rich text display."""
+        return md_to_html(self._full_task_prompt) if self._full_task_prompt else ""
+
+    @Slot()
+    def loadFullTaskPrompt(self) -> None:
+        """Load the full task prompt from CLI (called on demand from QML)."""
+        import subprocess
+
+        if not self._selected_task_id:
+            self._full_task_prompt = ""
+            self.fullTaskPromptChanged.emit()
+            return
+
+        try:
+            plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", str(Path(__file__).parent))
+            result = subprocess.run(
+                ["uv", "run", f"{plugin_root}/plan.py", "build-task-prompt", self._selected_task_id],
+                cwd=str(self._plan_path.parent.parent.parent),  # Project root
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                self._full_task_prompt = result.stdout
+            else:
+                self._full_task_prompt = f"Error loading full prompt: {result.stderr}"
+        except Exception as e:
+            self._full_task_prompt = f"Error loading full prompt: {e}"
+
+        self.fullTaskPromptChanged.emit()
+
     # Slots for QML actions
 
     @Slot(str)
@@ -1099,12 +1134,14 @@ class WorkflowModel(QObject):
     def _clear_task_data(self) -> None:
         """Clear all task-related data."""
         self._selected_task_prompt = ""
+        self._full_task_prompt = ""
         self._selected_task_logs = ""
         self._selected_task_findings = []
         if self._task_log_watcher:
             self._task_log_watcher.deleteLater()
             self._task_log_watcher = None
         self.selectedTaskPromptChanged.emit()
+        self.fullTaskPromptChanged.emit()
         self.selectedTaskLogsChanged.emit()
         self.selectedTaskFindingsChanged.emit()
 
