@@ -7,9 +7,11 @@ state management, logging, and validation.
 
 Protected files (always blocked):
 - state.json      - Workflow state (current phase, history)
-- workflow.toml   - Phase definitions
 - active-plan     - Active plan pointer
 - dead-ends.json  - Dead-end tracking
+
+Conditionally blocked:
+- workflow.toml   - Blocked during execution (proceed mode), allowed during plan creation
 
 Validated files (allowed if valid):
 - tasks.json      - Task definitions (validated against JSON schema)
@@ -30,9 +32,13 @@ except ImportError:
 # Files that are always blocked (must use CLI)
 ALWAYS_BLOCKED = {
     "state.json": "Use 'uv run plan.py enter-phase <phase>' to change phases",
-    "workflow.toml": "workflow.toml should not be modified during execution",
     "active-plan": "Use 'uv run plan.py set-active <plan-name>' to change active plan",
     "dead-ends.json": "Use 'uv run plan.py add-dead-end ...' to record dead ends",
+}
+
+# Files blocked only during execution (proceed mode)
+BLOCKED_DURING_EXECUTION = {
+    "workflow.toml": "workflow.toml should not be modified during task execution",
 }
 
 
@@ -40,6 +46,32 @@ def is_in_jons_plan_dir(file_path: str) -> bool:
     """Check if file is within a .claude/jons-plan/ directory."""
     normalized = os.path.normpath(file_path)
     return "/.claude/jons-plan/" in normalized or "\\.claude\\jons-plan\\" in normalized
+
+
+def get_jons_plan_root(file_path: str) -> Path | None:
+    """Find the .claude/jons-plan directory from a file path within it."""
+    path = Path(file_path).resolve()
+    # Walk up to find .claude/jons-plan
+    for parent in path.parents:
+        jons_plan_dir = parent / ".claude" / "jons-plan"
+        if jons_plan_dir.is_dir():
+            return jons_plan_dir
+    return None
+
+
+def get_session_mode(file_path: str) -> str | None:
+    """Get the current session mode from the jons-plan directory."""
+    jons_plan_dir = get_jons_plan_root(file_path)
+    if not jons_plan_dir:
+        return None
+
+    mode_file = jons_plan_dir / "session-mode"
+    if mode_file.exists():
+        try:
+            return mode_file.read_text().strip()
+        except OSError:
+            return None
+    return None
 
 
 def get_schema_path() -> Path | None:
@@ -171,6 +203,30 @@ def main():
             }
         }
         print(json.dumps(output))
+        sys.exit(0)
+
+    # Check if it's a file blocked only during execution (proceed mode)
+    if filename in BLOCKED_DURING_EXECUTION:
+        session_mode = get_session_mode(file_path)
+        if session_mode == "proceed":
+            cli_hint = BLOCKED_DURING_EXECUTION[filename]
+            operation = "rewrite" if tool_name == "Write" else "modify"
+
+            output = {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": (
+                        f"BLOCKED: Cannot {operation} '{filename}' during task execution.\n\n"
+                        f"This file is protected while in proceed mode.\n"
+                        f"Hint: {cli_hint}\n\n"
+                        f"See CLAUDE.md for workflow management commands."
+                    ),
+                }
+            }
+            print(json.dumps(output))
+            sys.exit(0)
+        # Not in proceed mode - allow the write
         sys.exit(0)
 
     # Special handling for tasks.json - validate and allow if valid
