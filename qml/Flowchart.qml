@@ -98,7 +98,7 @@ Item {
             visible: (modelData.svgPath || "").length > 0
 
             ShapePath {
-                strokeColor: Theme.edgeDefault
+                strokeColor: modelData.edgeType === "blocked" ? Theme.edgeBlocked : Theme.edgeDefault
                 strokeWidth: Theme.edgeWidth
                 fillColor: "transparent"
                 capStyle: ShapePath.RoundCap
@@ -208,13 +208,14 @@ Item {
             property var arrowEnd: modelData.arrowEnd
             property var prevPoint: modelData.prevPoint
             property bool valid: arrowEnd !== null && arrowEnd !== undefined
+            property bool isBlocked: modelData.edgeType === "blocked"
 
             visible: valid
 
             ShapePath {
                 id: arrowPath
                 strokeColor: "transparent"
-                fillColor: Theme.edgeDefault
+                fillColor: arrowShape.isBlocked ? Theme.edgeBlocked : Theme.edgeDefault
 
                 property real endX: arrowShape.valid ? arrowShape.arrowEnd.x * root.scale + root.offsetX : 0
                 property real endY: arrowShape.valid ? arrowShape.arrowEnd.y * root.scale + root.offsetY : 0

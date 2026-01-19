@@ -106,9 +106,14 @@ def compute_layout(workflow: dict) -> dict:
         label = phase_id.replace("-", " ").title()
         g.node(phase_id, label=label)
 
+    # Track edge types (normal vs blocked) for styling
+    edge_types: dict[tuple[str, str], str] = {}
+
     # Add transition edges (handle both string and object format)
     for phase in phases:
         phase_id = phase.get("id", "")
+        suggested_next_ids = set()
+
         for item in phase.get("suggested_next", []):
             # Extract phase ID from string or object format
             if isinstance(item, str):
@@ -120,6 +125,16 @@ def compute_layout(workflow: dict) -> dict:
             # Skip special transitions like __expand__
             if next_id and not next_id.startswith("__"):
                 g.edge(phase_id, next_id)
+                edge_types[(phase_id, next_id)] = "normal"
+                suggested_next_ids.add(next_id)
+
+        # Add on_blocked edge if not already in suggested_next
+        on_blocked = phase.get("on_blocked")
+        if on_blocked and on_blocked not in suggested_next_ids:
+            # Handle "self" as looping back to same phase
+            target = phase_id if on_blocked == "self" else on_blocked
+            g.edge(phase_id, target)
+            edge_types[(phase_id, target)] = "blocked"
 
     # Compute layout and parse JSON output
     try:
@@ -194,12 +209,16 @@ def compute_layout(workflow: dict) -> dict:
                 svg_path += f" L {curve_points[i]['x']},{curve_points[i]['y']}"
                 i += 1
 
+            # Look up edge type (normal or blocked)
+            edge_type = edge_types.get((source, target), "normal")
+
             edges.append({
                 "source": source,
                 "target": target,
                 "svgPath": svg_path,
                 "arrowEnd": spline_data.get("arrowEnd"),
                 "prevPoint": spline_data.get("prevPoint"),
+                "edgeType": edge_type,
             })
 
     return {"nodes": nodes, "edges": edges, "bounds": bounds}

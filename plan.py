@@ -3790,9 +3790,12 @@ def _render_vertical_diagram(phases: list[dict], phase_map: dict, current_phase:
     """Render workflow as vertical Unicode box diagram."""
     # Build transition graph (normalize to handle object format)
     transitions: dict[str, list[str]] = {}
+    on_blocked_transitions: dict[str, str] = {}
     for phase in phases:
         pid = phase["id"]
         transitions[pid] = _normalize_suggested_next(phase.get("suggested_next", []))
+        if phase.get("on_blocked"):
+            on_blocked_transitions[pid] = phase["on_blocked"]
 
     # Print each phase with unicode boxes
     for i, phase in enumerate(phases):
@@ -3826,16 +3829,36 @@ def _render_vertical_diagram(phases: list[dict], phase_map: dict, current_phase:
 
         # Show transitions (arrows)
         next_phases = transitions.get(pid, [])
-        if next_phases and not is_terminal:
-            if len(next_phases) == 1:
+        on_blocked = on_blocked_transitions.get(pid)
+
+        # Collect all transitions to show
+        all_transitions: list[tuple[str, str]] = []  # (target, label)
+        for np in next_phases:
+            all_transitions.append((np, ""))
+
+        # Add on_blocked if it's not already in suggested_next and not "self"
+        if on_blocked and on_blocked != "self" and on_blocked not in next_phases:
+            all_transitions.append((on_blocked, "[blocked]"))
+        elif on_blocked == "self":
+            all_transitions.append((pid, "[blocked→self]"))
+
+        # ANSI color codes
+        RED = "\033[31m"  # Dark red for blocked transitions
+        RESET = "\033[0m"
+
+        if all_transitions and not is_terminal:
+            if len(all_transitions) == 1 and not all_transitions[0][1]:
                 print(f"     │")
                 print(f"     ↓")
             else:
-                # Multiple transitions (branching)
+                # Multiple transitions (branching) or labeled transitions
                 print(f"     │")
-                for j, np in enumerate(next_phases):
-                    prefix = "├" if j < len(next_phases) - 1 else "└"
-                    print(f"     {prefix}──→ {np}")
+                for j, (target, label) in enumerate(all_transitions):
+                    prefix = "├" if j < len(all_transitions) - 1 else "└"
+                    if label:  # Blocked transition - render in red
+                        print(f"     {RED}{prefix}──→ {target} {label}{RESET}")
+                    else:
+                        print(f"     {prefix}──→ {target}")
         elif not is_terminal and i < len(phases) - 1:
             print(f"     │")
             print(f"     ↓")

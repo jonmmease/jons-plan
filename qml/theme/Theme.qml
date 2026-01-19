@@ -32,6 +32,7 @@ QtObject {
     // Edge colors
     property color edgeDefault: isDark ? "#6e7681" : "#78909c"
     property color edgeHover: isDark ? "#8b949e" : "#546e7a"
+    property color edgeBlocked: isDark ? "#b33a3a" : "#8b0000"  // Dark red/crimson for blocked transitions
 
     // Text colors
     property color textPrimary: isDark ? "#d4d4d4" : "#212121"
