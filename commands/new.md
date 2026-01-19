@@ -108,8 +108,16 @@ Built-in workflows in `~/.claude-plugins/jons-plan/workflows/`:
 - It's a simple bug fix with clear reproduction steps
 - User explicitly says "just do it, don't ask questions"
 
-### Step 2: Derive Plan Name
+### Step 2: Derive Plan Name and Set Active
 Convert topic to kebab-case (e.g., "add user authentication" → "add-user-authentication")
+
+**Immediately after deriving the plan name**, set it as active and set mode:
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py set-active <plan-name>
+uv run ~/.claude-plugins/jons-plan/plan.py set-mode new
+```
+
+This ensures the plan context is preserved if compaction occurs during plan creation.
 
 ### Step 3: Create Plan Infrastructure
 
@@ -129,10 +137,6 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
    ```
 4. Create `request.md` with the user's request (use absolute path: `$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>/request.md`)
 5. Create `claude-progress.txt` with initial entry (use absolute path)
-6. Set as active plan:
-   ```bash
-   uv run ~/.claude-plugins/jons-plan/plan.py set-active <plan-name>
-   ```
 
 ### Step 4: Initialize State Machine
 1. Initialize state.json with first phase

@@ -277,27 +277,87 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
             echo "**Commands:** \`/jons-plan:plan [feedback]\` to refine | \`/jons-plan:status\` to see all | \`/jons-plan:proceed\` to implement"
         fi
     elif [[ "$SESSION_MODE" == "new" ]]; then
-        # In planning mode - continue creating the plan
+        # In new mode - continue creating the plan
         echo "---"
-        echo "### Session Mode: Creating Plan"
+        echo "### Session Mode: Creating Plan (Resuming)"
         echo ""
-        echo "You were creating a new plan. **Do NOT execute tasks or modify code outside the plan directory.**"
+        echo "**You were in the middle of creating a new plan and should continue.**"
+        echo "**Do NOT execute tasks or modify code outside the plan directory.**"
         echo ""
-        echo "To continue:"
-        echo "1. Read \`request.md\` and check phase context from the plan directory"
-        echo "2. Check recent progress: \`uv run \${PLUGIN_ROOT}/plan.py recent-progress\`"
-        echo "3. Continue developing the plan following the \`/jons-plan:new\` workflow"
+
+        # MOST IMPORTANT: Show the user's original request/topic
+        COMMAND_ARGS_FILE="${PROJECT_DIR}/.claude/jons-plan/command-args"
+        if [[ -f "$COMMAND_ARGS_FILE" ]]; then
+            STORED_ARGS=$(cat "$COMMAND_ARGS_FILE")
+            if [[ -n "$STORED_ARGS" ]]; then
+                echo "### User's Original Request"
+                echo ""
+                echo "**Topic:** $STORED_ARGS"
+                echo ""
+            fi
+        fi
+
+        # Show plan progress log for context
+        PROGRESS_FILE="${ACTIVE_PLAN_DIR}/claude-progress.txt"
+        if [[ -f "$PROGRESS_FILE" ]]; then
+            echo "### Progress So Far"
+            echo "\`\`\`"
+            cat "$PROGRESS_FILE"
+            echo "\`\`\`"
+            echo ""
+        fi
+
+        # Inject the full /jons-plan:new instructions
+        echo "### Continue with /jons-plan:new Instructions"
+        echo ""
+        NEW_CMD_FILE="${PLUGIN_ROOT}/commands/new.md"
+        if [[ -f "$NEW_CMD_FILE" ]]; then
+            # Skip the frontmatter (--- ... ---)
+            tail -n +5 "$NEW_CMD_FILE"
+        else
+            echo "_Could not load new.md instructions_"
+        fi
     elif [[ "$SESSION_MODE" == "plan" ]]; then
-        # In refine mode - continue refining
+        # In plan mode - continue refining
         echo "---"
-        echo "### Session Mode: Refining Plan"
+        echo "### Session Mode: Refining Plan (Resuming)"
         echo ""
-        echo "You were refining the plan. **Do NOT execute tasks or modify code outside the plan directory.**"
+        echo "**You were in the middle of refining the plan and should continue.**"
+        echo "**Do NOT execute tasks or modify code outside the plan directory.**"
         echo ""
-        echo "To continue:"
-        echo "1. Read \`request.md\` and check phase context from the plan directory"
-        echo "2. Check recent progress: \`uv run \${PLUGIN_ROOT}/plan.py recent-progress\`"
-        echo "3. Continue refining following the \`/jons-plan:plan\` workflow"
+
+        # MOST IMPORTANT: Show the user's feedback/guidance
+        COMMAND_ARGS_FILE="${PROJECT_DIR}/.claude/jons-plan/command-args"
+        if [[ -f "$COMMAND_ARGS_FILE" ]]; then
+            STORED_ARGS=$(cat "$COMMAND_ARGS_FILE")
+            if [[ -n "$STORED_ARGS" ]]; then
+                echo "### User's Feedback"
+                echo ""
+                echo "**Guidance:** $STORED_ARGS"
+                echo ""
+            fi
+        fi
+
+        # Show plan progress log for context
+        PROGRESS_FILE="${ACTIVE_PLAN_DIR}/claude-progress.txt"
+        if [[ -f "$PROGRESS_FILE" ]]; then
+            echo "### Progress So Far"
+            echo "\`\`\`"
+            tail -20 "$PROGRESS_FILE"
+            echo "\`\`\`"
+            echo ""
+        fi
+
+        # Inject the full /jons-plan:plan instructions
+        echo "### Continue with /jons-plan:plan Instructions"
+        echo ""
+        PLAN_CMD_FILE="${PLUGIN_ROOT}/commands/plan.md"
+        if [[ -f "$PLAN_CMD_FILE" ]]; then
+            # Skip the frontmatter (--- ... ---)
+            tail -n +5 "$PLAN_CMD_FILE"
+        else
+            echo "_Could not load plan.md instructions_"
+        fi
     else
         # No mode set - show neutral commands
         echo "---"

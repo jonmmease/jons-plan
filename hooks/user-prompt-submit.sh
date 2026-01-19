@@ -39,13 +39,42 @@ if [[ -z "$ACTIVE_PLAN" && "$MESSAGE" != "/jons-plan:new"* ]]; then
     exit 0
 fi
 
+# Find project root (where .claude/ lives or should live)
+PROJECT_DIR="$(pwd)"
+while [[ "$PROJECT_DIR" != "/" ]]; do
+    if [[ -d "${PROJECT_DIR}/.claude" ]]; then
+        break
+    fi
+    PROJECT_DIR="$(dirname "$PROJECT_DIR")"
+done
+# If no .claude found, use current directory
+if [[ "$PROJECT_DIR" == "/" ]]; then
+    PROJECT_DIR="$(pwd)"
+fi
+JONS_PLAN_DIR="${PROJECT_DIR}/.claude/jons-plan"
+
 # Check for /jons-plan:* commands and set appropriate mode
 if [[ "$MESSAGE" == "/jons-plan:plan"* ]]; then
     plan set-mode plan 2>/dev/null || true
+    # Store the args (everything after "/jons-plan:plan ")
+    ARGS="${MESSAGE#/jons-plan:plan}"
+    ARGS="${ARGS# }"  # Trim leading space
+    mkdir -p "$JONS_PLAN_DIR"
+    echo "$ARGS" > "${JONS_PLAN_DIR}/command-args"
 elif [[ "$MESSAGE" == "/jons-plan:proceed"* ]]; then
     plan set-mode proceed 2>/dev/null || true
+    # Store the args (may include task count or guidance)
+    ARGS="${MESSAGE#/jons-plan:proceed}"
+    ARGS="${ARGS# }"
+    mkdir -p "$JONS_PLAN_DIR"
+    echo "$ARGS" > "${JONS_PLAN_DIR}/command-args"
 elif [[ "$MESSAGE" == "/jons-plan:new"* ]]; then
     plan set-mode new 2>/dev/null || true
+    # Store the args (the topic/request)
+    ARGS="${MESSAGE#/jons-plan:new}"
+    ARGS="${ARGS# }"  # Trim leading space
+    mkdir -p "$JONS_PLAN_DIR"
+    echo "$ARGS" > "${JONS_PLAN_DIR}/command-args"
 elif [[ "$MESSAGE" == "/jons-plan:switch"* ]] || [[ "$MESSAGE" == "/jons-plan:status"* ]]; then
     # Informational commands - don't change mode
     :
