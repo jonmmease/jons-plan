@@ -11,6 +11,7 @@ use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
 max_iterations = 4
+required_artifacts = ["research"]
 prompt = """
 # Research Phase
 
@@ -62,6 +63,7 @@ suggested_next = ["research", "draft"]
 
 [[phases]]
 id = "draft"
+required_artifacts = ["design", "verification-plan"]
 prompt = """
 # Draft Phase
 
@@ -103,12 +105,6 @@ If MCP tools are available (browser, API, etc.):
 Specific criteria that must be true:
 - [ ] <criterion derived from requirements>
 - [ ] <criterion derived from design>
-```
-
-Record artifacts (use filename only, relative to current phase directory):
-```bash
-uv run plan.py record-artifact design design.md
-uv run plan.py record-artifact verification-plan verification-plan.md
 ```
 """
 suggested_next = ["review"]

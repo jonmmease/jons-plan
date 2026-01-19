@@ -129,6 +129,7 @@ Each `[[phases]]` entry supports these fields:
 | `terminal` | bool | No | If true, workflow ends at this phase |
 | `use_tasks` | bool | No | Phase uses tasks.json for work breakdown |
 | `requires_user_input` | bool | No | Stop and wait for user before proceeding |
+| `required_artifacts` | array | No | Artifact names that must be recorded before leaving phase |
 | `on_blocked` | string | No | Phase to transition to when blocked ("self" or phase ID) |
 | `max_retries` | int | No | Max re-entries before requiring user intervention |
 | `max_iterations` | int | No | Legacy: max iterations for research loops |

@@ -737,6 +737,17 @@ class WorkflowManager:
             return phase.get("max_retries")
         return None
 
+    def get_required_artifacts(self, phase_id: str) -> list[str]:
+        """Get required artifacts for a phase.
+
+        Returns list of artifact names that must be recorded before
+        transitioning out of this phase. Empty list if none required.
+        """
+        phase = self.get_phase(phase_id)
+        if phase:
+            return phase.get("required_artifacts", [])
+        return []
+
     def get_workflow_name(self) -> str:
         """Get the workflow name."""
         if not self.exists():
@@ -866,7 +877,7 @@ class WorkflowManager:
             "id", "prompt", "suggested_next", "terminal", "use_tasks",
             "requires_user_input", "on_blocked", "max_retries", "max_iterations",
             "supports_proposals", "supports_prototypes", "supports_cache_reference",
-            "expand_prompt",
+            "expand_prompt", "required_artifacts",
         }
         # Valid keys in suggested_next objects
         VALID_TRANSITION_KEYS = {"phase", "requires_approval", "approval_prompt"}
@@ -2714,6 +2725,36 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
     state_mgr = StateManager(plan_dir)
     state = state_mgr.load()
 
+    # Check required_artifacts for the current phase (if any) before allowing transition
+    current_phase = state.get("current_phase")
+    if current_phase:
+        required_artifacts = workflow_mgr.get_required_artifacts(current_phase)
+        if required_artifacts:
+            # Get artifacts recorded for the current phase entry
+            current_entry = None
+            for entry in reversed(state.get("phase_history", [])):
+                if entry.get("entry") == state.get("current_phase_entry"):
+                    current_entry = entry
+                    break
+
+            recorded = set((current_entry or {}).get("artifacts", {}).keys())
+            missing = [a for a in required_artifacts if a not in recorded]
+
+            if missing:
+                print(
+                    f"Error: Cannot leave phase '{current_phase}' - missing required artifacts:",
+                    file=sys.stderr,
+                )
+                for artifact in missing:
+                    print(f"  - {artifact}", file=sys.stderr)
+                print("", file=sys.stderr)
+                print("Record each artifact before transitioning:", file=sys.stderr)
+                print("  uv run plan.py record-artifact <name> <filename>", file=sys.stderr)
+                print("", file=sys.stderr)
+                print("Example:", file=sys.stderr)
+                print(f"  uv run plan.py record-artifact {missing[0]} {missing[0]}.md", file=sys.stderr)
+                return 1
+
     # Count existing entries for this phase (for re-entry detection)
     prev_entries = [
         e for e in state.get("phase_history", []) if e["phase"] == args.phase_id
@@ -3592,6 +3633,7 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
     if args.json:
         use_tasks = workflow_mgr.uses_tasks(current_phase)
         assembled_prompts = get_assembled_prompts(workflow_mgr, current_phase)
+        required_artifacts = workflow_mgr.get_required_artifacts(current_phase)
         output = {
             "phase_id": current_phase,
             "phase_dir": str(plan_dir / current_phase_dir) if current_phase_dir else None,
@@ -3602,6 +3644,7 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             "task_schema": TASK_SCHEMA if use_tasks else None,
             "assembled_prompts": assembled_prompts if assembled_prompts else None,
             "suggested_next": phase.get("suggested_next", []),
+            "required_artifacts": required_artifacts if required_artifacts else None,
             "input_artifacts": {
                 "found": [str(p) for p in found],
                 "missing": missing,
@@ -3666,6 +3709,21 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
                 print("Missing:", file=sys.stderr)
                 for path in missing:
                     print(f"  - {path}", file=sys.stderr)
+            print()
+
+        # Required artifacts (must be recorded before transitioning)
+        required_artifacts = workflow_mgr.get_required_artifacts(current_phase)
+        if required_artifacts:
+            print("## Required Artifacts")
+            print()
+            print("**IMPORTANT:** Before transitioning to the next phase, you MUST record these artifacts:")
+            print()
+            for artifact in required_artifacts:
+                print(f"```bash")
+                print(f"uv run plan.py record-artifact {artifact} {artifact}.md")
+                print(f"```")
+            print()
+            print("The transition will fail if any required artifacts are missing.")
             print()
 
         # Next phases

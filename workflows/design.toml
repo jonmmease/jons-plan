@@ -11,6 +11,7 @@ use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
 max_iterations = 4
+required_artifacts = ["research"]
 prompt = """
 # Research Phase
 
@@ -57,6 +58,7 @@ suggested_next = ["research", "draft"]
 
 [[phases]]
 id = "draft"
+required_artifacts = ["design"]
 prompt = """
 # Draft Phase
 

@@ -107,6 +107,7 @@ description = "What it does"     # Optional
 | `terminal` | bool | If true, workflow ends here |
 | `use_tasks` | bool | Phase uses tasks.json |
 | `requires_user_input` | bool | Stop for user approval |
+| `required_artifacts` | array | Artifact names that must be recorded before leaving this phase |
 | `on_blocked` | string | Phase to go to when blocked (`"self"` or phase ID) |
 | `max_retries` | int | Max re-entries before escalation |
 | `supports_proposals` | bool | Enable CLAUDE.md proposals |

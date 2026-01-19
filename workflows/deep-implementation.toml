@@ -7,6 +7,7 @@ description = "Complex features requiring thorough exploration and multi-round f
 
 [[phases]]
 id = "research-planning"
+required_artifacts = ["research-plan"]
 prompt = """
 # Research Planning Phase
 
@@ -56,6 +57,7 @@ use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
 max_iterations = 4
+required_artifacts = ["research-findings"]
 prompt = """
 # Research Phase
 
@@ -103,6 +105,7 @@ suggested_next = ["research", "synthesize"]
 
 [[phases]]
 id = "synthesize"
+required_artifacts = ["implementation-plan", "verification-plan"]
 prompt = """
 # Synthesize Phase
 
@@ -191,12 +194,6 @@ Analyze and document:
 
 ## Acceptance Criteria
 - <criterion from request>
-```
-
-Record both artifacts (use filename only, relative to current phase directory):
-```bash
-uv run plan.py record-artifact implementation-plan implementation-plan.md
-uv run plan.py record-artifact verification-plan verification-plan.md
 ```
 """
 suggested_next = ["external-review"]

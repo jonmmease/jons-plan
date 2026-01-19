@@ -11,6 +11,7 @@ use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
 max_iterations = 4
+required_artifacts = ["research"]
 prompt = """
 # Research Phase
 
@@ -36,6 +37,7 @@ suggested_next = ["research", "plan"]
 id = "plan"
 use_tasks = true
 requires_user_input = true
+required_artifacts = ["implementation-plan", "verification-plan"]
 prompt = """
 # Plan Phase
 
@@ -83,12 +85,6 @@ If browser/UI MCP servers are available, list verification steps:
 
 ## Acceptance Criteria
 What must be true for implementation to be complete?
-```
-
-Record both artifacts (use filename only, relative to current phase directory):
-```bash
-uv run plan.py record-artifact implementation-plan implementation-plan.md
-uv run plan.py record-artifact verification-plan verification-plan.md
 ```
 
 Note: The implement phase will create its own tasks.json from the implementation plan.
