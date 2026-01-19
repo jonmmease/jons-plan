@@ -102,6 +102,131 @@ suggested_next = [
 
 Use object format for loopback transitions (e.g., validate → research when issues found).
 
+## Workflow Schema Reference
+
+The `workflow.toml` file defines phases and transitions. **Only use the fields documented below** - unknown fields will cause validation errors.
+
+### Top-level Structure
+
+```toml
+[workflow]
+name = "workflow-name"           # Required: workflow identifier
+description = "What it does"     # Optional: human-readable description
+
+[[phases]]                       # Required: array of phase definitions
+# ... phase fields ...
+```
+
+### Phase Fields
+
+Each `[[phases]]` entry supports these fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Unique phase identifier (kebab-case) |
+| `prompt` | string | Yes | Instructions for this phase |
+| `suggested_next` | array | No | Valid transitions (strings or objects) |
+| `terminal` | bool | No | If true, workflow ends at this phase |
+| `use_tasks` | bool | No | Phase uses tasks.json for work breakdown |
+| `requires_user_input` | bool | No | Stop and wait for user before proceeding |
+| `on_blocked` | string | No | Phase to transition to when blocked ("self" or phase ID) |
+| `max_retries` | int | No | Max re-entries before requiring user intervention |
+| `max_iterations` | int | No | Legacy: max iterations for research loops |
+| `supports_proposals` | bool | No | Enable CLAUDE.md improvement proposals |
+| `supports_prototypes` | bool | No | Enable prototype tasks |
+| `supports_cache_reference` | bool | No | Enable research cache lookups |
+| `expand_prompt` | string | No | Instructions for dynamic phase expansion |
+
+### Transition Format
+
+The `suggested_next` array accepts two formats:
+
+```toml
+# Simple string transitions
+suggested_next = ["implement", "plan"]
+
+# Object transitions (for approval requirements)
+suggested_next = [
+    "implement",
+    { phase = "research", requires_approval = true, approval_prompt = "Return to research?" }
+]
+
+# Special values
+suggested_next = ["__expand__", "complete"]  # Dynamic expansion
+```
+
+### Example Workflow
+
+```toml
+[workflow]
+name = "implementation"
+description = "Feature implementation with validation"
+
+[[phases]]
+id = "research"
+use_tasks = true
+prompt = """
+Research the codebase...
+"""
+suggested_next = ["plan"]
+
+[[phases]]
+id = "plan"
+requires_user_input = true
+prompt = """
+Create implementation plan...
+"""
+suggested_next = ["implement", "plan"]
+
+[[phases]]
+id = "implement"
+use_tasks = true
+on_blocked = "self"
+max_retries = 3
+prompt = """
+Execute the plan...
+"""
+suggested_next = [
+    "validate",
+    { phase = "plan", requires_approval = true, approval_prompt = "Return to planning?" }
+]
+
+[[phases]]
+id = "validate"
+prompt = """
+Verify implementation...
+"""
+suggested_next = ["complete", "implement"]
+on_blocked = "implement"
+
+[[phases]]
+id = "complete"
+terminal = true
+prompt = """
+Finalize...
+"""
+```
+
+### Invalid Patterns
+
+**DO NOT use these patterns** - they will cause errors:
+
+```toml
+# WRONG: Nested transitions table (doesn't exist)
+[[phases.transitions]]
+trigger = "done"
+target = "next-phase"
+
+# WRONG: Unknown phase fields
+[[phases]]
+id = "research"
+transitions = [...]  # Not a valid field
+
+# WRONG: Missing required fields
+[[phases]]
+prompt = "Do something"  # Missing 'id'
+```
+
 ## Task Schema
 
 Tasks in `tasks.json` support these fields:

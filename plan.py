@@ -836,6 +836,71 @@ class WorkflowManager:
         """Clear cached workflow to force reload."""
         self._workflow = None
 
+    def validate_schema(self) -> list[str]:
+        """Validate workflow.toml schema - check for unknown/invalid fields.
+
+        Returns list of error strings for unknown fields.
+        """
+        errors = []
+        if not self.exists():
+            return errors
+
+        workflow = self.load()
+
+        # Valid top-level keys
+        VALID_TOP_LEVEL = {"workflow", "phases"}
+        for key in workflow.keys():
+            if key not in VALID_TOP_LEVEL:
+                errors.append(f"Unknown top-level key: '{key}' (valid: {VALID_TOP_LEVEL})")
+
+        # Valid [workflow] section keys
+        VALID_WORKFLOW_KEYS = {"name", "description"}
+        workflow_section = workflow.get("workflow", {})
+        if isinstance(workflow_section, dict):
+            for key in workflow_section.keys():
+                if key not in VALID_WORKFLOW_KEYS:
+                    errors.append(f"Unknown [workflow] key: '{key}' (valid: {VALID_WORKFLOW_KEYS})")
+
+        # Valid [[phases]] keys
+        VALID_PHASE_KEYS = {
+            "id", "prompt", "suggested_next", "terminal", "use_tasks",
+            "requires_user_input", "on_blocked", "max_retries", "max_iterations",
+            "supports_proposals", "supports_prototypes", "supports_cache_reference",
+            "expand_prompt",
+        }
+        # Valid keys in suggested_next objects
+        VALID_TRANSITION_KEYS = {"phase", "requires_approval", "approval_prompt"}
+
+        phases = workflow.get("phases", [])
+        if not isinstance(phases, list):
+            errors.append(f"'phases' must be an array, got {type(phases).__name__}")
+            return errors
+
+        for i, phase in enumerate(phases):
+            if not isinstance(phase, dict):
+                errors.append(f"Phase {i} must be a table, got {type(phase).__name__}")
+                continue
+
+            phase_id = phase.get("id", f"<index {i}>")
+            for key in phase.keys():
+                if key not in VALID_PHASE_KEYS:
+                    errors.append(f"Phase '{phase_id}' has unknown key: '{key}' (valid: {sorted(VALID_PHASE_KEYS)})")
+
+            # Check required fields
+            if "id" not in phase:
+                errors.append(f"Phase at index {i} missing required 'id' field")
+            if "prompt" not in phase:
+                errors.append(f"Phase '{phase_id}' missing required 'prompt' field")
+
+            # Validate suggested_next items
+            for item in phase.get("suggested_next", []):
+                if isinstance(item, dict):
+                    for key in item.keys():
+                        if key not in VALID_TRANSITION_KEYS:
+                            errors.append(f"Phase '{phase_id}' suggested_next has unknown key: '{key}' (valid: {VALID_TRANSITION_KEYS})")
+
+        return errors
+
     def validate_expandable(self) -> list[str]:
         """Validate expandable phase configuration.
 
@@ -4906,7 +4971,10 @@ def cmd_validate_workflow(args: argparse.Namespace) -> int:
 
     errors = []
 
-    # Run existing validation
+    # Run schema validation first (catches unknown fields)
+    errors.extend(workflow_mgr.validate_schema())
+
+    # Run phase reference validation
     errors.extend(workflow_mgr.validate_phase_references())
 
     # Run expandable validation

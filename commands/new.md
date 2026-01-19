@@ -83,6 +83,50 @@ Built-in workflows in `~/.claude-plugins/jons-plan/workflows/`:
 - `tech-docs-review` - Review RFCs, design docs, proposals
 - `dynamic` - Research-first workflow where phases are generated based on codebase exploration
 
+### Workflow Schema (for custom workflows)
+
+When creating a custom workflow, read the template workflow closest to your needs (in `~/.claude-plugins/jons-plan/workflows/`) as a reference. Use ONLY the fields documented below.
+
+#### Top-level Structure
+```toml
+[workflow]
+name = "workflow-name"           # Required
+description = "What it does"     # Optional
+
+[[phases]]                       # Required: array of phases
+# phase fields...
+```
+
+#### Valid Phase Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | **Required.** Unique phase identifier (kebab-case) |
+| `prompt` | string | **Required.** Instructions for this phase |
+| `suggested_next` | array | Valid transitions - strings or `{ phase = "id", requires_approval = true, approval_prompt = "..." }` |
+| `terminal` | bool | If true, workflow ends here |
+| `use_tasks` | bool | Phase uses tasks.json |
+| `requires_user_input` | bool | Stop for user approval |
+| `on_blocked` | string | Phase to go to when blocked (`"self"` or phase ID) |
+| `max_retries` | int | Max re-entries before escalation |
+| `supports_proposals` | bool | Enable CLAUDE.md proposals |
+| `supports_prototypes` | bool | Enable prototype tasks |
+| `expand_prompt` | string | For dynamic phase expansion |
+
+#### INVALID Patterns (DO NOT USE)
+
+```toml
+# WRONG - nested tables don't exist
+[[phases.transitions]]
+trigger = "done"
+target = "next"
+
+# WRONG - unknown fields
+[[phases]]
+id = "foo"
+transitions = [...]  # NOT a valid field
+```
+
 ## Plan Creation Steps
 
 ### Step 1: Clarify Requirements
