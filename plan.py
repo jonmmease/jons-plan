@@ -3796,6 +3796,40 @@ def cmd_phase_tasks(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_check_tasks_required(args: argparse.Namespace) -> int:
+    """Check if current phase requires tasks but none exist.
+
+    Exit codes:
+        0 - Phase doesn't require tasks OR tasks exist
+        1 - Phase requires tasks (use_tasks=true) but no tasks.json
+    """
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        return 0  # No plan, nothing to check
+
+    workflow_mgr = WorkflowManager(plan_dir)
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    current_phase = state.get("current_phase")
+
+    if not current_phase:
+        return 0
+
+    # Check if phase has use_tasks=true
+    if not workflow_mgr.uses_tasks(current_phase):
+        return 0  # Phase doesn't require tasks
+
+    # Check if tasks.json exists and has tasks
+    tasks = get_tasks(plan_dir)
+    if tasks:
+        return 0  # Tasks exist
+
+    # Phase requires tasks but none exist
+    print(f"Phase '{current_phase}' has use_tasks=true but no tasks.json")
+    return 1
+
+
 def cmd_phase_next_tasks(args: argparse.Namespace) -> int:
     """List available tasks in current phase."""
     project_dir = get_project_dir()
@@ -5204,6 +5238,8 @@ def main() -> int:
 
     subparsers.add_parser("phase-next-tasks", help="List available tasks in current phase")
 
+    subparsers.add_parser("check-tasks-required", help="Check if phase requires tasks but none exist (exit 1 if missing)")
+
     # Workflow diagram
     p_diagram = subparsers.add_parser("workflow-diagram", help="Display ASCII diagram of workflow")
     p_diagram.add_argument("--flow", choices=["east", "south"], default="south", help="Direction (default: south)")
@@ -5335,6 +5371,7 @@ def main() -> int:
         "phase-tasks-file": cmd_phase_tasks_file,
         "phase-tasks": cmd_phase_tasks,
         "phase-next-tasks": cmd_phase_next_tasks,
+        "check-tasks-required": cmd_check_tasks_required,
         # Workflow diagram
         "workflow-diagram": cmd_workflow_diagram,
         # Research cache commands
