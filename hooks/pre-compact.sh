@@ -50,22 +50,6 @@ echo ""
 plan phase-summary 2>/dev/null || echo "_No current phase_"
 echo ""
 
-# Check if phase requires tasks but none exist
-if ! plan check-tasks-required 2>/dev/null; then
-    CURRENT_PHASE=$(plan current-phase 2>/dev/null || echo "")
-    echo "### ⚠️ TASKS REQUIRED"
-    echo ""
-    echo "Phase \`${CURRENT_PHASE}\` has \`use_tasks = true\` but no tasks.json exists."
-    echo ""
-    echo "**Before implementing anything**, you MUST:"
-    echo "1. Run \`uv run ~/.claude-plugins/jons-plan/plan.py phase-context\` to see the phase prompt"
-    echo "2. Create tasks in tasks.json for this phase"
-    echo "3. Execute tasks using the Task Execution Loop"
-    echo ""
-    echo "**Do NOT start implementing without creating tasks first.**"
-    echo ""
-fi
-
 # Mode-specific context injection
 if [[ "$SESSION_MODE" == "new" ]]; then
     # Creating a new plan - inject full instructions
