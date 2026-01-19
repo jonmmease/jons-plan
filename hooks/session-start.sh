@@ -253,42 +253,44 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
             echo ""
             echo "Implementation cannot continue due to blocked tasks."
             echo "**Run \`/jons-plan:plan\` to address the blockers before proceeding.**"
-        elif [[ -n "$IN_PROGRESS" ]]; then
-            # Tasks were in-progress when session ended - must resume
-            echo "---"
-            echo "### ⚠️ AUTO-RESUME REQUIRED"
-            echo ""
-            echo "Tasks were in-progress when the previous session ended."
-            echo "**You MUST immediately run \`/jons-plan:proceed\` to continue implementation.**"
-            echo ""
-            echo "Do not wait for user input. Run the command now."
-        elif [[ -n "$NEXT_TASKS" ]]; then
-            # In proceed mode with available tasks - continue
-            echo "---"
-            echo "### ⚠️ AUTO-RESUME REQUIRED"
-            echo ""
-            echo "Implementation was in progress. Tasks are available to continue."
-            echo "**You MUST immediately run \`/jons-plan:proceed\` to continue implementation.**"
-            echo ""
-            echo "Do not wait for user input. Run the command now."
-        elif ! plan check-tasks-required 2>/dev/null; then
-            # Phase requires tasks but none exist
-            CURRENT_PHASE=$(plan current-phase 2>/dev/null || echo "")
-            echo "---"
-            echo "### ⚠️ TASKS REQUIRED"
-            echo ""
-            echo "Phase \`${CURRENT_PHASE}\` has \`use_tasks = true\` but no tasks.json exists."
-            echo ""
-            echo "**Before implementing anything**, you MUST:"
-            echo "1. Run \`uv run ~/.claude-plugins/jons-plan/plan.py phase-context\` to see the phase prompt"
-            echo "2. Create tasks in tasks.json for this phase"
-            echo "3. Execute tasks using the Task Execution Loop"
-            echo ""
-            echo "**Do NOT start implementing without creating tasks first.**"
         else
-            # In proceed mode but no tasks - show commands
+            # In proceed mode - continue implementing
             echo "---"
-            echo "**Commands:** \`/jons-plan:plan [feedback]\` to refine | \`/jons-plan:status\` to see all | \`/jons-plan:proceed\` to implement"
+            echo "### Session Mode: Implementing Tasks (Resuming)"
+            echo ""
+            echo "**You were in the middle of implementing tasks and should continue.**"
+            echo ""
+
+            if [[ -n "$IN_PROGRESS" ]]; then
+                echo "**Status:** Tasks were in-progress when the previous session ended."
+            elif [[ -n "$NEXT_TASKS" ]]; then
+                echo "**Status:** Tasks are available to continue."
+            elif ! plan check-tasks-required 2>/dev/null; then
+                CURRENT_PHASE=$(plan current-phase 2>/dev/null || echo "")
+                echo "**Status:** Phase \`${CURRENT_PHASE}\` requires tasks but none exist yet."
+            fi
+            echo ""
+
+            # Show plan progress log for context
+            PROGRESS_FILE="${ACTIVE_PLAN_DIR}/claude-progress.txt"
+            if [[ -f "$PROGRESS_FILE" ]]; then
+                echo "### Plan Progress"
+                echo "\`\`\`"
+                tail -10 "$PROGRESS_FILE"
+                echo "\`\`\`"
+                echo ""
+            fi
+
+            # Inject the full /jons-plan:proceed instructions
+            echo "### Continue with /jons-plan:proceed Instructions"
+            echo ""
+            PROCEED_CMD_FILE="${PLUGIN_ROOT}/commands/proceed.md"
+            if [[ -f "$PROCEED_CMD_FILE" ]]; then
+                # Skip the frontmatter (--- ... ---)
+                tail -n +5 "$PROCEED_CMD_FILE"
+            else
+                echo "_Could not load proceed.md instructions_"
+            fi
         fi
     elif [[ "$SESSION_MODE" == "new" ]]; then
         # In new mode - continue creating the plan
