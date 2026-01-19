@@ -748,6 +748,17 @@ class WorkflowManager:
             return phase.get("required_artifacts", [])
         return []
 
+    def get_context_artifacts(self, phase_id: str) -> list[str]:
+        """Get context artifacts for a phase.
+
+        Returns list of artifact names that should be injected into
+        the phase context from upstream phases. Empty list if none needed.
+        """
+        phase = self.get_phase(phase_id)
+        if phase:
+            return phase.get("context_artifacts", [])
+        return []
+
     def get_workflow_name(self) -> str:
         """Get the workflow name."""
         if not self.exists():
@@ -877,7 +888,7 @@ class WorkflowManager:
             "id", "prompt", "suggested_next", "terminal", "use_tasks",
             "requires_user_input", "on_blocked", "max_retries", "max_iterations",
             "supports_proposals", "supports_prototypes", "supports_cache_reference",
-            "expand_prompt", "required_artifacts",
+            "expand_prompt", "required_artifacts", "context_artifacts",
         }
         # Valid keys in suggested_next objects
         VALID_TRANSITION_KEYS = {"phase", "requires_approval", "approval_prompt"}
@@ -3634,6 +3645,21 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
         use_tasks = workflow_mgr.uses_tasks(current_phase)
         assembled_prompts = get_assembled_prompts(workflow_mgr, current_phase)
         required_artifacts = workflow_mgr.get_required_artifacts(current_phase)
+        phase_context_artifacts = workflow_mgr.get_context_artifacts(current_phase)
+
+        # Resolve context artifacts content
+        context_artifacts_content = {}
+        if phase_context_artifacts:
+            all_artifacts = resolver.resolve_all(exclude_current=True)
+            for artifact_name in phase_context_artifacts:
+                if artifact_name in all_artifacts:
+                    artifact_path = all_artifacts[artifact_name]
+                    if artifact_path.exists():
+                        context_artifacts_content[artifact_name] = {
+                            "path": str(artifact_path),
+                            "content": artifact_path.read_text().strip(),
+                        }
+
         output = {
             "phase_id": current_phase,
             "phase_dir": str(plan_dir / current_phase_dir) if current_phase_dir else None,
@@ -3645,6 +3671,7 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             "assembled_prompts": assembled_prompts if assembled_prompts else None,
             "suggested_next": phase.get("suggested_next", []),
             "required_artifacts": required_artifacts if required_artifacts else None,
+            "context_artifacts": context_artifacts_content if context_artifacts_content else None,
             "input_artifacts": {
                 "found": [str(p) for p in found],
                 "missing": missing,
@@ -3672,6 +3699,29 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             print("## Phase Prompt")
             print(prompt)
             print()
+
+        # Context artifacts (injected from upstream phases)
+        phase_context_artifacts = workflow_mgr.get_context_artifacts(current_phase)
+        if phase_context_artifacts:
+            all_artifacts = resolver.resolve_all(exclude_current=True)
+            injected_any = False
+            for artifact_name in phase_context_artifacts:
+                if artifact_name in all_artifacts:
+                    artifact_path = all_artifacts[artifact_name]
+                    if artifact_path.exists():
+                        content = artifact_path.read_text().strip()
+                        if content:
+                            if not injected_any:
+                                print("## Context Artifacts (from upstream phases)")
+                                print()
+                                injected_any = True
+                            print(f"### {artifact_name}")
+                            print(f"_Source: {artifact_path.relative_to(plan_dir)}_")
+                            print()
+                            print(content)
+                            print()
+                else:
+                    print(f"**Warning:** Context artifact '{artifact_name}' not found in phase history", file=sys.stderr)
 
         # Task schema (injected for phases with use_tasks=true)
         if workflow_mgr.uses_tasks(current_phase):

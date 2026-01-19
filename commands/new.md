@@ -108,11 +108,50 @@ description = "What it does"     # Optional
 | `use_tasks` | bool | Phase uses tasks.json |
 | `requires_user_input` | bool | Stop for user approval |
 | `required_artifacts` | array | Artifact names that must be recorded before leaving this phase |
+| `context_artifacts` | array | Artifact names to inject from upstream phases into phase prompt |
 | `on_blocked` | string | Phase to go to when blocked (`"self"` or phase ID) |
 | `max_retries` | int | Max re-entries before escalation |
 | `supports_proposals` | bool | Enable CLAUDE.md proposals |
 | `supports_prototypes` | bool | Enable prototype tasks |
 | `expand_prompt` | string | For dynamic phase expansion |
+
+#### Artifact Flow Between Phases
+
+Artifacts create a contract between phases:
+- `required_artifacts` = what this phase **must produce** (outputs)
+- `context_artifacts` = what this phase **needs from upstream** (inputs)
+
+**Example workflow:**
+```toml
+[[phases]]
+id = "research"
+required_artifacts = ["research"]  # Must produce research.md
+prompt = "Research the topic and write research.md"
+
+[[phases]]
+id = "plan"
+context_artifacts = ["research"]   # Gets research.md injected into prompt
+required_artifacts = ["implementation-plan"]
+prompt = "Create a plan based on the research findings (injected above)"
+
+[[phases]]
+id = "implement"
+context_artifacts = ["implementation-plan"]  # Gets plan injected
+prompt = "Execute the implementation plan (injected above)"
+```
+
+**How it works:**
+1. Research phase creates `research.md` and records it: `record-artifact research research.md`
+2. Transition to plan phase is blocked until `research` artifact is recorded
+3. Plan phase runs `phase-context` → research.md content is automatically injected
+4. Plan phase prompt says "(injected above)" because content appears before the prompt
+
+**Recording artifacts:**
+```bash
+uv run plan.py record-artifact <name> <filename>
+```
+
+The `phase-context` command automatically shows required artifacts that need to be recorded before transitioning.
 
 #### INVALID Patterns (DO NOT USE)
 

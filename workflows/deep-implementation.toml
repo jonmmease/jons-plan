@@ -57,15 +57,12 @@ use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
 max_iterations = 4
+context_artifacts = ["research-plan"]
 required_artifacts = ["research-findings"]
 prompt = """
 # Research Phase
 
-Execute the research plan with multiple parallel investigations.
-
-## Inputs
-
-Review research-plan.md for questions to answer.
+Execute the research plan (injected above) with multiple parallel investigations.
 
 ## Tasks
 
@@ -105,15 +102,12 @@ suggested_next = ["research", "synthesize"]
 
 [[phases]]
 id = "synthesize"
+context_artifacts = ["research-findings"]
 required_artifacts = ["implementation-plan", "verification-plan"]
 prompt = """
 # Synthesize Phase
 
-Create implementation plan from research.
-
-## Inputs
-
-Review research-findings.md from research phase.
+Create implementation plan from the research findings (injected above).
 
 ## Tasks
 
@@ -334,22 +328,16 @@ use_tasks = true
 supports_proposals = true
 on_blocked = "self"
 max_retries = 3
+context_artifacts = ["implementation-plan"]
 prompt = """
 # Implement Phase
 
-Execute the validated implementation plan.
-
-## Inputs
-
-- implementation-plan.md from synthesize phase (with task breakdown)
-- categorized-feedback.md from process-feedback phase
-- All research context
+Execute the implementation plan (injected above).
 
 ## Setup
 
-1. Read the task breakdown from implementation-plan.md
-2. Create tasks.json in this phase directory based on the plan
-3. All tasks start with `status: "todo"`
+1. Create tasks.json in this phase directory based on the plan
+2. All tasks start with `status: "todo"`
 
 ## Task Schema - context_artifacts
 
@@ -398,13 +386,11 @@ suggested_next = [
 
 [[phases]]
 id = "validate"
+context_artifacts = ["verification-plan"]
 prompt = """
 # Validate Phase
 
-Thoroughly verify the implementation using the verification plan.
-
-## Inputs
-The verification-plan artifact contains the checks to run.
+Thoroughly verify the implementation using the verification plan (injected above).
 
 ## Execution
 

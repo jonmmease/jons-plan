@@ -58,15 +58,12 @@ suggested_next = ["research", "draft"]
 
 [[phases]]
 id = "draft"
+context_artifacts = ["research"]
 required_artifacts = ["design"]
 prompt = """
 # Draft Phase
 
-Create the initial design document with confidence assessment.
-
-## Inputs
-
-Review research.md from the research phase.
+Create the initial design document with confidence assessment based on the research findings (injected above).
 
 ## Tasks
 

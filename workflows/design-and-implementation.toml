@@ -63,14 +63,12 @@ suggested_next = ["research", "draft"]
 
 [[phases]]
 id = "draft"
+context_artifacts = ["research"]
 required_artifacts = ["design", "verification-plan"]
 prompt = """
 # Draft Phase
 
-Create the design document.
-
-## Inputs
-Review research.md from research phase, including verification capabilities.
+Create the design document based on the research findings (injected above).
 
 ## Tasks
 1. Synthesize research into a design
@@ -225,20 +223,15 @@ use_tasks = true
 supports_proposals = true
 on_blocked = "self"
 max_retries = 3
+context_artifacts = ["design"]
 prompt = """
 # Implement Phase
 
-Execute the design.
-
-## Inputs
-- design.md with approved design
-- research.md for context
+Execute the design (injected above).
 
 ## Setup
-1. Create tasks.json with implementation plan based on design.md
+1. Create tasks.json with implementation plan based on the design
 2. All tasks start with `status: "todo"`
-
-Note: verification-plan.md was created in the draft phase and is available as an artifact.
 
 ## Task Schema - context_artifacts
 
@@ -277,13 +270,11 @@ suggested_next = [
 
 [[phases]]
 id = "validate"
+context_artifacts = ["verification-plan"]
 prompt = """
 # Validate Phase
 
-Verify implementation matches the design using the verification plan.
-
-## Inputs
-The verification-plan artifact contains the checks to run.
+Verify implementation matches the design using the verification plan (injected above).
 
 ## Execution
 

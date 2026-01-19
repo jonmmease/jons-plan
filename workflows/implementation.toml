@@ -37,14 +37,12 @@ suggested_next = ["research", "plan"]
 id = "plan"
 use_tasks = true
 requires_user_input = true
+context_artifacts = ["research"]
 required_artifacts = ["implementation-plan", "verification-plan"]
 prompt = """
 # Plan Phase
 
-Create a detailed implementation plan based on exploration findings.
-
-## Inputs
-Review the research.md from the research phase.
+Create a detailed implementation plan based on the research findings (injected above).
 
 ## Planning Tasks
 Create tasks in this phase to:
@@ -97,19 +95,15 @@ use_tasks = true
 supports_proposals = true
 on_blocked = "self"
 max_retries = 3
+context_artifacts = ["implementation-plan"]
 prompt = """
 # Implement Phase
 
-Execute the implementation plan.
-
-## Inputs
-- Implementation plan from the plan phase
-- findings.md from explore phase
+Execute the implementation plan (injected above).
 
 ## Setup
-1. Read the implementation plan from the plan phase
-2. Create tasks.json in this phase directory based on the plan
-3. All tasks start with `status: "todo"`
+1. Create tasks.json in this phase directory based on the implementation plan
+2. All tasks start with `status: "todo"`
 
 ## Task Schema - context_artifacts
 
@@ -153,18 +147,11 @@ suggested_next = [
 
 [[phases]]
 id = "validate"
+context_artifacts = ["verification-plan"]
 prompt = """
 # Validate Phase
 
-Verify the implementation meets requirements using the verification plan.
-
-## Inputs
-Retrieve the verification plan:
-```bash
-uv run plan.py get-user-guidance  # Check for any user-provided focus areas
-```
-
-The verification-plan artifact contains the checks to run.
+Verify the implementation meets requirements using the verification plan (injected above).
 
 ## Execution
 

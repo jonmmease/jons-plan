@@ -49,15 +49,15 @@ use_tasks = true
 supports_proposals = true
 on_blocked = "self"
 max_retries = 3
+context_artifacts = ["implementation-plan"]
 prompt = """
 # Implement Phase
 
-Execute the implementation plan.
+Execute the implementation plan (injected above).
 
 ## Setup
-1. Read the implementation plan from the plan phase
-2. Create tasks.json in this phase directory based on the plan
-3. All tasks start with `status: "todo"`
+1. Create tasks.json in this phase directory based on the plan
+2. All tasks start with `status: "todo"`
 
 ## Task Execution
 1. Work through tasks in dependency order
@@ -74,10 +74,11 @@ suggested_next = ["verify"]
 
 [[phases]]
 id = "verify"
+context_artifacts = ["verification-plan"]
 prompt = """
 # Verify Phase
 
-Verify the implementation meets requirements using the verification plan.
+Verify the implementation meets requirements using the verification plan (injected above).
 
 ## Execution
 
