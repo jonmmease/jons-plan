@@ -225,6 +225,42 @@ Mark a task as `blocked` when you encounter issues that **require replanning**:
 - Mark the task as "done" with incomplete work
 - Continue to other tasks without addressing the blocker
 
+### Phase Re-entry (Loopback) Requirements
+
+When looping back to a phase that was previously entered (re-entry), you **MUST** provide detailed context via `--reason-file`. This is required because:
+- The re-entered phase needs to understand what went wrong
+- Without context, it will likely repeat the same mistakes
+- Detailed analysis helps identify what to do differently
+
+**Steps to loop back:**
+
+1. **Write a detailed markdown file** explaining the re-entry:
+   ```bash
+   TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <current-task-id>)
+   ```
+
+   Write to `$TASK_DIR/reentry-analysis.md`:
+   ```markdown
+   ## Why Previous Attempt Failed
+   <Specific issues that prevented success>
+
+   ## What Was Learned
+   <Key insights from the failed attempt>
+
+   ## What Should Be Done Differently
+   <Concrete changes to approach>
+
+   ## Specific Issues to Address
+   <Actionable items for the re-entered phase>
+   ```
+
+2. **Call enter-phase with --reason-file**:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <phase-id> --reason-file "$TASK_DIR/reentry-analysis.md"
+   ```
+
+The file must be at least 100 characters to ensure sufficient detail.
+
 4. **After phase tasks complete**:
    - Check `suggested-next` for the next phase
    - If phase has `requires_user_input: true`, set mode to `awaiting-feedback` and stop

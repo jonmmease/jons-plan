@@ -219,7 +219,7 @@ User guidance is set via `/jons-plan:proceed <number> <guidance>` and persists u
 | `workflow-diagram [--flow east\|south]` | Show phase diagram |
 | `current-phase` | Print current phase ID |
 | `current-phase-dir` | Print current phase directory |
-| `enter-phase <phase-id> [--reason]` | Enter/re-enter a phase |
+| `enter-phase <phase-id> [--reason-file]` | Enter phase (re-entry requires --reason-file with detailed context) |
 | `enter-phase-by-number <n> [guidance]` | Enter phase by option number |
 | `suggested-next` | List possible transitions |
 | `phase-history` | Show all phase entries |

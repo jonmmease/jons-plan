@@ -2667,6 +2667,40 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
 
     # Check max_retries limit for phase loopbacks
     if is_reentry:
+        # REQUIRE --reason-file for re-entries to ensure detailed context
+        if not args.reason_file:
+            print(
+                f"Error: Re-entering phase '{args.phase_id}' requires --reason-file",
+                file=sys.stderr,
+            )
+            print("", file=sys.stderr)
+            print("When looping back to a phase, you must provide detailed context", file=sys.stderr)
+            print("explaining why the previous attempt didn't succeed and what", file=sys.stderr)
+            print("should be done differently this time.", file=sys.stderr)
+            print("", file=sys.stderr)
+            print("Create a markdown file with:", file=sys.stderr)
+            print("  ## Why Previous Attempt Failed", file=sys.stderr)
+            print("  ## What Was Learned", file=sys.stderr)
+            print("  ## What Should Be Done Differently", file=sys.stderr)
+            print("  ## Specific Issues to Address", file=sys.stderr)
+            print("", file=sys.stderr)
+            print("Then call: enter-phase {phase} --reason-file <path>".format(phase=args.phase_id), file=sys.stderr)
+            return 1
+
+        reason_file_path = Path(args.reason_file)
+        if not reason_file_path.exists():
+            print(f"Error: Reason file not found: {args.reason_file}", file=sys.stderr)
+            return 1
+
+        reentry_reason_content = reason_file_path.read_text().strip()
+        if len(reentry_reason_content) < 100:
+            print(
+                f"Error: Reason file too short ({len(reentry_reason_content)} chars)",
+                file=sys.stderr,
+            )
+            print("Re-entry context must be detailed (at least 100 characters).", file=sys.stderr)
+            return 1
+
         max_retries = workflow_mgr.get_max_retries(args.phase_id)
         current_retries = state_mgr.get_phase_retries(args.phase_id)
         if max_retries is not None and current_retries >= max_retries:
@@ -2679,6 +2713,8 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
 
         # Increment retry counter for this re-entry
         state_mgr.increment_phase_retries(args.phase_id)
+    else:
+        reentry_reason_content = None
 
     # Determine next entry number (global across all phases)
     next_entry = state.get("current_phase_entry", 0) + 1
@@ -2702,9 +2738,6 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
 - Exited: {last_entry.get('exited', 'N/A')}
 - Outcome: {last_entry.get('outcome', 'N/A')}
 
-## Reason for Re-entry
-{args.reason or 'Not specified'}
-
 ## Artifacts from Previous Attempt
 """
         prev_artifacts = last_entry.get("artifacts", {})
@@ -2713,6 +2746,13 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                 reentry_content += f"- {name}: {path}\n"
         else:
             reentry_content += "(none)\n"
+
+        # Add the detailed re-entry context from the reason file
+        reentry_content += f"""
+## Re-entry Analysis
+
+{reentry_reason_content}
+"""
 
         reentry_file = phase_dir / "reentry-context.md"
         reentry_file.write_text(reentry_content)
@@ -5038,7 +5078,8 @@ def main() -> int:
 
     p_enter_phase = subparsers.add_parser("enter-phase", help="Enter a new phase")
     p_enter_phase.add_argument("phase_id", help="Phase ID to enter")
-    p_enter_phase.add_argument("--reason", default="", help="Reason for entering/re-entering phase")
+    p_enter_phase.add_argument("--reason", default="", help="Reason for entering phase (for first entry)")
+    p_enter_phase.add_argument("--reason-file", help="Path to markdown file with detailed re-entry context (REQUIRED for re-entries)")
 
     subparsers.add_parser("suggested-next", help="List possible phase transitions")
 
