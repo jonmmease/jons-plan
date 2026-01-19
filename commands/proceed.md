@@ -76,6 +76,10 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
 ### Execution Steps
 
 1. **Get current phase context**:
+
+   **Skip this step if you see "Current Phase Context" section above** - it was already injected.
+
+   Otherwise, run:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py phase-context
    ```
