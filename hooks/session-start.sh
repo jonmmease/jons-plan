@@ -281,6 +281,14 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
                 echo ""
             fi
 
+            # Inject full phase context (request, phase prompt, artifacts, re-entry context, etc.)
+            echo "### Current Phase Context"
+            echo ""
+            echo "_This context was automatically injected - you do not need to call phase-context._"
+            echo ""
+            plan phase-context 2>/dev/null || echo "_Could not load phase context_"
+            echo ""
+
             # Inject the full /jons-plan:proceed instructions
             echo "### Continue with /jons-plan:proceed Instructions"
             echo ""
