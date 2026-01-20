@@ -2489,15 +2489,20 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
 
 def cmd_help(args: argparse.Namespace) -> int:
     """Print concise CLI reference."""
-    print("""## CLI Commands
+    # Get the actual plugin root path
+    plugin_root = Path(__file__).parent
+    cli_path = plugin_root / "plan.py"
 
+    print(f"""## CLI Commands
+
+**CLI:** `uv run {cli_path} <command>`
 **Overview:** `status` - all plans, active plan stats, tasks
 **Switch plan:** `set-active <plan>`
 **Task status:** `set-status <task-id> in-progress|done`
 **Next tasks:** `next-tasks` - available tasks to start
 **Progress:** `log <message>` | `recent-progress`
 
-Full docs: {PLUGIN_ROOT}/CLAUDE.md""")
+Full docs: {plugin_root}/CLAUDE.md""")
     return 0
 
 
