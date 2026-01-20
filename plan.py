@@ -2469,7 +2469,8 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
 
     # 8. CLAUDE.md proposals (if phase supports it)
     workflow_mgr = WorkflowManager(plan_dir)
-    state = load_state(plan_dir)
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
     current_phase_id = state.get("current_phase")
     if current_phase_id and workflow_mgr.supports_proposals(current_phase_id):
         prompts_dir = Path(__file__).parent / "prompts"
