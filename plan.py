@@ -2364,6 +2364,20 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
         if hypothesis:
             prompt_parts.append(f"\n**Hypothesis:** {hypothesis}")
 
+    # 1c. Plugin prompt file - inject specialized instructions from prompts/ directory
+    prompt_file = task.get("prompt_file")
+    if prompt_file:
+        # Plugin root is where this script lives
+        plugin_root = Path(__file__).parent
+        prompt_path = plugin_root / "prompts" / f"{prompt_file}.md"
+        if prompt_path.exists():
+            prompt_content = prompt_path.read_text().strip()
+            if prompt_content:
+                prompt_parts.append(f"\n\n## Instructions\n\n{prompt_content}")
+        else:
+            # Warn but don't fail - the prompt file might be optional
+            print(f"Warning: prompt_file '{prompt_file}' not found at {prompt_path}", file=sys.stderr)
+
     # 2. Steps list
     steps = task.get("steps", [])
     if steps:

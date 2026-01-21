@@ -83,7 +83,7 @@ Create tasks.json with reviewer tasks. Independent reviewers can run in parallel
     "id": "slop-detection",
     "description": "Scan for LLM-generated code patterns",
     "subagent": "general-purpose",
-    "subagent_prompt": "Adopt a gruff senior developer persona. Scan for LLM slop: verbose variable names, excessive comments, generic error messages, copy-paste patterns, inconsistent style",
+    "prompt_file": "slop-detection",
     "model": "haiku",
     "parents": [],
     "status": "todo"
@@ -229,7 +229,7 @@ Create tasks.json with PR reviewer tasks. Independent reviewers can run in paral
     "id": "pr-slop-detection",
     "description": "Scan PR for AI-generated writing patterns",
     "subagent": "general-purpose",
-    "subagent_prompt": "Scan PR description for AI slop: marketing speak, vague claims, unnecessary hedging, overly formal tone",
+    "prompt_file": "slop-detection",
     "model": "haiku",
     "parents": [],
     "status": "todo"

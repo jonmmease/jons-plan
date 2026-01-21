@@ -78,11 +78,13 @@ Review the PR description from multiple perspectives.
 ## PR Review Tasks
 
 ### 1. PR Slop Detection (haiku)
-Scan for AI-generated writing patterns:
-- Marketing speak ("cutting-edge", "seamless")
-- Vague claims ("various improvements")
-- Unnecessary hedging
-- Overly formal tone
+Scan for AI-generated writing patterns using the comprehensive slop detection guide.
+Create a task with `"prompt_file": "slop-detection"` to inject the full detection patterns.
+
+Focus on prose patterns relevant to PR descriptions:
+- AI vocabulary words (delve, utilize, leverage, ensure, robust, etc.)
+- Hazy claims of importance ("emphasizing the significance...")
+- Marketing speak, vague claims, unnecessary hedging
 - Filler phrases ("It's worth noting", "In order to")
 
 ### 2. Accuracy Check (haiku)

@@ -193,29 +193,17 @@ Verify all source file links resolve:
 - Report broken links with suggested fixes
 
 ### 2. Slop Detection
-Scan for AI-generated writing patterns using anti-slop guidelines.
+Scan for AI-generated writing patterns using the comprehensive slop detection guide.
+Create a task with `"prompt_file": "slop-detection"` to inject the full detection patterns.
 
-**Forbidden Words:**
-utilize, leverage, ensure, robust, comprehensive, streamlined, seamless, elegant, delve, navigate, showcase, facilitate, enhance, functionality, pivotal, tapestry, multifaceted, testament, underscore, realm, embark, unwavering, transformative, holistic, intricate
+Key patterns for documentation:
+- AI vocabulary words (delve, utilize, leverage, ensure, robust, etc.)
+- Throat-clearing phrases ("In order to", "It's worth noting")
+- Artificial transitions ("Furthermore", "Moreover")
+- Em-dash abuse, passive voice, summary addiction
+- Hazy claims of importance
 
-**Forbidden Phrases:**
-- "In order to" → "to"
-- "It's worth noting" → just say it
-- "Furthermore", "Moreover" → new sentence
-- "not only... but also..." → say both directly
-- "In conclusion" → omit
-- "Let's dive in" → omit
-- "Let's get started" → omit
-
-**Forbidden Patterns:**
-- Em-dashes (—)
-- Headers without content
-- Rhetorical questions
-- "In this section, we will explore..."
-- "This code does X" → prefer "Code X"
-- Lists > 7 items (link to source instead)
-
-**Voice:**
+**Voice requirements:**
 - Active: "The parser reads" not "is read by"
 - Short sentences
 - Plain words: "use" not "utilize"

@@ -240,6 +240,7 @@ Tasks in `tasks.json` support these fields:
   "steps": ["Create middleware", "Add JWT validation"],
   "parents": ["design-auth"],
   "context_artifacts": ["request", "design"],
+  "prompt_file": "security-review",
   "subagent": "general-purpose",
   "subagent_prompt": "Focus on security",
   "model": "sonnet"
@@ -254,6 +255,7 @@ Tasks in `tasks.json` support these fields:
 | `steps` | Ordered list of steps |
 | `parents` | Task IDs that must complete first |
 | `context_artifacts` | Artifact names to include (e.g., `["request", "design"]`) |
+| `prompt_file` | Plugin prompt to inject (e.g., `"slop-detection"` loads `prompts/slop-detection.md`) |
 | `subagent` | Agent type for execution |
 | `subagent_prompt` | Additional context for subagent |
 | `model` | Model override (`sonnet`, `haiku`, `opus`) |
@@ -262,7 +264,7 @@ Tasks in `tasks.json` support these fields:
 | `inject_project_context` | Include project CLAUDE.md in task prompt (default: false) |
 | `locks` | Lock names for exclusive access - files, tools, or resources (e.g., `"cargo"`, `"browser"`) |
 
-The `context_artifacts` field lets tasks selectively request artifacts from phase history. Use `build-task-prompt` to resolve them.
+The `context_artifacts` field lets tasks selectively request artifacts from phase history. The `prompt_file` field injects specialized prompts from the plugin's `prompts/` directory. Use `build-task-prompt` to resolve them.
 
 ### Prototype Tasks
 
