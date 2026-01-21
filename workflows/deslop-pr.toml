@@ -94,10 +94,11 @@ suggested_next = ["fix"]
 
 [[phases]]
 id = "fix"
+requires_user_input = true
 prompt = """
 # Fix Phase
 
-Apply fixes and present results.
+Present findings and let user select which fixes to apply.
 
 ## Inputs
 
@@ -106,22 +107,41 @@ Apply fixes and present results.
 
 ## Process
 
-1. **Present findings** to user with numbered list:
+1. **Read findings.md** and parse the slop patterns found
+
+2. **Present findings using AskUserQuestion** with multiSelect checkboxes:
+
+   Use the AskUserQuestion tool with `multiSelect: true` to let the user choose which fixes to apply.
+
+   Example:
+   ```json
+   {
+     "questions": [{
+       "question": "Which slop patterns should I fix?",
+       "header": "Fixes",
+       "multiSelect": true,
+       "options": [
+         {"label": "Line 5: utilize → use", "description": "Replace AI vocabulary word"},
+         {"label": "Line 12: In order to → To", "description": "Remove throat-clearing"},
+         {"label": "Line 18: remove hazy claim", "description": "Delete 'underscoring the importance of'"},
+         {"label": "Line 23: passive → active", "description": "Rewrite in active voice"}
+       ]
+     }]
+   }
    ```
-   Found X slop patterns:
 
-   [1] Line 5: "utilize" → "use"
-   [2] Line 12: "In order to ensure..." → "To make sure..."
-   [3] Line 18: "...underscoring the importance of..." → remove
+   Group by severity if there are many findings:
+   - HIGH severity fixes in first question
+   - MEDIUM/LOW in second question (if needed)
 
-   Enter numbers to fix (1 2 3), 'all', or 'none':
-   ```
+   Limit to 4 options per question (AskUserQuestion constraint). If more findings exist,
+   prioritize HIGH severity and note that additional LOW severity items are in findings.md.
 
-2. **Apply selected fixes** using Edit tool on the PR file
+3. **Apply selected fixes** using Edit tool on the PR file
 
-3. **Show before/after** for each fix applied
+4. **Show before/after** for each fix applied
 
-4. **If PR is from `gh pr view`**, offer to update:
+5. **If PR is from `gh pr view`**, offer to update:
    ```bash
    gh pr edit --body-file cleaned-pr.md
    ```
