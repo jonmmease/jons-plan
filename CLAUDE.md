@@ -33,6 +33,7 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 | `deep-implementation` | Thorough research + external review |
 | `code-review` | Review code changes + generate PR description |
 | `pr-review` | Review existing PR description |
+| `deslop-pr` | Quick slop detection and cleanup for PR descriptions |
 | `tech-docs` | Technical documentation |
 | `tech-docs-review` | Review RFCs, design docs, proposals |
 | `dynamic` | Research-first, phases generated based on exploration |

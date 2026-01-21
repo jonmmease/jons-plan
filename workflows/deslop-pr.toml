@@ -1,0 +1,142 @@
+# De-Slop PR Workflow
+# Quick slop detection and cleanup for PR descriptions
+
+[workflow]
+name = "deslop-pr"
+description = "Detect and remove AI-generated patterns from PR descriptions"
+
+[[phases]]
+id = "gather"
+prompt = """
+# Gather Phase
+
+Locate the PR description to review.
+
+## Finding the PR
+
+Check these locations in order:
+1. User-provided path (if specified in request)
+2. Existing PR on current branch: `gh pr view --json body -q .body`
+3. Draft PR file in plan directory
+4. Common locations: `PR.md`, `pr-description.md`, `.github/pull_request_template.md`
+
+## Diff Context
+
+Get the diff to understand what the PR is describing:
+```bash
+BASE=$(git merge-base origin/main HEAD 2>/dev/null || git merge-base origin/master HEAD)
+git diff $BASE..HEAD > full.diff
+git log --oneline $BASE..HEAD > commits.txt
+```
+
+## Output
+
+Write `context.md` with:
+- Path to PR description (or note if from `gh pr view`)
+- Number of commits
+- Files changed count
+- The full PR description text
+"""
+suggested_next = ["detect"]
+
+[[phases]]
+id = "detect"
+use_tasks = true
+prompt = """
+# Detect Phase
+
+Scan the PR description for slop patterns.
+
+## Setup
+
+Create tasks.json with a single slop detection task:
+
+```json
+[
+  {
+    "id": "slop-scan",
+    "description": "Scan PR description for AI-generated patterns",
+    "prompt_file": "slop-detection",
+    "subagent": "general-purpose",
+    "model": "haiku",
+    "steps": [
+      "Read context.md to get PR description",
+      "Apply slop detection patterns from instructions",
+      "Focus on prose patterns (not code patterns)",
+      "Output findings grouped by severity"
+    ],
+    "status": "todo"
+  }
+]
+```
+
+## Inputs
+
+- context.md with PR description text
+
+## Focus Areas
+
+For PR descriptions, prioritize these patterns:
+- AI vocabulary words (delve, utilize, leverage, ensure, robust)
+- Hazy importance claims ("emphasizing the significance...")
+- Throat-clearing ("In order to", "It's worth noting")
+- Summary addiction (restating the title)
+- Marketing speak and vague claims
+- Passive voice overuse
+- Em-dash abuse
+
+## Output
+
+Write `findings.md` with slop patterns found, grouped by severity.
+Include line references and specific examples.
+"""
+suggested_next = ["fix"]
+
+[[phases]]
+id = "fix"
+prompt = """
+# Fix Phase
+
+Apply fixes and present results.
+
+## Inputs
+
+- context.md with original PR description
+- findings.md with detected slop patterns
+
+## Process
+
+1. **Present findings** to user with numbered list:
+   ```
+   Found X slop patterns:
+
+   [1] Line 5: "utilize" → "use"
+   [2] Line 12: "In order to ensure..." → "To make sure..."
+   [3] Line 18: "...underscoring the importance of..." → remove
+
+   Enter numbers to fix (1 2 3), 'all', or 'none':
+   ```
+
+2. **Apply selected fixes** using Edit tool on the PR file
+
+3. **Show before/after** for each fix applied
+
+4. **If PR is from `gh pr view`**, offer to update:
+   ```bash
+   gh pr edit --body-file cleaned-pr.md
+   ```
+
+## Output
+
+Write `cleaned-pr.md` with the de-slopped PR description.
+
+Present summary:
+```
+De-slop complete:
+- X patterns found
+- Y fixes applied
+- Original: [path or "GitHub PR #N"]
+- Cleaned: cleaned-pr.md
+```
+"""
+terminal = true
