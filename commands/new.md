@@ -56,6 +56,7 @@ When no `--workflow` is specified, analyze the user's request and suggest a work
 | Implement, add, build feature | `implementation` | "add dark mode", "implement caching", "build search" |
 | Review code changes, create PR | `code-review` | "review my changes", "audit security", "analyze branch" |
 | Review PR description | `pr-review` | "review this PR description", "improve my PR writeup" |
+| Deslop, clean up AI patterns | `deslop-pr` | "deslop this PR", "remove AI slop", "clean up PR description" |
 | Review RFC, design doc, proposal | `tech-docs-review` | "review this RFC", "give feedback on design doc", "review proposal" |
 | Document, explain, write docs | `tech-docs` | "document the API", "explain how X works", "write guide" |
 | Complex, thorough, research | `deep-implementation` | "thoroughly research and implement", "complex feature with review" |
@@ -79,6 +80,7 @@ Built-in workflows in `~/.claude-plugins/jons-plan/workflows/`:
 - `deep-implementation` - Complex features with thorough research and review
 - `code-review` - Review code changes + generate PR description
 - `pr-review` - Review existing PR description
+- `deslop-pr` - Quick slop detection and cleanup for PR descriptions
 - `tech-docs` - Technical documentation creation
 - `tech-docs-review` - Review RFCs, design docs, proposals
 - `dynamic` - Research-first workflow where phases are generated based on codebase exploration
