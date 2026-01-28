@@ -136,6 +136,11 @@ No feedback provided. Read the current `request.md` and phase context, show a su
 
 9. **Next steps**: Tell user: "Type `/jons-plan:proceed` to continue, or `/jons-plan:plan [more feedback]` to refine further."
 
+10. **Transition mode**: Set mode to awaiting-feedback (planning complete, waiting for user decision):
+    ```bash
+    uv run ~/.claude-plugins/jons-plan/plan.py set-mode awaiting-feedback
+    ```
+
 ## Task Schema Reference
 
 The `tasks.json` file is a JSON array of task objects. Each task has:
@@ -150,6 +155,90 @@ The `tasks.json` file is a JSON array of task objects. Each task has:
 | `subagent` | No | Agent type (default: `general-purpose`) |
 | `subagent_prompt` | No | Additional context for the agent |
 | `model` | No | `sonnet` (default), `haiku`, `opus` |
+
+## Workflow Schema Reference (for editing workflow.toml)
+
+When refining workflow.toml, use ONLY the fields documented below.
+
+### Top-level Structure
+```toml
+[workflow]
+name = "workflow-name"           # Required
+description = "What it does"     # Optional
+
+[[phases]]                       # Required: array of phases
+# phase fields...
+```
+
+### Valid Phase Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | **Required.** Unique phase identifier (kebab-case) |
+| `prompt` | string | **Required.** Instructions for this phase |
+| `suggested_next` | array | Valid transitions - strings or `{ phase = "id", requires_approval = true, approval_prompt = "..." }` |
+| `terminal` | bool | If true, workflow ends here |
+| `use_tasks` | bool | Phase uses tasks.json |
+| `requires_user_input` | bool | Stop for user approval |
+| `required_artifacts` | array | Artifact names that must be recorded before leaving this phase |
+| `context_artifacts` | array | Artifact names to inject from upstream phases into phase prompt |
+| `on_blocked` | string | Phase to go to when blocked (`"self"` or phase ID) |
+| `max_retries` | int | Max re-entries before escalation |
+| `supports_proposals` | bool | Enable CLAUDE.md proposals |
+| `supports_prototypes` | bool | Enable prototype tasks |
+| `expand_prompt` | string | For dynamic phase expansion |
+
+### Artifact Flow Between Phases
+
+Artifacts create a contract between phases:
+- `required_artifacts` = what this phase **must produce** (outputs)
+- `context_artifacts` = what this phase **needs from upstream** (inputs)
+
+**Example workflow:**
+```toml
+[[phases]]
+id = "research"
+required_artifacts = ["research"]  # Must produce research.md
+prompt = "Research the topic and write research.md"
+
+[[phases]]
+id = "plan"
+context_artifacts = ["research"]   # Gets research.md injected into prompt
+required_artifacts = ["implementation-plan"]
+prompt = "Create a plan based on the research findings (injected above)"
+
+[[phases]]
+id = "implement"
+context_artifacts = ["implementation-plan"]  # Gets plan injected
+prompt = "Execute the implementation plan (injected above)"
+```
+
+**How it works:**
+1. Research phase creates `research.md` and records it: `record-artifact research research.md`
+2. Transition to plan phase is blocked until `research` artifact is recorded
+3. Plan phase runs `phase-context` → research.md content is automatically injected
+4. Plan phase prompt says "(injected above)" because content appears before the prompt
+
+**Recording artifacts:**
+```bash
+uv run plan.py record-artifact <name> <filename>
+```
+
+The `phase-context` command automatically shows required artifacts that need to be recorded before transitioning.
+
+### INVALID Patterns (DO NOT USE)
+
+```toml
+# WRONG - nested tables don't exist
+[[phases.transitions]]
+trigger = "done"
+target = "next"
+
+# WRONG - unknown fields
+[[phases]]
+id = "foo"
+transitions = [...]  # NOT a valid field
+```
 
 ## Using Multiple Choice Questions
 

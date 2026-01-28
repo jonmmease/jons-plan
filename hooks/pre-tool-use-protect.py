@@ -10,8 +10,8 @@ Protected files (always blocked):
 - active-plan     - Active plan pointer
 - dead-ends.json  - Dead-end tracking
 
-Conditionally blocked:
-- workflow.toml   - Blocked during execution (proceed mode), allowed during plan creation
+Planning-only files (allowed only during /new or /plan commands):
+- workflow.toml   - Only editable when session mode is 'new' or 'plan'
 
 Validated files (allowed if valid):
 - tasks.json      - Task definitions (validated against JSON schema + required_tasks)
@@ -38,9 +38,9 @@ ALWAYS_BLOCKED = {
     "dead-ends.json": "Use 'uv run plan.py add-dead-end ...' to record dead ends",
 }
 
-# Files blocked only during execution (proceed mode)
-BLOCKED_DURING_EXECUTION = {
-    "workflow.toml": "workflow.toml should not be modified during task execution",
+# Files only allowed during planning commands (new/plan mode)
+ALLOWED_ONLY_DURING_PLANNING = {
+    "workflow.toml": "workflow.toml can only be modified during /jons-plan:new or /jons-plan:plan commands",
 }
 
 
@@ -292,11 +292,11 @@ def main():
         print(json.dumps(output))
         sys.exit(0)
 
-    # Check if it's a file blocked only during execution (proceed mode)
-    if filename in BLOCKED_DURING_EXECUTION:
+    # Check if it's a file only allowed during planning commands (new/plan mode)
+    if filename in ALLOWED_ONLY_DURING_PLANNING:
         session_mode = get_session_mode(file_path)
-        if session_mode == "proceed":
-            cli_hint = BLOCKED_DURING_EXECUTION[filename]
+        if session_mode not in ("new", "plan"):
+            cli_hint = ALLOWED_ONLY_DURING_PLANNING[filename]
             operation = "rewrite" if tool_name == "Write" else "modify"
 
             output = {
@@ -304,16 +304,16 @@ def main():
                     "hookEventName": "PreToolUse",
                     "permissionDecision": "deny",
                     "permissionDecisionReason": (
-                        f"BLOCKED: Cannot {operation} '{filename}' during task execution.\n\n"
-                        f"This file is protected while in proceed mode.\n"
-                        f"Hint: {cli_hint}\n\n"
-                        f"See CLAUDE.md for workflow management commands."
+                        f"BLOCKED: Cannot {operation} '{filename}' outside of planning commands.\n\n"
+                        f"This file can only be edited during /jons-plan:new or /jons-plan:plan.\n"
+                        f"Current mode: {session_mode or '(none)'}\n\n"
+                        f"To edit the workflow, run /jons-plan:plan first."
                     ),
                 }
             }
             print(json.dumps(output))
             sys.exit(0)
-        # Not in proceed mode - allow the write
+        # In new or plan mode - allow the write
         sys.exit(0)
 
     # Special handling for tasks.json - validate and allow if valid

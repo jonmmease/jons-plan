@@ -241,6 +241,10 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
    nohup uv run ~/.claude-plugins/jons-plan/viewer.py "$PLAN_DIR" &>/dev/null &
    ```
 4. Tell user: "Type `/jons-plan:proceed` to start, or `/jons-plan:plan` to refine the request. To relaunch the viewer, ask me to 'launch the viewer'."
+5. Transition to awaiting-feedback mode (planning complete, waiting for user decision):
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py set-mode awaiting-feedback
+   ```
 
 ## Task Schema
 
