@@ -342,6 +342,47 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
             echo "_Could not load new.md instructions_"
         fi
     elif [[ "$SESSION_MODE" == "plan" ]]; then
+        # In plan mode - continue refining
+        echo "---"
+        echo "### Session Mode: Refining Plan (Resuming)"
+        echo ""
+        echo "**You were in the middle of refining the plan and should continue.**"
+        echo "**Do NOT execute tasks or modify code outside the plan directory.**"
+        echo ""
+
+        # MOST IMPORTANT: Show the user's feedback/guidance
+        COMMAND_ARGS_FILE="${PROJECT_DIR}/.claude/jons-plan/command-args"
+        if [[ -f "$COMMAND_ARGS_FILE" ]]; then
+            STORED_ARGS=$(cat "$COMMAND_ARGS_FILE")
+            if [[ -n "$STORED_ARGS" ]]; then
+                echo "### User's Feedback"
+                echo ""
+                echo "**Guidance:** $STORED_ARGS"
+                echo ""
+            fi
+        fi
+
+        # Show plan progress log for context
+        PROGRESS_FILE="${ACTIVE_PLAN_DIR}/claude-progress.txt"
+        if [[ -f "$PROGRESS_FILE" ]]; then
+            echo "### Progress So Far"
+            echo "\`\`\`"
+            tail -20 "$PROGRESS_FILE"
+            echo "\`\`\`"
+            echo ""
+        fi
+
+        # Inject the full /jons-plan:plan instructions
+        echo "### Continue with /jons-plan:plan Instructions"
+        echo ""
+        PLAN_CMD_FILE="${PLUGIN_ROOT}/commands/plan.md"
+        if [[ -f "$PLAN_CMD_FILE" ]]; then
+            # Skip the frontmatter (--- ... ---)
+            tail -n +5 "$PLAN_CMD_FILE"
+        else
+            echo "_Could not load plan.md instructions_"
+        fi
+    elif [[ "$SESSION_MODE" == "awaiting-feedback" ]]; then
         # Check if at completed terminal phase (workflow finished)
         PHASE_JSON_FILE=$(mktemp)
         trap "rm -f '$PHASE_JSON_FILE'" EXIT
@@ -357,6 +398,7 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
             echo ""
             echo "**Options:**"
             echo "- Start a new plan: \`/jons-plan:new [topic]\`"
+            echo "- Extend workflow: \`/jons-plan:plan [describe new phases]\`"
             echo "- Review this plan: \`/jons-plan:status\`"
             echo "- Switch to another plan: \`/jons-plan:switch [name]\`"
 
@@ -368,46 +410,13 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
                 echo "Run \`/jons-plan:proceed\` to see options."
             fi
         else
-            # Normal plan mode - continue refining
+            # Not at terminal - waiting for user to proceed or refine
             echo "---"
-            echo "### Session Mode: Refining Plan (Resuming)"
+            echo "### Awaiting User Decision"
             echo ""
-            echo "**You were in the middle of refining the plan and should continue.**"
-            echo "**Do NOT execute tasks or modify code outside the plan directory.**"
-            echo ""
-
-            # MOST IMPORTANT: Show the user's feedback/guidance
-            COMMAND_ARGS_FILE="${PROJECT_DIR}/.claude/jons-plan/command-args"
-            if [[ -f "$COMMAND_ARGS_FILE" ]]; then
-                STORED_ARGS=$(cat "$COMMAND_ARGS_FILE")
-                if [[ -n "$STORED_ARGS" ]]; then
-                    echo "### User's Feedback"
-                    echo ""
-                    echo "**Guidance:** $STORED_ARGS"
-                    echo ""
-                fi
-            fi
-
-            # Show plan progress log for context
-            PROGRESS_FILE="${ACTIVE_PLAN_DIR}/claude-progress.txt"
-            if [[ -f "$PROGRESS_FILE" ]]; then
-                echo "### Progress So Far"
-                echo "\`\`\`"
-                tail -20 "$PROGRESS_FILE"
-                echo "\`\`\`"
-                echo ""
-            fi
-
-            # Inject the full /jons-plan:plan instructions
-            echo "### Continue with /jons-plan:plan Instructions"
-            echo ""
-            PLAN_CMD_FILE="${PLUGIN_ROOT}/commands/plan.md"
-            if [[ -f "$PLAN_CMD_FILE" ]]; then
-                # Skip the frontmatter (--- ... ---)
-                tail -n +5 "$PLAN_CMD_FILE"
-            else
-                echo "_Could not load plan.md instructions_"
-            fi
+            echo "Planning is complete. Choose next action:"
+            echo "- \`/jons-plan:proceed\` to start implementation"
+            echo "- \`/jons-plan:plan [feedback]\` to refine further"
         fi
     else
         # No mode set - show neutral commands
