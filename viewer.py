@@ -588,6 +588,8 @@ class WorkflowModel(QObject):
                 "suggested_next": suggested_full,
                 "terminal": phase.get("terminal", False),
                 "use_tasks": phase.get("use_tasks", False),
+                "required_artifacts": phase.get("required_artifacts", []),
+                "context_artifacts": phase.get("context_artifacts", []),
                 "entry_count": entry_counts.get(phase_id, 0),
                 "tasks": [],
             }

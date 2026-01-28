@@ -399,6 +399,137 @@ Rectangle {
                         }
                     }
 
+                    // Artifact Contract section (inputs/outputs from workflow.toml)
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: artifactContractExpanded ? artifactContractContent.height + 28 + Theme.spacingSmall : 28
+                        color: Theme.bgPanel
+                        clip: true
+                        visible: (workflowModel.selectedPhaseDetails.context_artifacts || []).length > 0 ||
+                                 (workflowModel.selectedPhaseDetails.required_artifacts || []).length > 0
+
+                        property bool artifactContractExpanded: true
+
+                        Rectangle {
+                            id: artifactContractHeader
+                            width: parent.width
+                            height: 28
+                            color: artifactContractHeaderMouse.containsMouse ? Theme.hoverHighlight : Theme.bgPanelHeader
+
+                            MouseArea {
+                                id: artifactContractHeaderMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: parent.parent.artifactContractExpanded = !parent.parent.artifactContractExpanded
+                            }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: Theme.spacingSmall
+                                anchors.rightMargin: Theme.spacingSmall
+
+                                Text {
+                                    text: parent.parent.parent.artifactContractExpanded ? "▼" : "▶"
+                                    font.pixelSize: 10
+                                    color: Theme.textMuted
+                                }
+                                Text {
+                                    text: "Artifact Contract"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.weight: Font.Medium
+                                    color: Theme.textPrimary
+                                }
+                                Item { Layout.fillWidth: true }
+                            }
+                        }
+
+                        ColumnLayout {
+                            id: artifactContractContent
+                            anchors.top: artifactContractHeader.bottom
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.margins: Theme.spacingSmall
+                            spacing: Theme.spacingSmall
+
+                            // Context artifacts (inputs)
+                            RowLayout {
+                                visible: (workflowModel.selectedPhaseDetails.context_artifacts || []).length > 0
+                                spacing: Theme.spacingSmall
+
+                                Text {
+                                    text: "Inputs:"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.weight: Font.Medium
+                                    color: Theme.textSecondary
+                                }
+
+                                Flow {
+                                    Layout.fillWidth: true
+                                    spacing: Theme.spacingTiny
+
+                                    Repeater {
+                                        model: workflowModel.selectedPhaseDetails.context_artifacts || []
+                                        delegate: Rectangle {
+                                            width: inputArtifactText.width + Theme.spacingSmall * 2
+                                            height: inputArtifactText.height + Theme.spacingTiny * 2
+                                            radius: Theme.radiusSmall
+                                            color: "#E3F2FD"
+                                            border.width: 1
+                                            border.color: "#90CAF9"
+
+                                            Text {
+                                                id: inputArtifactText
+                                                anchors.centerIn: parent
+                                                text: modelData
+                                                font.pixelSize: Theme.fontSizeSmall
+                                                color: "#1565C0"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Required artifacts (outputs)
+                            RowLayout {
+                                visible: (workflowModel.selectedPhaseDetails.required_artifacts || []).length > 0
+                                spacing: Theme.spacingSmall
+
+                                Text {
+                                    text: "Outputs:"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.weight: Font.Medium
+                                    color: Theme.textSecondary
+                                }
+
+                                Flow {
+                                    Layout.fillWidth: true
+                                    spacing: Theme.spacingTiny
+
+                                    Repeater {
+                                        model: workflowModel.selectedPhaseDetails.required_artifacts || []
+                                        delegate: Rectangle {
+                                            width: outputArtifactText.width + Theme.spacingSmall * 2
+                                            height: outputArtifactText.height + Theme.spacingTiny * 2
+                                            radius: Theme.radiusSmall
+                                            color: "#E8F5E9"
+                                            border.width: 1
+                                            border.color: "#A5D6A7"
+
+                                            Text {
+                                                id: outputArtifactText
+                                                anchors.centerIn: parent
+                                                text: modelData
+                                                font.pixelSize: Theme.fontSizeSmall
+                                                color: "#2E7D32"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Phase Prompt section
                     Rectangle {
                         id: promptSection
