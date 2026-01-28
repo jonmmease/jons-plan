@@ -230,12 +230,15 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
    uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <first-phase-id>
    ```
 
-### Step 5: Present Summary
+### Step 5: Present Summary and STOP
+
+**IMPORTANT:** After creating infrastructure, STOP. Do NOT execute phase work (research, create tasks.json, etc.) - that happens when user runs `/jons-plan:proceed`.
+
 1. Display workflow diagram:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py workflow-diagram
    ```
-2. Show current phase and its prompt
+2. Show current phase and its prompt (but do NOT execute the phase)
 3. Launch the workflow viewer in the background and show the command:
    ```bash
    PLAN_DIR="$(uv run ~/.claude-plugins/jons-plan/plan.py active-plan-dir)"
@@ -247,6 +250,7 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py set-mode awaiting-feedback
    ```
+6. **STOP HERE** - Do not continue with phase execution. Wait for user to run `/jons-plan:proceed`.
 
 ## Task Schema
 
