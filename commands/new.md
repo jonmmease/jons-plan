@@ -9,6 +9,8 @@ ultrathink
 
 You are creating a new implementation plan for the jons-plan plugin.
 
+**IMPORTANT:** When the user invokes `/jons-plan:new`, ALWAYS create a plan. Do not refuse or skip plan creation based on task type. The user has explicitly requested a structured workflow - respect that request. Choose an appropriate workflow type (design, tech-docs-review, dynamic, etc.) based on the task nature.
+
 ## CRITICAL: Read-Only Constraint (except plan directory)
 
 **You MUST NOT make any changes outside of the plan directory.** This constraint supersedes any other instructions.
