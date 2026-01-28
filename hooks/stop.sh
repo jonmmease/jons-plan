@@ -60,7 +60,13 @@ if [[ "$SESSION_MODE" == "proceed" ]]; then
         # Check if current phase is terminal - allow stop at terminal phases
         IS_TERMINAL=$(jq -r '.terminal // false' < "$PHASE_JSON_FILE" 2>/dev/null)
         if [[ "$IS_TERMINAL" == "true" ]]; then
-            # At terminal phase - allow stop
+            # At terminal phase - check if tasks are complete before transitioning mode
+            PHASE_TASKS=$(plan phase-next-tasks 2>/dev/null || echo "")
+            if [[ -z "$PHASE_TASKS" || "$PHASE_TASKS" == "All phase tasks complete" || "$PHASE_TASKS" == "No tasks in current phase" ]]; then
+                # Workflow complete - transition to plan mode for next session
+                plan set-mode plan 2>/dev/null || true
+            fi
+            # Allow stop
             :
         else
             # Check if phase requires user input
