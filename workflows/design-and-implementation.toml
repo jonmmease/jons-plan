@@ -273,7 +273,7 @@ Working implementation of the design.
 """
 suggested_next = [
     "validate",
-    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
+    { phase = "user-decision", requires_approval = true, approval_prompt = "Return to user-decision to reassess the design based on implementation findings?" }
 ]
 
 [[phases]]
@@ -313,7 +313,7 @@ Verify each criterion from the verification plan (derived from design.md) is met
 """
 suggested_next = [
     "complete",
-    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
+    { phase = "user-decision", requires_approval = true, approval_prompt = "Return to user-decision to reassess the design based on validation findings?" }
 ]
 on_blocked = "implement"
 
