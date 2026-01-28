@@ -748,6 +748,17 @@ class WorkflowManager:
             return phase.get("required_artifacts", [])
         return []
 
+    def get_required_tasks(self, phase_id: str) -> list[dict]:
+        """Get required tasks for a phase.
+
+        Returns list of task definitions that must be included in tasks.json
+        when entering this phase. Empty list if none required.
+        """
+        phase = self.get_phase(phase_id)
+        if phase:
+            return phase.get("required_tasks", [])
+        return []
+
     def get_context_artifacts(self, phase_id: str) -> list[str]:
         """Get context artifacts for a phase.
 
@@ -889,9 +900,17 @@ class WorkflowManager:
             "requires_user_input", "on_blocked", "max_retries", "max_iterations",
             "supports_proposals", "supports_prototypes", "supports_cache_reference",
             "expand_prompt", "required_artifacts", "context_artifacts",
+            "required_tasks",
         }
         # Valid keys in suggested_next objects
         VALID_TRANSITION_KEYS = {"phase", "requires_approval", "approval_prompt"}
+
+        # Valid keys in required_tasks items
+        VALID_REQUIRED_TASK_KEYS = {
+            "id", "description", "prompt_file", "subagent", "subagent_prompt",
+            "model", "parents", "steps", "context_artifacts", "type",
+            "question", "hypothesis", "inject_project_context", "locks",
+        }
 
         phases = workflow.get("phases", [])
         if not isinstance(phases, list):
@@ -920,6 +939,50 @@ class WorkflowManager:
                     for key in item.keys():
                         if key not in VALID_TRANSITION_KEYS:
                             errors.append(f"Phase '{phase_id}' suggested_next has unknown key: '{key}' (valid: {VALID_TRANSITION_KEYS})")
+
+            # Validate required_tasks
+            required_tasks = phase.get("required_tasks", [])
+            if required_tasks:
+                # Check that use_tasks is true when required_tasks is set
+                if not phase.get("use_tasks"):
+                    errors.append(f"Phase '{phase_id}' has required_tasks but use_tasks is not true")
+
+                if not isinstance(required_tasks, list):
+                    errors.append(f"Phase '{phase_id}' required_tasks must be an array")
+                else:
+                    seen_ids = set()
+                    for j, task in enumerate(required_tasks):
+                        if not isinstance(task, dict):
+                            errors.append(f"Phase '{phase_id}' required_tasks[{j}] must be a table")
+                            continue
+
+                        task_id = task.get("id", f"<index {j}>")
+
+                        # Check for unknown keys
+                        for key in task.keys():
+                            if key not in VALID_REQUIRED_TASK_KEYS:
+                                errors.append(f"Phase '{phase_id}' required_tasks[{j}] has unknown key: '{key}' (valid: {sorted(VALID_REQUIRED_TASK_KEYS)})")
+
+                        # Check required fields
+                        if "id" not in task:
+                            errors.append(f"Phase '{phase_id}' required_tasks[{j}] missing required 'id' field")
+                        if "description" not in task:
+                            errors.append(f"Phase '{phase_id}' required_tasks[{j}] (id={task_id}) missing required 'description' field")
+
+                        # Check for duplicate IDs
+                        if task_id in seen_ids:
+                            errors.append(f"Phase '{phase_id}' has duplicate required_task id: '{task_id}'")
+                        seen_ids.add(task_id)
+
+                        # Validate parents is a list if present
+                        parents = task.get("parents")
+                        if parents is not None and not isinstance(parents, list):
+                            errors.append(f"Phase '{phase_id}' required_tasks[{j}] (id={task_id}) parents must be an array")
+
+                        # Validate model if present
+                        model = task.get("model")
+                        if model is not None and model not in ("sonnet", "haiku", "opus"):
+                            errors.append(f"Phase '{phase_id}' required_tasks[{j}] (id={task_id}) has invalid model: '{model}' (valid: sonnet, haiku, opus)")
 
         return errors
 
@@ -2893,6 +2956,62 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
 
         reentry_file = phase_dir / "reentry-context.md"
         reentry_file.write_text(reentry_content)
+
+    # Seed tasks.json with required_tasks if configured
+    required_tasks = workflow_mgr.get_required_tasks(args.phase_id)
+    if required_tasks:
+        tasks_file = phase_dir / "tasks.json"
+        if not is_reentry:
+            # First entry: create tasks.json with required tasks
+            seeded_tasks = []
+            for task in required_tasks:
+                seeded_task = dict(task)  # Copy to avoid modifying original
+                seeded_task.setdefault("status", "todo")
+                seeded_task.setdefault("parents", [])
+                seeded_task.setdefault("steps", [])
+                seeded_tasks.append(seeded_task)
+            tasks_file.write_text(json.dumps(seeded_tasks, indent=2))
+            print(f"Seeded {len(seeded_tasks)} required task(s) in tasks.json")
+        else:
+            # Re-entry: merge required tasks with existing tasks.json
+            existing_tasks = []
+            if tasks_file.exists():
+                try:
+                    data = json.loads(tasks_file.read_text())
+                    existing_tasks = data if isinstance(data, list) else data.get("tasks", [])
+                except (json.JSONDecodeError, KeyError):
+                    pass
+
+            existing_ids = {t.get("id") for t in existing_tasks}
+            added_count = 0
+            warnings = []
+
+            for req_task in required_tasks:
+                req_id = req_task.get("id")
+                if req_id not in existing_ids:
+                    # Add missing required task
+                    seeded_task = dict(req_task)
+                    seeded_task.setdefault("status", "todo")
+                    seeded_task.setdefault("parents", [])
+                    seeded_task.setdefault("steps", [])
+                    existing_tasks.append(seeded_task)
+                    added_count += 1
+                else:
+                    # Check protected fields match
+                    existing_task = next(t for t in existing_tasks if t.get("id") == req_id)
+                    protected_fields = ["prompt_file", "subagent", "model"]
+                    for field in protected_fields:
+                        req_val = req_task.get(field)
+                        existing_val = existing_task.get(field)
+                        if req_val is not None and existing_val != req_val:
+                            warnings.append(f"Task '{req_id}' has modified {field}: expected '{req_val}', got '{existing_val}'")
+
+            if added_count > 0 or warnings:
+                tasks_file.write_text(json.dumps(existing_tasks, indent=2))
+                if added_count > 0:
+                    print(f"Added {added_count} missing required task(s)")
+                for warn in warnings:
+                    print(f"Warning: {warn}", file=sys.stderr)
 
     # Update state
     relative_phase_dir = f"phases/{phase_dir_name}"
@@ -5158,6 +5277,76 @@ def cmd_validate_workflow(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_validate_required_tasks(args: argparse.Namespace) -> int:
+    """Validate that current phase's tasks.json contains all required tasks."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    workflow_mgr = WorkflowManager(plan_dir)
+    if not workflow_mgr.exists():
+        print("No workflow.toml found", file=sys.stderr)
+        return 1
+
+    state_mgr = StateManager(plan_dir)
+    state = state_mgr.load()
+    current_phase = state.get("current_phase")
+
+    if not current_phase:
+        print("No current phase", file=sys.stderr)
+        return 1
+
+    required_tasks = workflow_mgr.get_required_tasks(current_phase)
+    if not required_tasks:
+        print(f"Phase '{current_phase}' has no required_tasks defined")
+        return 0
+
+    # Load tasks.json
+    tasks_file = get_tasks_file(plan_dir)
+    if not tasks_file or not tasks_file.exists():
+        print(f"Error: tasks.json not found for phase '{current_phase}'", file=sys.stderr)
+        return 1
+
+    tasks = get_tasks(plan_dir)
+    task_by_id = {t.get("id"): t for t in tasks}
+
+    errors = []
+    warnings = []
+    protected_fields = ["prompt_file", "subagent", "model"]
+
+    for req_task in required_tasks:
+        req_id = req_task.get("id")
+        if req_id not in task_by_id:
+            errors.append(f"Missing required task: '{req_id}'")
+        else:
+            existing = task_by_id[req_id]
+            for field in protected_fields:
+                req_val = req_task.get(field)
+                existing_val = existing.get(field)
+                if req_val is not None and existing_val != req_val:
+                    warnings.append(f"Task '{req_id}' has modified {field}: expected '{req_val}', got '{existing_val}'")
+
+    if errors:
+        print("Validation errors:", file=sys.stderr)
+        for e in errors:
+            print(f"  - {e}", file=sys.stderr)
+
+    if warnings:
+        print("Warnings:", file=sys.stderr)
+        for w in warnings:
+            print(f"  - {w}", file=sys.stderr)
+
+    if errors:
+        return 1
+
+    print(f"All {len(required_tasks)} required task(s) present")
+    if warnings:
+        print(f"({len(warnings)} warning(s))")
+    return 0
+
+
 # ============================================================================
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -5441,6 +5630,8 @@ def main() -> int:
 
     subparsers.add_parser("validate-workflow", help="Validate workflow including expandable rules")
 
+    subparsers.add_parser("validate-required-tasks", help="Validate tasks.json contains all required tasks")
+
     args = parser.parse_args()
 
     commands = {
@@ -5525,6 +5716,7 @@ def main() -> int:
         "expand-phase": cmd_expand_phase,
         "rollback-expansion": cmd_rollback_expansion,
         "validate-workflow": cmd_validate_workflow,
+        "validate-required-tasks": cmd_validate_required_tasks,
     }
 
     return commands[args.command](args)

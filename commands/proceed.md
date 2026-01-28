@@ -93,6 +93,15 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
    uv run ~/.claude-plugins/jons-plan/plan.py phase-tasks
    ```
 
+   **If tasks.json already has tasks** (some phases auto-seed required tasks on entry):
+   1. Read the existing tasks to understand what's configured
+   2. Note task configurations like `prompt_file`, `subagent`, `model` - these are intentional
+   3. Add your own tasks if needed using the `add-task` command:
+      ```bash
+      echo '{"id": "my-task", "description": "...", "status": "todo", "parents": [], "steps": [...]}' | uv run ~/.claude-plugins/jons-plan/plan.py add-task -
+      ```
+   4. Do NOT modify the required tasks' `prompt_file`, `subagent`, or `model` fields
+
    **If tasks.json doesn't exist or is empty**, create it using the Write tool.
    The file will be validated automatically - invalid content will be rejected with helpful error messages.
 

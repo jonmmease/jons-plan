@@ -129,6 +129,7 @@ Each `[[phases]]` entry supports these fields:
 | `suggested_next` | array | No | Valid transitions (strings or objects) |
 | `terminal` | bool | No | If true, workflow ends at this phase |
 | `use_tasks` | bool | No | Phase uses tasks.json for work breakdown |
+| `required_tasks` | array | No | Tasks to auto-seed in tasks.json when entering phase |
 | `requires_user_input` | bool | No | Stop and wait for user before proceeding |
 | `required_artifacts` | array | No | Artifact names that must be recorded before leaving phase |
 | `context_artifacts` | array | No | Artifact names to inject from upstream phases |
@@ -139,6 +140,35 @@ Each `[[phases]]` entry supports these fields:
 | `supports_prototypes` | bool | No | Enable prototype tasks |
 | `supports_cache_reference` | bool | No | Enable research cache lookups |
 | `expand_prompt` | string | No | Instructions for dynamic phase expansion |
+
+### Required Tasks
+
+The `required_tasks` field auto-seeds tasks.json when entering a phase. This ensures critical tasks with specific configurations (like `prompt_file`) are always present.
+
+```toml
+[[phases]]
+id = "analyze"
+use_tasks = true
+required_tasks = [
+  { id = "slop-detection", description = "Scan for AI patterns", prompt_file = "slop-detection", model = "haiku" },
+  { id = "synthesize", description = "Combine findings", parents = ["slop-detection"] },
+]
+prompt = """
+Run the required tasks. Add additional reviewer tasks as needed.
+"""
+```
+
+**Supported task fields in required_tasks:**
+- `id`, `description` (required)
+- `prompt_file`, `subagent`, `subagent_prompt`, `model`, `parents`, `steps`
+- `context_artifacts`, `type`, `question`, `hypothesis`, `inject_project_context`, `locks`
+
+**Behavior:**
+- On first entry: creates tasks.json with required tasks (status="todo")
+- On re-entry: merges missing tasks, warns if protected fields differ
+- Protected fields: `prompt_file`, `subagent`, `model`
+
+Use `validate-required-tasks` to check tasks.json against the workflow definition.
 
 ### Transition Format
 
@@ -365,6 +395,7 @@ User guidance is set via `/jons-plan:proceed <number> <guidance>` and persists u
 | `expand-phase [--dry-run]` | Expand current phase (reads JSON from stdin) |
 | `rollback-expansion` | Restore workflow from backup |
 | `validate-workflow` | Validate workflow including expandable rules |
+| `validate-required-tasks` | Validate tasks.json contains all required tasks |
 
 ### Artifact Management
 | Command | Description |

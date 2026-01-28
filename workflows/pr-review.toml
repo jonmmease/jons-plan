@@ -64,6 +64,15 @@ suggested_next = ["review"]
 
 [[phases]]
 id = "review"
+use_tasks = true
+required_tasks = [
+  { id = "pr-slop-detection", description = "Scan PR for AI-generated writing patterns", subagent = "general-purpose", prompt_file = "slop-detection", model = "haiku" },
+  { id = "accuracy-check", description = "Verify PR claims against actual diff", subagent = "general-purpose", subagent_prompt = "Verify PR claims: Are all major changes mentioned? Any inaccurate or misleading claims? Does summary match the code? Are file references correct?", model = "haiku" },
+  { id = "gemini-editorial-review", description = "Gemini review for clarity and completeness", subagent = "gemini-reviewer", subagent_prompt = "Check: clarity, completeness, logical organization, appropriate detail level, missing context, whether motivation is clear" },
+  { id = "codex-technical-review", description = "Codex review for technical accuracy", subagent = "codex-reviewer", subagent_prompt = "Check: technical accuracy, correct terminology, missing implementation details, testing section adequacy, consistency between summary and changes" },
+  { id = "reader-comprehension", description = "Review for reader understanding", subagent = "general-purpose", subagent_prompt = "Check: Would unfamiliar reviewer understand? Is review tour helpful? Any unanswered questions? Is PR self-contained?", model = "opus" },
+  { id = "synthesize-feedback", description = "Synthesize all feedback into review-feedback.md", parents = ["pr-slop-detection", "accuracy-check", "gemini-editorial-review", "codex-technical-review", "reader-comprehension"] },
+]
 prompt = """
 # Review Phase
 
@@ -74,48 +83,6 @@ Review the PR description from multiple perspectives.
 - review-context.md for context
 - The PR document (path from review-context.md)
 - full.diff for verifying accuracy
-
-## PR Review Tasks
-
-### 1. PR Slop Detection (haiku)
-Scan for AI-generated writing patterns using the comprehensive slop detection guide.
-Create a task with `"prompt_file": "slop-detection"` to inject the full detection patterns.
-
-Focus on prose patterns relevant to PR descriptions:
-- AI vocabulary words (delve, utilize, leverage, ensure, robust, etc.)
-- Hazy claims of importance ("emphasizing the significance...")
-- Marketing speak, vague claims, unnecessary hedging
-- Filler phrases ("It's worth noting", "In order to")
-
-### 2. Accuracy Check (haiku)
-Verify PR claims against the actual diff:
-- Are all major changes mentioned?
-- Are any claims inaccurate or misleading?
-- Does the summary match what the code actually does?
-- Are file references correct?
-
-### 3. Gemini Editorial Review (gemini-reviewer)
-Check for:
-- Clarity and completeness
-- Logical organization
-- Appropriate level of detail
-- Missing context a reviewer would need
-- Whether the motivation is clear
-
-### 4. Codex Technical Review (codex-reviewer)
-Check for:
-- Technical accuracy of descriptions
-- Correct terminology
-- Missing important implementation details
-- Whether testing section is adequate
-- Consistency between summary and detailed changes
-
-### 5. Reader Comprehension (opus)
-Check for:
-- Would a reviewer unfamiliar with the codebase understand the change?
-- Is the review tour helpful (if present)?
-- Are there unanswered questions a reviewer would have?
-- Is the PR self-contained or does it assume too much context?
 
 ## Outputs
 

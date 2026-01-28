@@ -76,6 +76,10 @@
       "cache_id": {
         "type": "integer",
         "description": "Cache entry ID for cache-reference type tasks"
+      },
+      "prompt_file": {
+        "type": "string",
+        "description": "Plugin prompt file to inject (e.g., 'slop-detection' loads prompts/slop-detection.md)"
       }
     }
   }
