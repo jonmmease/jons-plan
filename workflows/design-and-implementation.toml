@@ -172,7 +172,7 @@ id = "revise"
 prompt = """
 # Revise Phase
 
-Incorporate feedback and finalize design.
+Incorporate reviewer feedback into design.md. This is a work phase - do NOT present output to the user. The user will review in the next phase.
 
 ## Inputs
 - design.md from previous draft/revise
@@ -197,7 +197,10 @@ uv run ~/.claude-plugins/jons-plan/plan.py clear-user-guidance
 3. Update confidence assessment
 
 ## Outputs
-Updated design.md ready for user review.
+Updated design.md.
+
+## Transition
+After updating design.md, immediately transition to user-decision phase. Do NOT summarize or present the changes - the user will review in the next phase.
 """
 suggested_next = ["user-decision"]
 
