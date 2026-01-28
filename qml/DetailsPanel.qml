@@ -342,6 +342,7 @@ Rectangle {
 
                     // Entry reason (if present)
                     Rectangle {
+                        id: reasonSection
                         Layout.fillWidth: true
                         Layout.preferredHeight: reasonExpanded ? reasonContent.height + 28 + Theme.spacingSmall : 28
                         color: Theme.bgPanel
@@ -349,6 +350,14 @@ Rectangle {
                         visible: (workflowModel.selectedPhaseDetails.reason || "") !== ""
 
                         property bool reasonExpanded: true
+
+                        // Reset expanded state when phase changes (to default: expanded)
+                        Connections {
+                            target: workflowModel
+                            function onSelectedPhaseChanged() {
+                                reasonSection.reasonExpanded = true
+                            }
+                        }
 
                         Rectangle {
                             id: reasonHeader
@@ -401,6 +410,7 @@ Rectangle {
 
                     // Artifact Contract section (inputs/outputs from workflow.toml)
                     Rectangle {
+                        id: artifactContractSection
                         Layout.fillWidth: true
                         Layout.preferredHeight: artifactContractExpanded ? artifactContractContent.height + 28 + Theme.spacingSmall : 28
                         color: Theme.bgPanel
@@ -409,6 +419,14 @@ Rectangle {
                                  (workflowModel.selectedPhaseDetails.required_artifacts || []).length > 0
 
                         property bool artifactContractExpanded: true
+
+                        // Reset expanded state when phase changes (to default: expanded)
+                        Connections {
+                            target: workflowModel
+                            function onSelectedPhaseChanged() {
+                                artifactContractSection.artifactContractExpanded = true
+                            }
+                        }
 
                         Rectangle {
                             id: artifactContractHeader
@@ -641,6 +659,7 @@ Rectangle {
 
                     // Artifacts section
                     Rectangle {
+                        id: artifactsSection
                         Layout.fillWidth: true
                         Layout.preferredHeight: artifactsExpanded ? artifactsContent.height + 28 + Theme.spacingSmall : 28
                         color: Theme.bgPanel
@@ -648,6 +667,14 @@ Rectangle {
                         visible: (workflowModel.selectedPhaseArtifacts || []).length > 0
 
                         property bool artifactsExpanded: false
+
+                        // Reset expanded state when phase changes
+                        Connections {
+                            target: workflowModel
+                            function onSelectedPhaseChanged() {
+                                artifactsSection.artifactsExpanded = false
+                            }
+                        }
 
                         Rectangle {
                             id: artifactsHeader
@@ -860,6 +887,7 @@ Rectangle {
 
                     // Logs section
                     Rectangle {
+                        id: logsSection
                         Layout.fillWidth: true
                         Layout.preferredHeight: logsExpanded ? 200 : 28
                         color: Theme.bgPanel
@@ -867,6 +895,14 @@ Rectangle {
                         visible: (workflowModel.selectedPhaseLogs || "") !== ""
 
                         property bool logsExpanded: false
+
+                        // Reset expanded state when phase changes
+                        Connections {
+                            target: workflowModel
+                            function onSelectedPhaseChanged() {
+                                logsSection.logsExpanded = false
+                            }
+                        }
 
                         Rectangle {
                             id: logsHeader
