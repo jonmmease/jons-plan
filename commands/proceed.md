@@ -95,15 +95,17 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
 
    **If tasks.json already has tasks** (some phases auto-seed required tasks on entry):
    1. Read the existing tasks to understand what's configured
-   2. Note task configurations like `prompt_file`, `subagent`, `model` - these are intentional
-   3. Add your own tasks if needed using the `add-task` command:
-      ```bash
-      echo '{"id": "my-task", "description": "...", "status": "todo", "parents": [], "steps": [...]}' | uv run ~/.claude-plugins/jons-plan/plan.py add-task -
-      ```
-   4. Do NOT modify the required tasks' `prompt_file`, `subagent`, or `model` fields
+   2. Add your own tasks by editing the file with the Write tool
+   3. **Important:** Do NOT modify required tasks' `prompt_file`, `subagent`, or `model` fields - these are protected and validation will reject the write
 
    **If tasks.json doesn't exist or is empty**, create it using the Write tool.
-   The file will be validated automatically - invalid content will be rejected with helpful error messages.
+
+   **Validation:** All writes to tasks.json are validated automatically:
+   - JSON schema validation (required fields, valid status values)
+   - Required tasks must be present with original configurations
+   - Protected fields (`prompt_file`, `subagent`, `model`) cannot be changed on required tasks
+
+   Invalid content will be rejected with helpful error messages.
 
    **Task Schema** (required fields marked with *):
    ```json

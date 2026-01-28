@@ -14,7 +14,7 @@ Conditionally blocked:
 - workflow.toml   - Blocked during execution (proceed mode), allowed during plan creation
 
 Validated files (allowed if valid):
-- tasks.json      - Task definitions (validated against JSON schema)
+- tasks.json      - Task definitions (validated against JSON schema + required_tasks)
 """
 
 import json
@@ -27,6 +27,8 @@ try:
     HAS_JSONSCHEMA = True
 except ImportError:
     HAS_JSONSCHEMA = False
+
+import tomllib
 
 
 # Files that are always blocked (must use CLI)
@@ -158,6 +160,91 @@ def validate_tasks_json(content: str) -> tuple[bool, list[str]]:
     return len(errors) == 0, errors
 
 
+def get_plan_dir_from_tasks_path(tasks_path: str) -> Path | None:
+    """Get the plan directory from a tasks.json file path."""
+    # tasks.json is at: .claude/jons-plan/plans/<plan>/phases/<phase>/tasks.json
+    path = Path(tasks_path).resolve()
+    # Walk up to find the plan directory (contains workflow.toml)
+    for parent in path.parents:
+        if (parent / "workflow.toml").exists():
+            return parent
+    return None
+
+
+def get_current_phase_from_state(plan_dir: Path) -> str | None:
+    """Get the current phase ID from state.json."""
+    state_file = plan_dir / "state.json"
+    if not state_file.exists():
+        return None
+    try:
+        state = json.loads(state_file.read_text())
+        return state.get("current_phase")
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def get_required_tasks_from_workflow(plan_dir: Path, phase_id: str) -> list[dict]:
+    """Get required_tasks for a phase from workflow.toml."""
+    workflow_file = plan_dir / "workflow.toml"
+    if not workflow_file.exists():
+        return []
+
+    try:
+        with open(workflow_file, "rb") as f:
+            workflow = tomllib.load(f)
+
+        for phase in workflow.get("phases", []):
+            if phase.get("id") == phase_id:
+                return phase.get("required_tasks", [])
+    except (OSError, tomllib.TOMLDecodeError):
+        pass
+
+    return []
+
+
+def validate_required_tasks(data: list, tasks_path: str) -> list[str]:
+    """Validate that required tasks are present with correct protected fields."""
+    errors = []
+
+    plan_dir = get_plan_dir_from_tasks_path(tasks_path)
+    if not plan_dir:
+        return errors  # Can't validate, allow
+
+    current_phase = get_current_phase_from_state(plan_dir)
+    if not current_phase:
+        return errors  # Can't validate, allow
+
+    required_tasks = get_required_tasks_from_workflow(plan_dir, current_phase)
+    if not required_tasks:
+        return errors  # No required tasks, allow
+
+    # Build map of tasks by ID
+    task_by_id = {t.get("id"): t for t in data if isinstance(t, dict)}
+
+    # Protected fields that cannot be changed
+    protected_fields = ["prompt_file", "subagent", "model"]
+
+    for req_task in required_tasks:
+        req_id = req_task.get("id")
+        if not req_id:
+            continue
+
+        if req_id not in task_by_id:
+            errors.append(f"Missing required task: '{req_id}'")
+        else:
+            existing = task_by_id[req_id]
+            for field in protected_fields:
+                req_val = req_task.get(field)
+                existing_val = existing.get(field)
+                if req_val is not None and existing_val != req_val:
+                    errors.append(
+                        f"Required task '{req_id}': Cannot change {field} "
+                        f"(expected '{req_val}', got '{existing_val}')"
+                    )
+
+    return errors
+
+
 def main():
     # Read hook input from stdin
     try:
@@ -272,6 +359,31 @@ def main():
             }
             print(json.dumps(output))
             sys.exit(0)
+
+        # Validate required_tasks are preserved
+        try:
+            data = json.loads(content)
+            required_errors = validate_required_tasks(data, file_path)
+            if required_errors:
+                error_list = "\n".join(f"  - {e}" for e in required_errors)
+                output = {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": (
+                            f"BLOCKED: Required tasks validation failed.\n\n"
+                            f"This phase has required tasks defined in workflow.toml.\n"
+                            f"You must preserve these tasks with their original configurations.\n\n"
+                            f"Errors:\n{error_list}\n\n"
+                            f"Protected fields: prompt_file, subagent, model\n"
+                            f"Use 'uv run plan.py add-task -' to add new tasks."
+                        ),
+                    }
+                }
+                print(json.dumps(output))
+                sys.exit(0)
+        except json.JSONDecodeError:
+            pass  # Already caught above
 
         # Valid - allow the write
         sys.exit(0)

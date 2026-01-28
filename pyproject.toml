@@ -2,9 +2,8 @@
 name = "jons-plan"
 version = "0.1.0"
 description = "Long-running agent harness for Claude Code"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
-    "tomli>=2.0.0",
     "jsonschema>=4.0.0",
 ]
 
