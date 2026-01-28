@@ -229,7 +229,11 @@ Updated design.md with:
 - Investigation findings (if any)
 - Final confidence score (1-5) with rationale
 """
-suggested_next = ["complete", "revise"]
+suggested_next = [
+    "complete",
+    "revise",
+    { phase = "research", requires_approval = true, approval_prompt = "Return to research for fundamental rethinking of the approach?" }
+]
 
 [[phases]]
 id = "complete"

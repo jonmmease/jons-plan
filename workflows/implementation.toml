@@ -87,7 +87,11 @@ What must be true for implementation to be complete?
 
 Note: The implement phase will create its own tasks.json from the implementation plan.
 """
-suggested_next = ["implement", "plan"]
+suggested_next = [
+    "implement",
+    "plan",
+    { phase = "research", requires_approval = true, approval_prompt = "Return to research for additional investigation?" }
+]
 
 [[phases]]
 id = "implement"
@@ -142,7 +146,7 @@ Artifacts must be recorded via `record-artifact` to be available. Common artifac
 """
 suggested_next = [
     "validate",
-    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
+    { phase = "plan", requires_approval = true, approval_prompt = "Return to plan phase to reassess based on implementation findings?" }
 ]
 
 [[phases]]
@@ -184,7 +188,7 @@ Verify each criterion from the verification plan is met.
 suggested_next = [
     "complete",
     "implement",
-    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
+    { phase = "plan", requires_approval = true, approval_prompt = "Return to plan phase to reassess based on validation findings?" }
 ]
 on_blocked = "implement"
 

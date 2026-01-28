@@ -319,7 +319,11 @@ If investigations were needed, write `investigation-findings.md`:
 If confidence >= 4: proceed to implement
 If confidence < 4: back to synthesize with new info
 """
-suggested_next = ["implement", "synthesize"]
+suggested_next = [
+    "implement",
+    "synthesize",
+    { phase = "research", requires_approval = true, approval_prompt = "Return to research for additional investigation?" }
+]
 on_blocked = "synthesize"
 
 [[phases]]
@@ -381,7 +385,7 @@ Common artifacts in this workflow:
 """
 suggested_next = [
     "validate",
-    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
+    { phase = "process-feedback", requires_approval = true, approval_prompt = "Return to process-feedback to reassess based on implementation findings?" }
 ]
 
 [[phases]]
@@ -426,7 +430,7 @@ Verify each criterion from the verification plan is met.
 """
 suggested_next = [
     "complete",
-    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
+    { phase = "process-feedback", requires_approval = true, approval_prompt = "Return to process-feedback to reassess based on validation findings?" }
 ]
 on_blocked = "implement"
 
