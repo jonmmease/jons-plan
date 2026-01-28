@@ -194,16 +194,8 @@ transitions = [...]  # NOT a valid field
 - It's a simple bug fix with clear reproduction steps
 - User explicitly says "just do it, don't ask questions"
 
-### Step 2: Derive Plan Name and Set Active
+### Step 2: Derive Plan Name
 Convert topic to kebab-case (e.g., "add user authentication" → "add-user-authentication")
-
-**Immediately after deriving the plan name**, set it as active and set mode:
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py set-active <plan-name>
-uv run ~/.claude-plugins/jons-plan/plan.py set-mode new
-```
-
-This ensures the plan context is preserved if compaction occurs during plan creation.
 
 ### Step 3: Create Plan Infrastructure
 
@@ -217,12 +209,17 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
    ```bash
    mkdir -p "$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>"
    ```
-3. Copy workflow.toml to plan directory:
+3. **Immediately after creating the directory**, set active and mode (this ensures plan context is preserved if compaction occurs):
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py set-active <plan-name>
+   uv run ~/.claude-plugins/jons-plan/plan.py set-mode new
+   ```
+5. Copy workflow.toml to plan directory:
    ```bash
    cp ~/.claude-plugins/jons-plan/workflows/<name>.toml "$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>/workflow.toml"
    ```
-4. Create `request.md` with the user's request (use absolute path: `$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>/request.md`)
-5. Create `claude-progress.txt` with initial entry (use absolute path)
+6. Create `request.md` with the user's request (use absolute path: `$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>/request.md`)
+7. Create `claude-progress.txt` with initial entry (use absolute path)
 
 ### Step 4: Initialize State Machine
 1. Initialize state.json with first phase
