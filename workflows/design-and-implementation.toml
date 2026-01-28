@@ -218,7 +218,12 @@ The user should review:
 """
 requires_user_input = true
 user_review_artifacts = ["design.md", "review-feedback.md"]
-suggested_next = ["implement", "complete-design-only", "revise"]
+suggested_next = [
+    "implement",
+    "complete-design-only",
+    "revise",
+    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase? This will start fresh research while preserving learnings from the current design." }
+]
 
 [[phases]]
 id = "implement"
