@@ -3113,6 +3113,65 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                             except Exception as e:
                                 print(f"Warning: Failed to auto-import cache entries: {e}", file=sys.stderr)
 
+            # Auto-import proposals if present and validated
+            for artifact_spec in required_json_artifacts:
+                artifact_name = artifact_spec.get("name", "")
+                if artifact_name == "proposals":
+                    # Find the artifact path
+                    current_entry_data = None
+                    for entry in reversed(state.get("phase_history", [])):
+                        if entry.get("entry") == state.get("current_phase_entry"):
+                            current_entry_data = entry
+                            break
+                    if current_entry_data:
+                        artifacts = current_entry_data.get("artifacts", {})
+                        if artifact_name in artifacts:
+                            artifact_path = plan_dir / artifacts[artifact_name]
+                            # Import proposals into manifest
+                            try:
+                                with open(artifact_path) as f:
+                                    data = json.load(f)
+                                proposals_list = data.get("proposals", [])
+                                if proposals_list:
+                                    # Load existing manifest
+                                    manifest_file = plan_dir / "proposals-manifest.json"
+                                    existing_proposals = []
+                                    existing_ids = set()
+                                    if manifest_file.exists():
+                                        try:
+                                            manifest_data = json.loads(manifest_file.read_text())
+                                            existing_proposals = manifest_data.get("proposals", [])
+                                            existing_ids = {p.get("id") for p in existing_proposals}
+                                        except (json.JSONDecodeError, KeyError):
+                                            pass
+
+                                    # Add new proposals
+                                    imported = 0
+                                    phase_dir_name = f"{state.get('current_phase_entry'):02d}-{current_phase}"
+                                    for p in proposals_list:
+                                        # Generate ID as phase:title-slug
+                                        proposal_id = f"{phase_dir_name}:{slugify(p.get('title', 'untitled'))}"
+                                        if proposal_id not in existing_ids:
+                                            proposal = {
+                                                "id": proposal_id,
+                                                "source_phase": f"phases/{phase_dir_name}",
+                                                "target_file": p.get("target_file", "CLAUDE.md"),
+                                                "title": p.get("title", ""),
+                                                "content": p.get("content", ""),
+                                                "rationale": p.get("rationale", ""),
+                                                "status": "pending",
+                                            }
+                                            existing_proposals.append(proposal)
+                                            existing_ids.add(proposal_id)
+                                            imported += 1
+
+                                    # Write updated manifest
+                                    manifest_file.write_text(json.dumps({"proposals": existing_proposals}, indent=2))
+                                    if imported:
+                                        print(f"Auto-collected {imported} proposals")
+                            except Exception as e:
+                                print(f"Warning: Failed to auto-import proposals: {e}", file=sys.stderr)
+
     # Count existing entries for this phase (for re-entry detection)
     prev_entries = [
         e for e in state.get("phase_history", []) if e["phase"] == args.phase_id

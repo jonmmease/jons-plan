@@ -1,6 +1,6 @@
 # CLAUDE.md Improvement Proposals
 
-During implementation, you may discover improvements to CLAUDE.md that would help future agents work more effectively with this codebase.
+**IMPORTANT:** This is a required artifact for implement phases. You MUST create a `proposals.json` file before leaving the phase.
 
 ## When to Propose
 
@@ -11,33 +11,53 @@ Propose CLAUDE.md updates when you discover:
 - Tool usage patterns specific to this project
 - Configuration requirements
 
-## How to Propose
+## When to Leave Empty
 
-Write `proposals.md` in your task output directory:
+Create an empty proposals file when:
+- The implementation was straightforward
+- No patterns or gotchas were discovered
+- The codebase is already well-documented
 
-```bash
-TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
+## JSON Format
+
+Create `proposals.json` in the current phase directory:
+
+### Empty Proposals (nothing to propose)
+```json
+{
+  "proposals": []
+}
 ```
 
-## Proposal Format
+### With Proposals
+```json
+{
+  "proposals": [
+    {
+      "title": "Error handling pattern for API calls",
+      "target_file": "src/api/CLAUDE.md",
+      "content": "Always wrap fetch calls in try/catch and check response.ok before parsing JSON.",
+      "rationale": "Discovered during implementation that silent failures were causing confusing errors."
+    }
+  ]
+}
+```
 
-```markdown
-# CLAUDE.md Proposals
+## Required Fields
 
-## Proposal: <title>
+Each proposal must have:
+| Field | Description |
+|-------|-------------|
+| `title` | Brief title for the proposal |
+| `target_file` | Path to CLAUDE.md (e.g., `CLAUDE.md` or `src/auth/CLAUDE.md`) |
+| `content` | What to add to the file |
+| `rationale` | Why this helps future agents |
 
-**Target File**: `path/to/CLAUDE.md`
+## Recording the Artifact
 
-**Content**:
-[What to add to the CLAUDE.md file]
-
-**Rationale**:
-[Why this helps future agents]
-
----
-
-## Proposal: <another-title>
-...
+After creating proposals.json:
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py record-artifact proposals proposals.json
 ```
 
 ## Guidelines
@@ -46,3 +66,7 @@ TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
 - **Be specific**: Include concrete examples
 - **Keep it brief**: Agents should be able to quickly scan CLAUDE.md
 - **Focus on patterns**: Document what works, not implementation details
+
+## Automatic Processing
+
+When you leave the implement phase, proposals are automatically collected and stored. You don't need to manually run `collect-proposals`.

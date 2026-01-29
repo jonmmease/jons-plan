@@ -50,6 +50,9 @@ supports_proposals = true
 on_blocked = "self"
 max_retries = 3
 context_artifacts = ["implementation-plan"]
+required_json_artifacts = [
+    { name = "proposals", schema = "proposals" }
+]
 prompt = """
 # Implement Phase
 
@@ -105,6 +108,20 @@ prompt = """
 # Complete Phase
 
 Finalize the implementation.
+
+## Review CLAUDE.md Proposals
+
+Proposals are auto-collected from implement phases. Check for pending proposals:
+
+```bash
+uv run ~/.claude-plugins/jons-plan/plan.py list-proposals
+```
+
+For each pending proposal, present to user via AskUserQuestion:
+- Show: target file, proposed content, rationale
+- Options: Accept, Reject
+- If Accept: use Edit tool to apply the change to the target file
+- Update status: `uv run ~/.claude-plugins/jons-plan/plan.py update-proposal-status <id> accepted|rejected`
 
 ## Final Tasks
 1. Review all changes made

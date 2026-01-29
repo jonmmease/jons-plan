@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CLAUDE.md Proposals",
+  "description": "Schema for CLAUDE.md improvement proposals artifact",
+  "type": "object",
+  "required": ["proposals"],
+  "properties": {
+    "proposals": {
+      "type": "array",
+      "description": "List of proposed CLAUDE.md improvements",
+      "items": {
+        "type": "object",
+        "required": ["title", "target_file", "content", "rationale"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Brief title for the proposal"
+          },
+          "target_file": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to CLAUDE.md file (e.g., 'CLAUDE.md' or 'src/auth/CLAUDE.md')"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The content to add to the CLAUDE.md file"
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why this helps future agents"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
