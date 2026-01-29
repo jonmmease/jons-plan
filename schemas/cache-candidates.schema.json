@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cache Candidates",
+  "description": "Schema for research cache candidates artifact",
+  "type": "object",
+  "required": ["entries"],
+  "properties": {
+    "entries": {
+      "type": "array",
+      "description": "List of cache entries to import",
+      "items": {
+        "type": "object",
+        "required": ["query", "findings_file", "source_type"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The research question or search query"
+          },
+          "findings_file": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Relative path to markdown file containing findings"
+          },
+          "source_type": {
+            "type": "string",
+            "enum": ["web_search", "documentation", "prototype", "task_research"],
+            "description": "Type of research source"
+          },
+          "source_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Optional URL of the source"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

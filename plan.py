@@ -770,6 +770,18 @@ class WorkflowManager:
             return phase.get("context_artifacts", [])
         return []
 
+    def get_required_json_artifacts(self, phase_id: str) -> list[dict]:
+        """Get required JSON artifacts for a phase.
+
+        Returns list of dicts with 'name' and 'schema' keys that must be
+        validated against JSON schemas before transitioning out of this phase.
+        Empty list if none required.
+        """
+        phase = self.get_phase(phase_id)
+        if phase:
+            return phase.get("required_json_artifacts", [])
+        return []
+
     def get_workflow_name(self) -> str:
         """Get the workflow name."""
         if not self.exists():
@@ -900,7 +912,7 @@ class WorkflowManager:
             "requires_user_input", "on_blocked", "max_retries", "max_iterations",
             "supports_proposals", "supports_prototypes", "supports_cache_reference",
             "expand_prompt", "required_artifacts", "context_artifacts",
-            "required_tasks",
+            "required_tasks", "required_json_artifacts",
         }
         # Valid keys in suggested_next objects
         VALID_TRANSITION_KEYS = {"phase", "requires_approval", "approval_prompt"}
@@ -983,6 +995,42 @@ class WorkflowManager:
                         model = task.get("model")
                         if model is not None and model not in ("sonnet", "haiku", "opus"):
                             errors.append(f"Phase '{phase_id}' required_tasks[{j}] (id={task_id}) has invalid model: '{model}' (valid: sonnet, haiku, opus)")
+
+            # Validate required_json_artifacts
+            json_artifacts = phase.get("required_json_artifacts", [])
+            if json_artifacts:
+                if not isinstance(json_artifacts, list):
+                    errors.append(f"Phase '{phase_id}' required_json_artifacts must be an array")
+                else:
+                    seen_names = set()
+                    for j, artifact in enumerate(json_artifacts):
+                        if not isinstance(artifact, dict):
+                            errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] must be a table")
+                            continue
+
+                        # Check required fields
+                        if "name" not in artifact:
+                            errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] missing required 'name' field")
+                        if "schema" not in artifact:
+                            errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] missing required 'schema' field")
+
+                        # Check for unknown keys
+                        valid_keys = {"name", "schema"}
+                        for key in artifact.keys():
+                            if key not in valid_keys:
+                                errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] has unknown key: '{key}' (valid: {valid_keys})")
+
+                        name = artifact.get("name", f"<index {j}>")
+                        schema = artifact.get("schema", "")
+
+                        # Check for duplicate names
+                        if name in seen_names:
+                            errors.append(f"Phase '{phase_id}' has duplicate required_json_artifacts name: '{name}'")
+                        seen_names.add(name)
+
+                        # Schema name must not contain path separators
+                        if "/" in schema or "\\" in schema:
+                            errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] schema name must not contain path separators: '{schema}'")
 
         return errors
 
@@ -1190,6 +1238,85 @@ class ArtifactResolver:
                 for filename, rel_path in latest_entry["artifacts"].items()
             }
         return {}
+
+
+# --- JSON Artifact Validation ---
+
+
+def validate_json_artifact(
+    artifact_name: str,
+    schema_name: str,
+    plan_dir: Path,
+    state_mgr: StateManager,
+) -> list[str]:
+    """Validate a JSON artifact against a schema.
+
+    Args:
+        artifact_name: Name of the artifact (as recorded with record-artifact)
+        schema_name: Name of the schema (without path or extension)
+        plan_dir: Path to the plan directory
+        state_mgr: StateManager instance for the plan
+
+    Returns:
+        List of error messages. Empty list if validation passes.
+    """
+    errors: list[str] = []
+
+    # Find schema file
+    plugin_dir = Path(__file__).parent
+    schema_path = plugin_dir / "schemas" / f"{schema_name}.schema.json"
+    if not schema_path.exists():
+        errors.append(f"Schema not found: {schema_path}")
+        return errors
+
+    # Find artifact in current phase
+    state = state_mgr.load()
+    current_entry = state.get("current_phase_entry", 0)
+    artifact_path = None
+
+    for entry in state.get("phase_history", []):
+        if entry.get("entry") == current_entry:
+            artifacts = entry.get("artifacts", {})
+            if artifact_name in artifacts:
+                artifact_path = plan_dir / artifacts[artifact_name]
+            break
+
+    if artifact_path is None:
+        errors.append(f"Artifact '{artifact_name}' not recorded in current phase")
+        return errors
+
+    if not artifact_path.exists():
+        errors.append(f"Artifact file not found: {artifact_path}")
+        return errors
+
+    # Load and parse artifact JSON
+    try:
+        with open(artifact_path) as f:
+            artifact_data = json.load(f)
+    except json.JSONDecodeError as e:
+        errors.append(f"Invalid JSON in artifact '{artifact_name}': {e}")
+        return errors
+
+    # Load schema
+    try:
+        with open(schema_path) as f:
+            schema = json.load(f)
+    except json.JSONDecodeError as e:
+        errors.append(f"Invalid JSON in schema '{schema_name}': {e}")
+        return errors
+
+    # Validate using jsonschema
+    try:
+        import jsonschema
+        jsonschema.validate(artifact_data, schema)
+    except jsonschema.ValidationError as e:
+        # Format a helpful error message
+        path = ".".join(str(p) for p in e.absolute_path) if e.absolute_path else "(root)"
+        errors.append(f"Validation error at {path}: {e.message}")
+    except ImportError:
+        errors.append("jsonschema library not installed - cannot validate JSON artifacts")
+
+    return errors
 
 
 # --- Research Cache ---
@@ -2848,6 +2975,74 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                 print("Example:", file=sys.stderr)
                 print(f"  uv run plan.py record-artifact {missing[0]} {missing[0]}.md", file=sys.stderr)
                 return 1
+
+        # Validate required_json_artifacts against their schemas
+        required_json_artifacts = workflow_mgr.get_required_json_artifacts(current_phase)
+        if required_json_artifacts:
+            all_validation_errors: list[str] = []
+            for artifact_spec in required_json_artifacts:
+                artifact_name = artifact_spec.get("name", "")
+                schema_name = artifact_spec.get("schema", "")
+                if artifact_name and schema_name:
+                    errors = validate_json_artifact(
+                        artifact_name, schema_name, plan_dir, state_mgr
+                    )
+                    if errors:
+                        all_validation_errors.extend(
+                            [f"{artifact_name}: {e}" for e in errors]
+                        )
+
+            if all_validation_errors:
+                print(
+                    f"Error: Cannot leave phase '{current_phase}' - JSON artifact validation failed:",
+                    file=sys.stderr,
+                )
+                for error in all_validation_errors:
+                    print(f"  - {error}", file=sys.stderr)
+                return 1
+
+            # Auto-import cache-candidates if present and validated
+            for artifact_spec in required_json_artifacts:
+                artifact_name = artifact_spec.get("name", "")
+                if artifact_name == "cache-candidates":
+                    # Find the artifact path
+                    current_entry_data = None
+                    for entry in reversed(state.get("phase_history", [])):
+                        if entry.get("entry") == state.get("current_phase_entry"):
+                            current_entry_data = entry
+                            break
+                    if current_entry_data:
+                        artifacts = current_entry_data.get("artifacts", {})
+                        if artifact_name in artifacts:
+                            artifact_path = plan_dir / artifacts[artifact_name]
+                            # Import cache entries
+                            try:
+                                with open(artifact_path) as f:
+                                    data = json.load(f)
+                                entries = data.get("entries", [])
+                                if entries:
+                                    cache = ResearchCache(project_dir)
+                                    imported = 0
+                                    for entry in entries:
+                                        query = entry.get("query", "")
+                                        findings_file = entry.get("findings_file", "")
+                                        if query and findings_file:
+                                            findings_path = plan_dir / findings_file
+                                            if findings_path.exists():
+                                                findings_content = findings_path.read_text()
+                                                cache.add(
+                                                    query=query,
+                                                    findings=findings_content,
+                                                    source_type=entry.get("source_type", "task_research"),
+                                                    source_url=entry.get("source_url"),
+                                                    plan_id=plan_dir.name,
+                                                    replace=True,
+                                                )
+                                                imported += 1
+                                    if imported:
+                                        print(f"Auto-imported {imported} cache entries from {artifact_name}")
+                            except Exception as e:
+                                print(f"Warning: Failed to auto-import cache entries: {e}", file=sys.stderr)
 
     # Count existing entries for this phase (for re-entry detection)
     prev_entries = [
@@ -4544,6 +4739,153 @@ def cmd_cache_suggest(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cache_import(args: argparse.Namespace) -> int:
+    """Import cache entries from a JSON artifact file.
+
+    Reads a JSON file containing cache entries with file references,
+    resolves the file paths, reads the content, and imports into cache.
+    """
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    # Load and validate the JSON file
+    json_path = Path(args.path)
+    if not json_path.is_absolute():
+        json_path = plan_dir / json_path
+
+    if not json_path.exists():
+        print(f"File not found: {json_path}", file=sys.stderr)
+        return 1
+
+    try:
+        with open(json_path) as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON: {e}", file=sys.stderr)
+        return 1
+
+    entries = data.get("entries", [])
+    if not entries:
+        print("No entries to import")
+        return 0
+
+    cache = ResearchCache(project_dir)
+    imported = 0
+    skipped = 0
+    errors_list: list[str] = []
+
+    for i, entry in enumerate(entries):
+        query = entry.get("query", "")
+        findings_file = entry.get("findings_file", "")
+        source_type = entry.get("source_type", "task_research")
+        source_url = entry.get("source_url")
+
+        if not query or not findings_file:
+            errors_list.append(f"Entry {i}: missing query or findings_file")
+            continue
+
+        # Resolve findings_file path relative to plan directory
+        findings_path = Path(findings_file)
+        if not findings_path.is_absolute():
+            findings_path = plan_dir / findings_file
+
+        if not findings_path.exists():
+            errors_list.append(f"Entry {i}: findings file not found: {findings_path}")
+            continue
+
+        # Read findings content
+        try:
+            findings_content = findings_path.read_text()
+        except Exception as e:
+            errors_list.append(f"Entry {i}: failed to read {findings_path}: {e}")
+            continue
+
+        if args.dry_run:
+            print(f"Would import: {query[:50]}... ({len(findings_content)} chars)")
+            imported += 1
+            continue
+
+        # Import into cache
+        try:
+            plan_id = args.plan_id or plan_dir.name
+            cache.add(
+                query=query,
+                findings=findings_content,
+                source_type=source_type,
+                source_url=source_url,
+                plan_id=plan_id,
+                replace=True,  # Replace if same query exists
+            )
+            imported += 1
+        except ValueError as e:
+            errors_list.append(f"Entry {i}: cache add failed: {e}")
+
+    # Report results
+    if args.dry_run:
+        print(f"\nDry run: would import {imported} entries")
+    else:
+        print(f"Imported {imported} cache entries")
+
+    if skipped:
+        print(f"Skipped {skipped} entries (already cached)")
+
+    if errors_list:
+        print(f"\nErrors ({len(errors_list)}):", file=sys.stderr)
+        for error in errors_list:
+            print(f"  - {error}", file=sys.stderr)
+        return 1 if not imported else 0
+
+    return 0
+
+
+def cmd_validate_json_artifact(args: argparse.Namespace) -> int:
+    """Manually validate a JSON artifact against its schema."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    state_mgr = StateManager(plan_dir)
+    workflow_mgr = WorkflowManager(plan_dir)
+
+    artifact_name = args.name
+    schema_name = args.schema
+
+    # If schema not specified, try to find it from workflow
+    if not schema_name:
+        state = state_mgr.load()
+        current_phase = state.get("current_phase")
+        if current_phase:
+            json_artifacts = workflow_mgr.get_required_json_artifacts(current_phase)
+            for artifact_spec in json_artifacts:
+                if artifact_spec.get("name") == artifact_name:
+                    schema_name = artifact_spec.get("schema", "")
+                    break
+
+        if not schema_name:
+            print(
+                f"Schema not specified and not found in workflow for artifact '{artifact_name}'",
+                file=sys.stderr,
+            )
+            print("Use --schema <schema-name> to specify the schema", file=sys.stderr)
+            return 1
+
+    errors = validate_json_artifact(artifact_name, schema_name, plan_dir, state_mgr)
+
+    if errors:
+        print(f"Validation failed for '{artifact_name}':", file=sys.stderr)
+        for error in errors:
+            print(f"  - {error}", file=sys.stderr)
+        return 1
+
+    print(f"Validation passed: {artifact_name} (schema: {schema_name})")
+    return 0
+
+
 # --- Proposal Commands ---
 
 
@@ -5610,6 +5952,17 @@ def main() -> int:
     p_cache_suggest = subparsers.add_parser("cache-suggest", help="Suggest cache references for a task")
     p_cache_suggest.add_argument("--description", "-d", required=True, help="Task description to search for")
 
+    # cache-import
+    p_cache_import = subparsers.add_parser("cache-import", help="Import cache entries from JSON artifact")
+    p_cache_import.add_argument("path", help="Path to JSON file with cache entries")
+    p_cache_import.add_argument("--plan-id", help="Override plan ID for imported entries")
+    p_cache_import.add_argument("--dry-run", action="store_true", help="Show what would be imported without importing")
+
+    # validate-json-artifact
+    p_validate_json = subparsers.add_parser("validate-json-artifact", help="Validate JSON artifact against schema")
+    p_validate_json.add_argument("name", help="Artifact name")
+    p_validate_json.add_argument("--schema", help="Schema name (auto-detected from workflow if not specified)")
+
     # Proposal commands
     subparsers.add_parser("collect-proposals", help="Collect proposals from task directories")
 
@@ -5707,6 +6060,8 @@ def main() -> int:
         "cache-gc": cmd_cache_gc,
         "cache-stats": cmd_cache_stats,
         "cache-suggest": cmd_cache_suggest,
+        "cache-import": cmd_cache_import,
+        "validate-json-artifact": cmd_validate_json_artifact,
         # Proposal commands
         "collect-proposals": cmd_collect_proposals,
         "list-proposals": cmd_list_proposals,

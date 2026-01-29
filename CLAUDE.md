@@ -140,6 +140,30 @@ Each `[[phases]]` entry supports these fields:
 | `supports_prototypes` | bool | No | Enable prototype tasks |
 | `supports_cache_reference` | bool | No | Enable research cache lookups |
 | `expand_prompt` | string | No | Instructions for dynamic phase expansion |
+| `required_json_artifacts` | array | No | JSON artifacts validated against schemas before leaving phase |
+
+### Required JSON Artifacts
+
+The `required_json_artifacts` field specifies JSON artifacts that must exist and validate against a schema before leaving a phase. This enables structured data validation for phase outputs.
+
+```toml
+[[phases]]
+id = "research"
+use_tasks = true
+required_json_artifacts = [
+  { name = "cache-candidates", schema = "cache-candidates" }
+]
+```
+
+**Schema storage:** Schemas are stored in `~/.claude-plugins/jons-plan/schemas/<name>.schema.json`
+
+**Behavior:**
+- On phase transition: each artifact is validated against its schema
+- Validation failures block the transition with clear error messages
+- Special handling: `cache-candidates` artifacts are auto-imported to the research cache
+
+**Built-in schemas:**
+- `cache-candidates` - Research cache entries with file references
 
 ### Required Tasks
 
@@ -402,6 +426,8 @@ User guidance is set via `/jons-plan:proceed <number> <guidance>` and persists u
 |---------|-------------|
 | `record-artifact <name> <path>` | Record phase artifact |
 | `input-artifacts [--phase-id] [--json]` | Resolve input artifacts |
+| `validate-json-artifact <name> [--schema]` | Validate JSON artifact against schema |
+| `cache-import <path> [--plan-id] [--dry-run]` | Import cache entries from JSON file |
 
 ### Dead-End Tracking
 | Command | Description |
