@@ -70,7 +70,7 @@ QtObject {
     readonly property int radiusLarge: 12
 
     // Node dimensions
-    readonly property int nodeWidth: 120
+    readonly property int nodeWidth: 180
     readonly property int nodeHeight: 50
     readonly property int nodeRadius: 8
 
