@@ -2514,6 +2514,63 @@ def cmd_update_task_steps(args: argparse.Namespace) -> int:
     return 0
 
 
+def is_research_task(task: dict) -> bool:
+    """Detect if a task is research-oriented and should check the cache.
+
+    Returns True if the task appears to be doing external research
+    (web search, documentation lookup) rather than codebase exploration
+    or implementation work.
+    """
+    # Skip cache-reference tasks (they already use the cache)
+    if task.get("type") == "cache-reference":
+        return False
+
+    # Check subagent type - Explore is often used for research
+    subagent = task.get("subagent", "").lower()
+    if subagent == "explore":
+        return True
+
+    # Check description for research keywords
+    description = task.get("description", "").lower()
+    research_keywords = [
+        "research", "investigate", "explore", "find out", "lookup",
+        "look up", "search for", "documentation", "web search",
+        "find documentation", "find examples"
+    ]
+
+    for keyword in research_keywords:
+        if keyword in description:
+            return True
+
+    return False
+
+
+def get_cache_suggestions_for_task(project_dir: Path, task: dict, limit: int = 3) -> list[dict]:
+    """Get cache suggestions for a task description.
+
+    Returns a list of cache hits that may be relevant to the task.
+    """
+    description = task.get("description", "")
+    if not description:
+        return []
+
+    try:
+        cache = ResearchCache(project_dir)
+        hits = cache.search(description, limit=limit, include_expired=False)
+
+        # Filter by relevance (lower BM25 score = more relevant)
+        RELEVANCE_THRESHOLD = 0.0
+        relevant_hits = [h for h in hits if h.score is not None and h.score <= RELEVANCE_THRESHOLD]
+
+        return [
+            {"id": h.id, "query": h.query, "score": round(h.score, 2) if h.score else None}
+            for h in relevant_hits
+        ]
+    except Exception:
+        # If cache lookup fails, just return empty - don't break task prompt building
+        return []
+
+
 def cmd_build_task_prompt(args: argparse.Namespace) -> int:
     """Build a complete prompt for a task with all context."""
     project_dir = get_project_dir()
@@ -2574,6 +2631,18 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
         prompt_parts.append("\nSteps:")
         for step in steps:
             prompt_parts.append(f"- {step}")
+
+    # 2a. Cache suggestions for research tasks
+    if is_research_task(task):
+        suggestions = get_cache_suggestions_for_task(project_dir, task, limit=3)
+        if suggestions:
+            prompt_parts.append("\n\n## Cache Suggestions")
+            prompt_parts.append("The following cached findings may be relevant to this task:")
+            for s in suggestions:
+                prompt_parts.append(f"- **ID {s['id']}**: {s['query']}")
+            prompt_parts.append("")
+            prompt_parts.append("Run `uv run ~/.claude-plugins/jons-plan/plan.py cache-get <id>` to retrieve full findings.")
+            prompt_parts.append("If cached findings are sufficient, use them and skip redundant research.")
 
     # 2b. Project context (CLAUDE.md) - opt-in via task field
     if task.get("inject_project_context", False):
