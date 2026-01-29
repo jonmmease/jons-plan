@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["tomli_w"]
+# dependencies = ["tomli_w", "jsonschema"]
 # ///
 """
 Plan management CLI for long-running agent harness.
@@ -1308,13 +1308,16 @@ def validate_json_artifact(
     # Validate using jsonschema
     try:
         import jsonschema
+    except ImportError:
+        errors.append("jsonschema library not installed - cannot validate JSON artifacts")
+        return errors
+
+    try:
         jsonschema.validate(artifact_data, schema)
     except jsonschema.ValidationError as e:
         # Format a helpful error message
         path = ".".join(str(p) for p in e.absolute_path) if e.absolute_path else "(root)"
         errors.append(f"Validation error at {path}: {e.message}")
-    except ImportError:
-        errors.append("jsonschema library not installed - cannot validate JSON artifacts")
 
     return errors
 
