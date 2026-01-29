@@ -304,6 +304,15 @@ ApplicationWindow {
                         color: requestHeaderMouse.containsMouse ? Theme.hoverHighlight : Theme.bgPanelHeader
                         z: 1
 
+                        // Background click handler (declared first so it's behind the RowLayout)
+                        MouseArea {
+                            id: requestHeaderMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.requestExpanded = !root.requestExpanded
+                        }
+
                         RowLayout {
                             anchors.fill: parent
                             anchors.leftMargin: Theme.spacingSmall
@@ -324,14 +333,31 @@ ApplicationWindow {
                             }
 
                             Item { Layout.fillWidth: true }
-                        }
 
-                        MouseArea {
-                            id: requestHeaderMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.requestExpanded = !root.requestExpanded
+                            // Open button
+                            Rectangle {
+                                width: reqOpenLabel.width + 8
+                                height: 18
+                                radius: 3
+                                color: reqOpenMouse.containsMouse ? Theme.bgPanelHeader : "transparent"
+                                border.width: 1
+                                border.color: Theme.textMuted
+
+                                Text {
+                                    id: reqOpenLabel
+                                    anchors.centerIn: parent
+                                    text: "Open"
+                                    font.pixelSize: 10
+                                    color: Theme.textSecondary
+                                }
+                                MouseArea {
+                                    id: reqOpenMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: workflowModel.openInZed(workflowModel.requestPath)
+                                }
+                            }
                         }
                     }
 

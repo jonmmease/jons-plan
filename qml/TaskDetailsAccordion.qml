@@ -405,6 +405,32 @@ Rectangle {
                                                 }
                                             }
 
+                                            // Open button
+                                            Rectangle {
+                                                width: openLabel.width + Theme.spacingSmall * 2
+                                                height: 20
+                                                radius: Theme.radiusSmall
+                                                color: openMouse.containsMouse ? Theme.bgPanelHeader : "transparent"
+                                                border.width: 1
+                                                border.color: Theme.textMuted
+
+                                                Text {
+                                                    id: openLabel
+                                                    anchors.centerIn: parent
+                                                    text: "Open"
+                                                    font.pixelSize: Theme.fontSizeSmall
+                                                    color: Theme.textSecondary
+                                                }
+
+                                                MouseArea {
+                                                    id: openMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: workflowModel.openInZed(modelData.filePath)
+                                                }
+                                            }
+
                                             // Copy button
                                             Rectangle {
                                                 width: copyLabel.width + Theme.spacingSmall * 2

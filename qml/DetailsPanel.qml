@@ -787,6 +787,30 @@ Rectangle {
                                             }
 
                                             Rectangle {
+                                                width: artOpenLabel.width + 8
+                                                height: 18
+                                                radius: 3
+                                                color: artOpenMouse.containsMouse ? Theme.bgPanelHeader : "transparent"
+                                                border.width: 1
+                                                border.color: Theme.textMuted
+
+                                                Text {
+                                                    id: artOpenLabel
+                                                    anchors.centerIn: parent
+                                                    text: "Open"
+                                                    font.pixelSize: 10
+                                                    color: Theme.textSecondary
+                                                }
+                                                MouseArea {
+                                                    id: artOpenMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: workflowModel.openInZed(modelData.filePath)
+                                                }
+                                            }
+
+                                            Rectangle {
                                                 width: artCopyLabel.width + 8
                                                 height: 18
                                                 radius: 3

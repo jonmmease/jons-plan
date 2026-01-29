@@ -740,6 +740,7 @@ class WorkflowModel(QObject):
                             is_md = file_path.suffix.lower() == ".md"
                             artifacts.append({
                                 "name": file_path.name,
+                                "filePath": str(file_path),
                                 "content": md_to_html(raw_content) if is_md else raw_content,
                                 "rawContent": raw_content,
                                 "isHtml": is_md,
@@ -892,6 +893,11 @@ class WorkflowModel(QObject):
     @Property(str, notify=dataChanged)
     def requestHtml(self) -> str:
         return self._request_html
+
+    @Property(str, notify=dataChanged)
+    def requestPath(self) -> str:
+        """Path to request.md file."""
+        return str(self._plan_path / "request.md")
 
     @Property("QVariantList", notify=dataChanged)
     def progressEntries(self) -> list:
@@ -1105,6 +1111,7 @@ class WorkflowModel(QObject):
                         is_md = file_path.suffix.lower() == ".md"
                         findings.append({
                             "name": file_path.name,
+                            "filePath": str(file_path),
                             "content": md_to_html(raw_content) if is_md else raw_content,
                             "rawContent": raw_content,
                             "isHtml": is_md,
@@ -1184,6 +1191,23 @@ class WorkflowModel(QObject):
         """Copy text to system clipboard."""
         clipboard = QGuiApplication.clipboard()
         clipboard.setText(text)
+
+    @Slot(str)
+    def openInZed(self, file_path: str) -> None:
+        """Open a file in Zed editor."""
+        import subprocess
+
+        if not file_path:
+            logger.warning("openInZed called with empty file_path")
+            return
+
+        try:
+            subprocess.run(["zed", file_path], check=False)
+            logger.debug(f"Opened in Zed: {file_path}")
+        except FileNotFoundError:
+            logger.error("Zed not found. Is it installed and in PATH?")
+        except Exception as e:
+            logger.error(f"Failed to open in Zed: {e}")
 
     @Slot(str, result=bool)
     def navigateToLink(self, url: str) -> bool:
