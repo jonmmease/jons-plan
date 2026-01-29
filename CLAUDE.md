@@ -454,6 +454,19 @@ Valid modes: `new`, `plan`, `proceed`, `awaiting-feedback`
 | `check-confidence <task-id>` | Check score |
 | `low-confidence-tasks` | List low-confidence tasks |
 
+### Proposals and Challenges
+| Command | Description |
+|---------|-------------|
+| `collect-proposals` | Scan for proposals.md files |
+| `list-proposals` | List all CLAUDE.md proposals |
+| `update-proposal-status <id> <status>` | Accept/reject proposal |
+| `collect-challenges` | Scan for challenges.md files |
+| `list-challenges` | List all challenges |
+| `acknowledge-challenge <id>` | Mark challenge as acknowledged |
+
+**Proposals** record advice for future agents when you overcome an issue.
+**Challenges** record issues you couldn't solve and had to work around.
+
 ## Plugin Metadata
 
 Version and metadata are in `.claude-plugin/plugin.json`.

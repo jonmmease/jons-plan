@@ -5246,6 +5246,227 @@ def cmd_update_proposal_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def parse_challenges_md(content: str) -> list[dict]:
+    """Parse challenges.md markdown format into structured challenges.
+
+    Expected format:
+    ## Challenge: <title>
+
+    **What was attempted**:
+    <attempted lines>
+
+    **What went wrong**:
+    <issue lines>
+
+    **Workaround used**:
+    <workaround lines> (optional)
+    """
+    import re
+    challenges = []
+
+    # Split by ## Challenge: headers
+    sections = re.split(r'^## Challenge:\s*', content, flags=re.MULTILINE)
+
+    for section in sections[1:]:  # Skip content before first challenge
+        lines = section.strip().split('\n')
+        if not lines:
+            continue
+
+        title = lines[0].strip()
+        section_text = '\n'.join(lines[1:])
+
+        # Extract What was attempted
+        attempted_match = re.search(
+            r'\*\*What was attempted\*\*:\s*\n(.*?)(?=\*\*What went wrong\*\*:|\Z)',
+            section_text,
+            re.DOTALL
+        )
+        attempted = attempted_match.group(1).strip() if attempted_match else ""
+
+        # Extract What went wrong
+        issue_match = re.search(
+            r'\*\*What went wrong\*\*:\s*\n(.*?)(?=\*\*Workaround used\*\*:|---|\Z)',
+            section_text,
+            re.DOTALL
+        )
+        issue = issue_match.group(1).strip() if issue_match else ""
+
+        # Extract Workaround (optional)
+        workaround_match = re.search(
+            r'\*\*Workaround used\*\*:\s*\n(.*?)(?=---|\Z)',
+            section_text,
+            re.DOTALL
+        )
+        workaround = workaround_match.group(1).strip() if workaround_match else ""
+
+        if title:
+            challenges.append({
+                "title": title,
+                "attempted": attempted,
+                "issue": issue,
+                "workaround": workaround,
+            })
+
+    return challenges
+
+
+def cmd_collect_challenges(args: argparse.Namespace) -> int:
+    """Collect all challenges from task directories into a manifest."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    manifest_file = plan_dir / "challenges-manifest.json"
+
+    # Load existing manifest to preserve status
+    existing = {}
+    if manifest_file.exists():
+        try:
+            data = json.loads(manifest_file.read_text())
+            existing = {c["id"]: c for c in data.get("challenges", [])}
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    # Collect challenges from all task directories
+    challenges = []
+    phases_dir = plan_dir / "phases"
+
+    if phases_dir.exists():
+        for phase_dir in sorted(phases_dir.iterdir()):
+            if not phase_dir.is_dir():
+                continue
+            tasks_dir = phase_dir / "tasks"
+            if not tasks_dir.exists():
+                continue
+
+            for task_dir in sorted(tasks_dir.iterdir()):
+                if not task_dir.is_dir():
+                    continue
+                challenges_file = task_dir / "challenges.md"
+                if not challenges_file.exists():
+                    continue
+
+                # Parse challenges from this task
+                parsed = parse_challenges_md(challenges_file.read_text())
+                for c in parsed:
+                    # Generate ID as task:title-slug
+                    challenge_id = f"{task_dir.name}:{slugify(c['title'])}"
+
+                    challenge = {
+                        "id": challenge_id,
+                        "source_task": task_dir.name,
+                        "source_phase": str(phase_dir.relative_to(plan_dir)),
+                        "title": c["title"],
+                        "attempted": c["attempted"],
+                        "issue": c["issue"],
+                        "workaround": c["workaround"],
+                        "status": "pending",
+                    }
+
+                    # Preserve status from existing manifest
+                    if challenge_id in existing:
+                        challenge["status"] = existing[challenge_id].get("status", "pending")
+
+                    challenges.append(challenge)
+
+    # Write manifest
+    manifest = {"challenges": challenges}
+    manifest_file.write_text(json.dumps(manifest, indent=2))
+
+    new_count = sum(1 for c in challenges if c["id"] not in existing)
+    print(f"Collected {len(challenges)} challenges ({new_count} new)")
+    return 0
+
+
+def cmd_list_challenges(args: argparse.Namespace) -> int:
+    """List challenges with status."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    manifest_file = plan_dir / "challenges-manifest.json"
+    if not manifest_file.exists():
+        print("No challenges collected yet. Run collect-challenges first.")
+        return 0
+
+    try:
+        manifest = json.loads(manifest_file.read_text())
+    except json.JSONDecodeError:
+        print("Error: Invalid manifest file", file=sys.stderr)
+        return 1
+
+    challenges = manifest.get("challenges", [])
+    if not challenges:
+        print("No challenges")
+        return 0
+
+    # Group by status
+    by_status = {"pending": [], "acknowledged": []}
+    for c in challenges:
+        status = c.get("status", "pending")
+        if status in by_status:
+            by_status[status].append(c)
+        else:
+            by_status["pending"].append(c)
+
+    total = len(challenges)
+    pending = len(by_status["pending"])
+
+    print(f"Challenges ({total} total, {pending} pending):")
+
+    for status in ["pending", "acknowledged"]:
+        if by_status[status]:
+            print(f"\n  {status}:")
+            for c in by_status[status]:
+                print(f"    {c['id']}: {c['title']} (from {c['source_task']})")
+                if c.get("issue"):
+                    # Truncate long issue text
+                    issue_preview = c["issue"][:60] + "..." if len(c["issue"]) > 60 else c["issue"]
+                    print(f"      Issue: {issue_preview}")
+
+    return 0
+
+
+def cmd_acknowledge_challenge(args: argparse.Namespace) -> int:
+    """Acknowledge a challenge in the manifest."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    manifest_file = plan_dir / "challenges-manifest.json"
+    if not manifest_file.exists():
+        print("No challenges manifest. Run collect-challenges first.", file=sys.stderr)
+        return 1
+
+    try:
+        manifest = json.loads(manifest_file.read_text())
+    except json.JSONDecodeError:
+        print("Error: Invalid manifest file", file=sys.stderr)
+        return 1
+
+    # Find and update the challenge
+    found = False
+    for c in manifest.get("challenges", []):
+        if c["id"] == args.challenge_id:
+            c["status"] = "acknowledged"
+            found = True
+            break
+
+    if not found:
+        print(f"Challenge not found: {args.challenge_id}", file=sys.stderr)
+        return 1
+
+    manifest_file.write_text(json.dumps(manifest, indent=2))
+    print(f"Acknowledged: {args.challenge_id}")
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     """Show comprehensive status overview."""
     project_dir = get_project_dir()
@@ -6104,6 +6325,13 @@ def main() -> int:
     p_update_proposal.add_argument("proposal_id", help="Proposal ID")
     p_update_proposal.add_argument("status", choices=["pending", "accepted", "rejected"], help="New status")
 
+    # Challenge commands
+    subparsers.add_parser("collect-challenges", help="Collect challenges from task directories")
+    subparsers.add_parser("list-challenges", help="List challenges with status")
+
+    p_ack_challenge = subparsers.add_parser("acknowledge-challenge", help="Acknowledge a challenge")
+    p_ack_challenge.add_argument("challenge_id", help="Challenge ID")
+
     # Workflow expansion commands
     subparsers.add_parser("build-expand-prompt", help="Build full expand prompt with reference workflows")
 
@@ -6197,6 +6425,10 @@ def main() -> int:
         "collect-proposals": cmd_collect_proposals,
         "list-proposals": cmd_list_proposals,
         "update-proposal-status": cmd_update_proposal_status,
+        # Challenge commands
+        "collect-challenges": cmd_collect_challenges,
+        "list-challenges": cmd_list_challenges,
+        "acknowledge-challenge": cmd_acknowledge_challenge,
         # Workflow expansion commands
         "build-expand-prompt": cmd_build_expand_prompt,
         "expand-phase": cmd_expand_phase,

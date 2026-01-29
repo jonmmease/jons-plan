@@ -433,6 +433,37 @@ TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
 
 See `phase-context` output for the full proposal format.
 
+### Challenges Reporting
+
+When you encounter issues you **could not solve**, write a `challenges.md` file in the task output directory:
+
+```bash
+TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
+# Write challenges to $TASK_DIR/challenges.md
+```
+
+**When to record challenges:**
+- You couldn't figure out how to do something and used a workaround
+- You encountered a limitation or missing feature
+- A tool or library didn't work as expected
+- You couldn't find documentation for something
+
+**Challenge format:**
+```markdown
+## Challenge: <brief title>
+
+**What was attempted**:
+<what you tried to do>
+
+**What went wrong**:
+<the issue or limitation>
+
+**Workaround used**:
+<how you worked around it, or "None" if blocked>
+```
+
+**Challenges vs Proposals:** Use proposals when you **solved** an issue and have advice. Use challenges when you **couldn't solve** an issue and had to work around it.
+
 ## When All Tasks Complete
 
 After all tasks are `done`:
@@ -443,5 +474,11 @@ After all tasks are `done`:
    uv run ~/.claude-plugins/jons-plan/plan.py list-proposals
    ```
    If proposals exist, present them to the user for approval before committing.
-3. Summarize what was accomplished
-4. Ask user if they want to commit the changes
+3. Collect and present challenges (if any were written):
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py collect-challenges
+   uv run ~/.claude-plugins/jons-plan/plan.py list-challenges
+   ```
+   Present challenges for user acknowledgement.
+4. Summarize what was accomplished
+5. Ask user if they want to commit the changes

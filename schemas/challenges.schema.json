@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Challenges",
+  "description": "Schema for reporting challenges encountered during implementation",
+  "type": "object",
+  "required": ["challenges"],
+  "properties": {
+    "challenges": {
+      "type": "array",
+      "description": "List of challenges encountered",
+      "items": {
+        "type": "object",
+        "required": ["title", "attempted", "issue"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Brief title describing the challenge"
+          },
+          "attempted": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the agent tried to do"
+          },
+          "issue": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What went wrong or why it didn't work"
+          },
+          "workaround": {
+            "type": "string",
+            "description": "How the agent worked around the issue (optional)"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
