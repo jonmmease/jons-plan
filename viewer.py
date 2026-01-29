@@ -97,7 +97,7 @@ def compute_layout(workflow: dict) -> dict:
     """
     g = graphviz.Digraph(format="json")
     g.attr(rankdir="TB", nodesep="0.5", ranksep="0.75")
-    g.attr("node", shape="box", width="1.5", height="0.6")
+    g.attr("node", shape="box", width="2.5", height="0.6")
 
     # Add phase nodes
     phases = workflow.get("phases", [])
@@ -552,7 +552,7 @@ class WorkflowModel(QObject):
                 "label": layout_node.get("label", phase_id.replace("-", " ").title()),
                 "x": layout_node.get("x", 0),
                 "y": layout_node.get("y", 0),
-                "width": layout_node.get("width", 108),
+                "width": layout_node.get("width", 180),
                 "height": layout_node.get("height", 43),
                 "status": status,
             })
