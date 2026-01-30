@@ -427,7 +427,7 @@ Rectangle {
                                                     anchors.fill: parent
                                                     hoverEnabled: true
                                                     cursorShape: Qt.PointingHandCursor
-                                                    onClicked: workflowModel.openInZed(modelData.filePath)
+                                                    onClicked: workflowModel.openInEditor(modelData.filePath)
                                                 }
                                             }
 

@@ -1193,21 +1193,21 @@ class WorkflowModel(QObject):
         clipboard.setText(text)
 
     @Slot(str)
-    def openInZed(self, file_path: str) -> None:
-        """Open a file in Zed editor."""
+    def openInEditor(self, file_path: str) -> None:
+        """Open a file in VS Code."""
         import subprocess
 
         if not file_path:
-            logger.warning("openInZed called with empty file_path")
+            logger.warning("openInEditor called with empty file_path")
             return
 
         try:
-            subprocess.run(["zed", file_path], check=False)
-            logger.debug(f"Opened in Zed: {file_path}")
+            subprocess.run(["code", file_path], check=False)
+            logger.debug(f"Opened in VS Code: {file_path}")
         except FileNotFoundError:
-            logger.error("Zed not found. Is it installed and in PATH?")
+            logger.error("VS Code not found. Is it installed and in PATH?")
         except Exception as e:
-            logger.error(f"Failed to open in Zed: {e}")
+            logger.error(f"Failed to open in VS Code: {e}")
 
     @Slot(str, result=bool)
     def navigateToLink(self, url: str) -> bool:

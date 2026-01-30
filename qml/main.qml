@@ -355,7 +355,7 @@ ApplicationWindow {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: workflowModel.openInZed(workflowModel.requestPath)
+                                    onClicked: workflowModel.openInEditor(workflowModel.requestPath)
                                 }
                             }
                         }
