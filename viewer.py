@@ -471,7 +471,7 @@ class WorkflowModel(QObject):
         # Auto-follow current phase logic:
         # 1. On initial load (nothing selected), select current phase
         # 2. If user was viewing current phase and it changed, follow it
-        # 3. Otherwise, keep user's selection
+        # 3. Otherwise, keep user's selection and just refresh dynamic data
         if self._selected_phase is None and new_current:
             # Initial load - select current phase
             logger.debug(f"Initial load: selecting current phase {new_current}")
@@ -488,11 +488,12 @@ class WorkflowModel(QObject):
             self.selectPhase(new_current)
         else:
             # User has a different selection, keep it
+            # Only refresh dynamic data (tasks, artifacts, logs) without
+            # emitting selectedPhaseChanged to preserve QML expansion state
             self._current_phase = new_current
-            # Update selected phase details if an entry is selected
             if self._selected_phase_entry:
-                logger.debug(f"Updating selected phase entry: {self._selected_phase_entry}")
-                self._update_selected_phase_details()
+                logger.debug(f"Refreshing phase data for entry: {self._selected_phase_entry}")
+                self._refresh_phase_data()
 
         self.dataChanged.emit()
         logger.debug("Reload complete, dataChanged emitted")
@@ -723,8 +724,35 @@ class WorkflowModel(QObject):
             self.selectedPhaseArtifactsChanged.emit()
             self.selectedPhaseLogsChanged.emit()
 
+    def _refresh_phase_data(self) -> None:
+        """Refresh dynamic phase data without emitting selectedPhaseChanged.
+
+        Called when updates stream in but the user's phase selection hasn't changed.
+        Refreshes tasks, artifacts, and logs while preserving QML expansion state.
+        """
+        if not self._selected_phase_entry:
+            return
+
+        entry = self._find_entry_by_number(self._selected_phase_entry)
+        if not entry:
+            return
+
+        phase_id = entry.get("phase", "")
+        phase_dir = entry.get("dir", "")
+
+        if phase_id in self._phases:
+            # Refresh tasks in the details dict
+            self._selected_phase_details["tasks"] = self._load_phase_tasks(phase_dir)
+            # Refresh artifacts and logs (these methods now check before emitting)
+            self._load_phase_artifacts(phase_dir)
+            self._load_phase_logs(phase_dir)
+
     def _load_phase_artifacts(self, phase_dir: str) -> None:
-        """Load artifacts from phase directory."""
+        """Load artifacts from phase directory.
+
+        Only emits selectedPhaseArtifactsChanged if artifacts actually changed,
+        to preserve QML expansion state when streaming updates.
+        """
         artifacts = []
         if phase_dir:
             phase_path = Path(phase_dir)
@@ -747,11 +775,28 @@ class WorkflowModel(QObject):
                             })
                         except Exception:
                             pass
-        self._selected_phase_artifacts = artifacts
-        self.selectedPhaseArtifactsChanged.emit()
+
+        # Compare with existing artifacts to avoid spurious signal emissions
+        # that would reset QML expansion state
+        if self._artifacts_changed(self._selected_phase_artifacts, artifacts):
+            self._selected_phase_artifacts = artifacts
+            self.selectedPhaseArtifactsChanged.emit()
+
+    def _artifacts_changed(self, old: list, new: list) -> bool:
+        """Check if artifact lists differ (by name and content)."""
+        if len(old) != len(new):
+            return True
+        # Build lookup by name for comparison
+        old_by_name = {a["name"]: a["rawContent"] for a in old}
+        new_by_name = {a["name"]: a["rawContent"] for a in new}
+        return old_by_name != new_by_name
 
     def _load_phase_logs(self, phase_dir: str) -> None:
-        """Load phase progress logs with live watching."""
+        """Load phase progress logs with live watching.
+
+        Only emits selectedPhaseLogsChanged if logs actually changed,
+        to preserve QML state when streaming updates.
+        """
         # Clean up previous watcher
         if self._phase_log_watcher:
             self._phase_log_watcher.deleteLater()
@@ -775,15 +820,21 @@ class WorkflowModel(QObject):
                     )
                 except Exception:
                     pass
-        self._selected_phase_logs = logs
-        self.selectedPhaseLogsChanged.emit()
+
+        # Only emit if logs actually changed
+        if logs != self._selected_phase_logs:
+            self._selected_phase_logs = logs
+            self.selectedPhaseLogsChanged.emit()
 
     def _reload_phase_logs(self, log_file: Path) -> None:
         """Reload phase logs when file changes."""
         try:
             if log_file.exists():
-                self._selected_phase_logs = log_file.read_text(encoding="utf-8")
-                self.selectedPhaseLogsChanged.emit()
+                new_logs = log_file.read_text(encoding="utf-8")
+                # Only emit if content changed
+                if new_logs != self._selected_phase_logs:
+                    self._selected_phase_logs = new_logs
+                    self.selectedPhaseLogsChanged.emit()
                 # Re-add path (Qt removes it after change)
                 if self._phase_log_watcher:
                     self._phase_log_watcher.addPath(str(log_file))
