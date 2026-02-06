@@ -228,6 +228,41 @@ def log_phase_progress(plan_dir: Path, message: str) -> None:
         f.write(f"[{timestamp}] {message}\n")
 
 
+def build_reentry_context(
+    reason: str,
+    previous_entry: dict,
+) -> str:
+    """Build detailed re-entry analysis content from a concise reason string."""
+    artifacts = previous_entry.get("artifacts", {})
+    artifact_lines = []
+    if artifacts:
+        for name, path in artifacts.items():
+            artifact_lines.append(f"- {name}: {path}")
+    else:
+        artifact_lines.append("- (none recorded)")
+
+    content = f"""## Why Previous Attempt Failed
+{reason}
+
+## What Was Learned
+- The prior attempt for this phase did not fully satisfy exit criteria.
+- Review the artifacts and progress from the previous entry before retrying.
+
+## What Should Be Done Differently
+- Start by validating assumptions that caused the prior failure.
+- Adjust task breakdown and execution order based on the findings above.
+- Add verification checkpoints before leaving the phase again.
+
+## Specific Issues to Address
+- Prior entry: {previous_entry.get("entry", "unknown")}
+- Prior directory: {previous_entry.get("dir", "unknown")}
+- Prior outcome: {previous_entry.get("outcome", "unknown")}
+- Prior artifacts:
+{chr(10).join(artifact_lines)}
+"""
+    return content.strip()
+
+
 # --- State Management Classes ---
 
 
@@ -1009,24 +1044,29 @@ class WorkflowManager:
                 else:
                     seen_names = set()
                     for j, artifact in enumerate(json_artifacts):
-                        if not isinstance(artifact, dict):
-                            errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] must be a table")
+                        if isinstance(artifact, str):
+                            name = artifact
+                            schema = artifact
+                        elif isinstance(artifact, dict):
+                            # Check required fields
+                            if "name" not in artifact:
+                                errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] missing required 'name' field")
+                            if "schema" not in artifact:
+                                errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] missing required 'schema' field")
+
+                            # Check for unknown keys
+                            valid_keys = {"name", "schema"}
+                            for key in artifact.keys():
+                                if key not in valid_keys:
+                                    errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] has unknown key: '{key}' (valid: {valid_keys})")
+
+                            name = artifact.get("name", f"<index {j}>")
+                            schema = artifact.get("schema", "")
+                        else:
+                            errors.append(
+                                f"Phase '{phase_id}' required_json_artifacts[{j}] must be a string or table"
+                            )
                             continue
-
-                        # Check required fields
-                        if "name" not in artifact:
-                            errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] missing required 'name' field")
-                        if "schema" not in artifact:
-                            errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] missing required 'schema' field")
-
-                        # Check for unknown keys
-                        valid_keys = {"name", "schema"}
-                        for key in artifact.keys():
-                            if key not in valid_keys:
-                                errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] has unknown key: '{key}' (valid: {valid_keys})")
-
-                        name = artifact.get("name", f"<index {j}>")
-                        schema = artifact.get("schema", "")
 
                         # Check for duplicate names
                         if name in seen_names:
@@ -3273,39 +3313,44 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
 
     # Check max_retries limit for phase loopbacks
     if is_reentry:
-        # REQUIRE --reason-file for re-entries to ensure detailed context
-        if not args.reason_file:
-            print(
-                f"Error: Re-entering phase '{args.phase_id}' requires --reason-file",
-                file=sys.stderr,
-            )
-            print("", file=sys.stderr)
-            print("When looping back to a phase, you must provide detailed context", file=sys.stderr)
-            print("explaining why the previous attempt didn't succeed and what", file=sys.stderr)
-            print("should be done differently this time.", file=sys.stderr)
-            print("", file=sys.stderr)
-            print("Create a markdown file with:", file=sys.stderr)
-            print("  ## Why Previous Attempt Failed", file=sys.stderr)
-            print("  ## What Was Learned", file=sys.stderr)
-            print("  ## What Should Be Done Differently", file=sys.stderr)
-            print("  ## Specific Issues to Address", file=sys.stderr)
-            print("", file=sys.stderr)
-            print("Then call: enter-phase {phase} --reason-file <path>".format(phase=args.phase_id), file=sys.stderr)
-            return 1
+        reason_file = getattr(args, "reason_file", None)
+        if reason_file:
+            reason_file_path = Path(reason_file)
+            if not reason_file_path.exists():
+                print(f"Error: Reason file not found: {reason_file}", file=sys.stderr)
+                return 1
 
-        reason_file_path = Path(args.reason_file)
-        if not reason_file_path.exists():
-            print(f"Error: Reason file not found: {args.reason_file}", file=sys.stderr)
-            return 1
+            reentry_reason_content = reason_file_path.read_text().strip()
+            if len(reentry_reason_content) < 100:
+                print(
+                    f"Error: Reason file too short ({len(reentry_reason_content)} chars)",
+                    file=sys.stderr,
+                )
+                print("Re-entry context must be detailed (at least 100 characters).", file=sys.stderr)
+                return 1
+        else:
+            reason_text = (getattr(args, "reason", "") or "").strip()
+            if not reason_text:
+                print(
+                    f"Error: Re-entering phase '{args.phase_id}' requires context via --reason-file or --reason",
+                    file=sys.stderr,
+                )
+                print("", file=sys.stderr)
+                print("Provide detailed loopback context with one of:", file=sys.stderr)
+                print("  uv run plan.py enter-phase <phase> --reason-file <path>", file=sys.stderr)
+                print("  uv run plan.py enter-phase <phase> --reason \"<detailed reason>\"", file=sys.stderr)
+                return 1
 
-        reentry_reason_content = reason_file_path.read_text().strip()
-        if len(reentry_reason_content) < 100:
-            print(
-                f"Error: Reason file too short ({len(reentry_reason_content)} chars)",
-                file=sys.stderr,
-            )
-            print("Re-entry context must be detailed (at least 100 characters).", file=sys.stderr)
-            return 1
+            last_entry = prev_entries[-1]
+            reentry_reason_content = build_reentry_context(reason_text, last_entry)
+
+            # Persist generated context for traceability and easier debugging.
+            current_dir = state.get("current_phase_dir")
+            context_dir = (plan_dir / current_dir) if current_dir else plan_dir
+            context_dir.mkdir(parents=True, exist_ok=True)
+            auto_reason_file = context_dir / f"auto-reentry-{args.phase_id}.md"
+            auto_reason_file.write_text(reentry_reason_content + "\n")
+            print(f"Auto-generated re-entry context: {auto_reason_file}")
 
         max_retries = workflow_mgr.get_max_retries(args.phase_id)
         current_retries = state_mgr.get_phase_retries(args.phase_id)
@@ -3543,12 +3588,12 @@ def cmd_enter_phase_by_number(args: argparse.Namespace) -> int:
     if guidance:
         reason_str += f": {guidance}"
 
-    # Simulate args for enter-phase
-    class EnterPhaseArgs:
-        phase_id = target_phase
-        reason = reason_str
-
-    return cmd_enter_phase(EnterPhaseArgs())
+    enter_args = argparse.Namespace(
+        phase_id=target_phase,
+        reason=reason_str,
+        reason_file=None,
+    )
+    return cmd_enter_phase(enter_args)
 
 
 def cmd_phase_history(args: argparse.Namespace) -> int:
@@ -3711,13 +3756,11 @@ def cmd_loop_phase(args: argparse.Namespace) -> int:
 
     # Call enter-phase with same phase ID
     reason = args.reason or f"Self-loop: retry attempt {current_retries + 1}"
-
-    class EnterPhaseArgs:
-        phase_id = current_phase
-        reason = reason
-
-    enter_args = EnterPhaseArgs()
-    enter_args.reason = reason
+    enter_args = argparse.Namespace(
+        phase_id=current_phase,
+        reason=reason,
+        reason_file=None,
+    )
 
     result = cmd_enter_phase(enter_args)
 
@@ -3843,12 +3886,11 @@ def cmd_loop_to_phase(args: argparse.Namespace) -> int:
 
     # Transition directly
     reason = args.reason or f"Loopback: {current_phase} -> {target_phase}"
-
-    class EnterPhaseArgs:
-        phase_id = target_phase
-
-    enter_args = EnterPhaseArgs()
-    enter_args.reason = reason
+    enter_args = argparse.Namespace(
+        phase_id=target_phase,
+        reason=reason,
+        reason_file=None,
+    )
 
     result = cmd_enter_phase(enter_args)
 
@@ -3982,11 +4024,11 @@ def cmd_approve_transition(args: argparse.Namespace) -> int:
     reason = pending.get("reason", f"Approved transition: {from_phase} -> {target_phase}")
 
     # Execute transition via enter-phase
-    class EnterPhaseArgs:
-        phase_id = target_phase
-
-    enter_args = EnterPhaseArgs()
-    enter_args.reason = reason
+    enter_args = argparse.Namespace(
+        phase_id=target_phase,
+        reason=reason,
+        reason_file=None,
+    )
 
     result = cmd_enter_phase(enter_args)
 
@@ -5580,10 +5622,20 @@ def cmd_status(args: argparse.Namespace) -> int:
             print(f"\n## Active: {active}")
             print(f"  Path: {plan_dir}")
 
+            state_file = plan_dir / "state.json"
+            if state_file.exists():
+                try:
+                    state = json.loads(state_file.read_text())
+                    current_phase = state.get("current_phase")
+                    if current_phase:
+                        print(f"  Current phase: {current_phase}")
+                except (json.JSONDecodeError, OSError):
+                    pass
+
             if blocked_count > 0:
-                print(f"  Progress: {done}/{total} done, {in_progress_count} in-progress, {blocked_count} blocked, {todo} todo")
+                print(f"  Current phase progress: {done}/{total} done, {in_progress_count} in-progress, {blocked_count} blocked, {todo} todo")
             else:
-                print(f"  Progress: {done}/{total} done, {in_progress_count} in-progress, {todo} todo")
+                print(f"  Current phase progress: {done}/{total} done, {in_progress_count} in-progress, {todo} todo")
 
             # Blocked tasks (show first - most important)
             blocked_tasks = [t for t in tasks if t.get("status") == "blocked"]
@@ -6279,7 +6331,7 @@ def main() -> int:
     p_enter_phase = subparsers.add_parser("enter-phase", help="Enter a new phase")
     p_enter_phase.add_argument("phase_id", help="Phase ID to enter")
     p_enter_phase.add_argument("--reason", default="", help="Reason for entering phase (for first entry)")
-    p_enter_phase.add_argument("--reason-file", help="Path to markdown file with detailed re-entry context (REQUIRED for re-entries)")
+    p_enter_phase.add_argument("--reason-file", help="Path to markdown file with detailed re-entry context (recommended for re-entries)")
 
     subparsers.add_parser("suggested-next", help="List possible phase transitions")
 

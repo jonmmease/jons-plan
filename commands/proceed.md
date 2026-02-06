@@ -242,7 +242,7 @@ Mark a task as `blocked` when you encounter issues that **require replanning**:
 
 ### Phase Re-entry (Loopback) Requirements
 
-When looping back to a phase that was previously entered (re-entry), you **MUST** provide detailed context via `--reason-file`. This is required because:
+When looping back to a phase that was previously entered (re-entry), you should provide detailed context (prefer `--reason-file`, or use a detailed `--reason`). This is important because:
 - The re-entered phase needs to understand what went wrong
 - Without context, it will likely repeat the same mistakes
 - Detailed analysis helps identify what to do differently
@@ -269,9 +269,13 @@ When looping back to a phase that was previously entered (re-entry), you **MUST*
    <Actionable items for the re-entered phase>
    ```
 
-2. **Call enter-phase with --reason-file**:
+2. **Call enter-phase**:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <phase-id> --reason-file "$TASK_DIR/reentry-analysis.md"
+   ```
+   Or, if needed:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <phase-id> --reason "<detailed context>"
    ```
 
 The file must be at least 100 characters to ensure sufficient detail.
