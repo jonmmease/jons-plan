@@ -59,6 +59,7 @@ supports_cache_reference = true
 max_iterations = 4
 context_artifacts = ["research-plan"]
 required_artifacts = ["research-findings"]
+required_json_artifacts = ["cache-candidates"]
 prompt = """
 # Research Phase
 
@@ -68,7 +69,7 @@ Execute the research plan (injected above) with multiple parallel investigations
 
 Launch exploration agents. **You decide** how many agents to launch based on the topic's complexity.
 
-1. Launch Explore agents for codebase investigation
+1. Launch agents for codebase investigation
 2. Use WebSearch/WebFetch for external research
 3. Check documentation and examples
 4. Synthesize findings from all sources

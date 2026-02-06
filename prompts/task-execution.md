@@ -53,50 +53,6 @@ uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> done
    TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
    ```
 
-## Check Cache Before Research
-
-Before starting a research task that involves external sources (web search, documentation lookup), check the research cache for existing findings.
-
-### When to Check Cache
-
-**DO check cache for:**
-- Web searches and documentation lookups
-- Tasks with keywords: "research", "investigate", "explore", "find out", "lookup"
-- Tasks using subagent type "Explore" for external research
-- Any task that might duplicate prior web/documentation research
-
-**Do NOT check cache for:**
-- Codebase exploration (project-specific, changes with code)
-- Implementation tasks
-- Validation/testing tasks
-- Tasks that are clearly project-specific
-
-### How to Check
-
-Search the cache with your research query:
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py cache-search "your research query"
-```
-
-Or get suggestions based on task description:
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py cache-suggest --description "task description"
-```
-
-### If Cache Has Results
-
-1. **Review the cached findings** - Run `cache-get <id>` to see full content
-2. **If findings are sufficient** - Use them directly and skip redundant research
-3. **If findings are partial** - Use as a starting point and supplement with additional research
-4. **Log that you used cached findings**:
-   ```bash
-   uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "Used cached findings from entry <id>"
-   ```
-
-### If No Cache Results
-
-Proceed with the research normally. After completing, consider caching valuable findings (see "Caching Research Findings" below).
-
 ## Task Progress Logging
 
 Log your progress as you work on each task. This helps with resumption after compaction or session boundaries.
@@ -112,33 +68,6 @@ uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "message"
 - When encountering blockers: `"Blocked: need to resolve dependency conflict"`
 
 This is **best effort** - log what you think is important for resumption.
-
-## Caching Research Findings
-
-After completing research tasks that produce valuable external findings, consider caching them for future reuse.
-
-### When to Cache
-
-Cache findings when:
-- Web search produced useful documentation or patterns
-- Documentation lookup found relevant best practices
-- External research could benefit future similar tasks
-
-Do NOT cache:
-- Codebase exploration results (changes with code)
-- Temporary or context-specific findings
-- Very short findings (< 100 chars)
-
-### How to Cache
-
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py cache-add \
-  --query "the search query or question" \
-  --findings-file path/to/findings.md \
-  --source-type web_search \
-  --source-url "https://source.url" \
-  --plan-id "current-plan-name"
-```
 
 ## When to Use Subagents vs Execute Directly
 
@@ -173,7 +102,7 @@ When launching parallel subagents, each subagent must still follow the status wo
 ## Subagent Configuration
 
 Honor each task's configuration when launching subagents:
-- `subagent`: Agent type (default: `general-purpose`)
+- `subagent`: Agent type (default: `general-purpose`). Always use `general-purpose` — do not use `Explore` or `Plan` as they cannot write output files.
 - `subagent_prompt`: Additional context for the agent
 - `model`: Which model to use (`sonnet`, `haiku`, `opus`)
 

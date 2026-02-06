@@ -272,7 +272,7 @@ Each task should follow this schema:
 | `parents` | Yes | Array of task IDs that must complete first (empty `[]` if none) |
 | `steps` | Yes | Array of steps to complete the task |
 | `status` | Yes | Always `"todo"` when creating (execution changes to `in-progress`, `done`) |
-| `subagent` | No | `general-purpose` (default), `Explore`, `Plan`, `claude-code-guide`. See **Subagent Write Capabilities** below. |
+| `subagent` | No | `general-purpose` (default), `gemini-reviewer`, `codex-reviewer`. See **Subagent Types** below. |
 | `subagent_prompt` | No | Additional context (e.g., "very thorough analysis") |
 | `model` | No | `sonnet` (default), `haiku`, `opus` |
 | `resources` | No | Array of resource identifiers requiring exclusive access |
@@ -282,7 +282,6 @@ Example task:
 {
   "id": "research-auth-patterns",
   "description": "Research existing authentication patterns in codebase",
-  "subagent": "Explore",
   "subagent_prompt": "very thorough analysis",
   "model": "opus",
   "parents": [],
@@ -336,9 +335,9 @@ Tasks sharing resources are serialized even without parent dependencies. Use for
 
 | Task Type | `subagent` | `subagent_prompt` | `model` |
 |-----------|------------|-------------------|---------|
-| Quick file lookup (no written output) | `Explore` | `quick search` | `opus` |
+| Quick file lookup | `general-purpose` | `quick search` | `haiku` |
 | Thorough research with written findings | `general-purpose` | `very thorough analysis` | `opus` |
-| Codebase exploration (no written output) | `Explore` | `very thorough analysis` | `opus` |
+| Codebase exploration | `general-purpose` | `very thorough analysis` | `opus` |
 | Web/API/library research | `general-purpose` | (omit) | `haiku` |
 | Slop detection | `general-purpose` | (omit) | `haiku` |
 | Simple implementation | (omit) | (omit) | (omit) |
@@ -348,19 +347,15 @@ Tasks sharing resources are serialized even without parent dependencies. Use for
 | Test definition | (omit) | (omit) | (omit) |
 | Validation/verification | (omit) | (omit) | (omit) |
 
-## Subagent Write Capabilities
+## Subagent Types
 
-**Critical:** Not all subagent types can write files. If a task needs to produce output artifacts (e.g., `findings.md`, code files), it **must** use a subagent type with Write access.
+| Subagent | Use For |
+|----------|---------|
+| `general-purpose` | Default for all tasks — research, implementation, analysis. Can read and write files. |
+| `gemini-reviewer` | External review via Gemini |
+| `codex-reviewer` | External review via Codex |
 
-| Subagent | Can Write Files | Use For |
-|----------|----------------|---------|
-| `general-purpose` | Yes | Implementation, analysis with written output, any task needing file creation |
-| `Explore` | **No** (read-only) | Codebase search and exploration only — findings returned as text response |
-| `Plan` | **No** (read-only) | Planning and strategy design — plans returned as text response |
-| `gemini-reviewer` | Yes | External review via Gemini |
-| `codex-reviewer` | Yes | External review via Codex |
-
-**Common mistake:** Using `Explore` for research tasks that have a "Write findings.md" step. The agent will complete the research but fail to write the file, falling back to returning findings as its text response. Use `general-purpose` instead when the task needs to write artifacts.
+**Always use `general-purpose`** (the default) for research and implementation tasks. Research tasks that shouldn't modify project code are constrained via prompt instructions, not by using read-only agent types.
 
 ## Task Sizing Guidelines
 
@@ -464,7 +459,7 @@ Before creating research tasks (web search, documentation lookup), check the res
 
 Check the cache when creating tasks that:
 - Have keywords: "research", "investigate", "explore", "find", "lookup", "search"
-- Use subagent type `Explore`
+- Have research-oriented descriptions
 - Involve external sources (web, documentation, APIs)
 
 ### How to Check

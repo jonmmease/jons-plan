@@ -240,7 +240,7 @@ uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "message"
   "status": "todo",
 
   // Optional execution configuration:
-  "subagent": "Explore",           // Agent type for parallel execution
+  "subagent": "general-purpose",    // Agent type for parallel execution
   "subagent_prompt": "thorough",   // Additional context for agent
   "model": "haiku"                 // Model to use (haiku, sonnet, opus)
 }
@@ -250,10 +250,7 @@ uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "message"
 
 | Type | Use Case |
 |------|----------|
-| `general-purpose` | Default. Implementation, complex multi-step work |
-| `Explore` | Fast codebase exploration, file finding |
-| `Plan` | Same as Explore |
-| `claude-code-guide` | Questions about Claude Code features, hooks, MCP |
+| `general-purpose` | Default. Research, implementation, any task that reads or writes files |
 | `gemini-reviewer` | External review via Gemini 3 Pro |
 | `codex-reviewer` | External review via GPT-5-codex |
 

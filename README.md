@@ -116,7 +116,7 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 ```
 
 Tasks can optionally specify:
-- `subagent`: Agent type (`general-purpose`, `Explore`, `Plan`, `gemini-reviewer`, `codex-reviewer`)
+- `subagent`: Agent type (`general-purpose`, `gemini-reviewer`, `codex-reviewer`)
 - `subagent_prompt`: Additional context (e.g., "very thorough analysis")
 - `model`: Model to use (`sonnet`, `haiku`, `opus`)
 

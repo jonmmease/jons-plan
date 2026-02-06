@@ -36,7 +36,7 @@ Create `tasks.json` as a JSON array of task objects:
 | `steps` | No | Array of concrete steps |
 | `parents` | No | Task IDs that must complete first (empty `[]` if none) |
 | `context_artifacts` | No | Artifact names to include (e.g., `["request", "design"]`) |
-| `subagent` | No | Agent type: `general-purpose` (default), `Explore`, `gemini-reviewer`, `codex-reviewer` |
+| `subagent` | No | Agent type: `general-purpose` (default), `gemini-reviewer`, `codex-reviewer` |
 | `subagent_prompt` | No | Additional context (e.g., `"very thorough analysis"`) |
 | `model` | No | `sonnet` (default), `haiku`, `opus` |
 | `question` | No | For prototype tasks: the question being answered |
@@ -51,7 +51,7 @@ Create `tasks.json` as a JSON array of task objects:
   {
     "id": "research-patterns",
     "description": "Research existing patterns in codebase",
-    "subagent": "Explore",
+    "subagent": "general-purpose",
     "subagent_prompt": "very thorough analysis",
     "model": "haiku",
     "parents": [],
@@ -2357,7 +2357,7 @@ def validate_task_schema(task: dict) -> list[str]:
     if "status" in task and task["status"] not in ("todo", "in-progress", "done", "blocked"):
         errors.append(f"Invalid status: {task['status']}")
 
-    valid_subagents = ("general-purpose", "Explore", "Plan", "claude-code-guide", "gemini-reviewer", "codex-reviewer")
+    valid_subagents = ("general-purpose", "Explore", "Plan", "claude-code-guide", "gemini-reviewer", "codex-reviewer")  # Explore/Plan kept for backwards compat
     if "subagent" in task and task["subagent"] not in valid_subagents:
         errors.append(f"Invalid subagent: {task['subagent']}")
 
@@ -2539,11 +2539,6 @@ def is_research_task(task: dict) -> bool:
     # Skip cache-reference tasks (they already use the cache)
     if task.get("type") == "cache-reference":
         return False
-
-    # Check subagent type - Explore is often used for research
-    subagent = task.get("subagent", "").lower()
-    if subagent == "explore":
-        return True
 
     # Check description for research keywords
     description = task.get("description", "").lower()
@@ -2751,9 +2746,9 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
     output_dir = get_task_output_dir(plan_dir, args.task_id)
     if output_dir:
         prompt_parts.append("\n\n## Task Output Directory")
-        prompt_parts.append(f"For findings, research results, or artifacts for downstream tasks:")
+        prompt_parts.append(f"Write output files to this directory so downstream tasks can use them:")
         prompt_parts.append(f"- Output path: `{output_dir}/`")
-        prompt_parts.append(f"- Create files as needed (e.g., findings.md, analysis.md)")
+        prompt_parts.append(f"- Use `findings.md` for research/review results, or other names as appropriate")
 
     # 8. Task guidance for required JSON artifacts
     workflow_mgr = WorkflowManager(plan_dir)
@@ -5717,8 +5712,9 @@ Study these patterns before generating:
 | `use_tasks` | Phase uses tasks.json for work breakdown |
 | `on_blocked = "self"` | Retry phase on blocked tasks |
 | `max_retries` | Limit retries before escalating |
-| `required_json_artifacts` | JSON artifacts to validate before leaving (e.g., `["proposals", "challenges"]`) |
+| `required_json_artifacts` | JSON artifacts to validate before leaving (e.g., `["proposals", "challenges"]` for implement phases, `["cache-candidates"]` for research phases) |
 | `supports_prototypes` | Enable prototype tasks |
+| `supports_cache_reference` | Enable cache-reference tasks in research phases |
 | `terminal = true` | Final phase, workflow ends here |
 
 ## Your Expansion Instructions
