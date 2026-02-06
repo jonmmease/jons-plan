@@ -67,7 +67,7 @@ id = "review"
 use_tasks = true
 required_tasks = [
   { id = "pr-slop-detection", description = "Scan PR for AI-generated writing patterns", subagent = "general-purpose", prompt_file = "slop-detection", model = "haiku" },
-  { id = "accuracy-check", description = "Verify PR claims against actual diff", subagent = "general-purpose", subagent_prompt = "Verify PR claims: Are all major changes mentioned? Any inaccurate or misleading claims? Does summary match the code? Are file references correct?", model = "haiku" },
+  { id = "accuracy-check", description = "Verify PR claims against actual diff", subagent = "general-purpose", subagent_prompt = "Verify PR claims: Are all major changes mentioned? Any inaccurate or misleading claims? Does summary match the code? Are file references correct?", model = "opus" },
   { id = "gemini-editorial-review", description = "Gemini review for clarity and completeness", subagent = "gemini-reviewer", subagent_prompt = "Check: clarity, completeness, logical organization, appropriate detail level, missing context, whether motivation is clear" },
   { id = "codex-technical-review", description = "Codex review for technical accuracy", subagent = "codex-reviewer", subagent_prompt = "Check: technical accuracy, correct terminology, missing implementation details, testing section adequacy, consistency between summary and changes" },
   { id = "reader-comprehension", description = "Review for reader understanding", subagent = "general-purpose", subagent_prompt = "Check: Would unfamiliar reviewer understand? Is review tour helpful? Any unanswered questions? Is PR self-contained?", model = "opus" },

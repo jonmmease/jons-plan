@@ -103,6 +103,43 @@ Rectangle {
                             }
                         }
 
+                        // Subagent badge (if specified)
+                        Rectangle {
+                            visible: Boolean(root.task && root.task.subagent)
+                            width: subagentText.width + Theme.spacingSmall * 2
+                            height: subagentText.height + Theme.spacingTiny * 2
+                            radius: Theme.radiusSmall
+                            color: Theme.bgPanelHeader
+                            border.width: 1
+                            border.color: {
+                                if (!root.task || !root.task.subagent) return Theme.textMuted
+                                switch(root.task.subagent) {
+                                    case "Explore": return "#7986CB"
+                                    case "general-purpose": return "#81C784"
+                                    case "gemini-reviewer": return "#FFB74D"
+                                    case "codex-reviewer": return "#FFB74D"
+                                    default: return Theme.textMuted
+                                }
+                            }
+
+                            Text {
+                                id: subagentText
+                                anchors.centerIn: parent
+                                text: root.task ? (root.task.subagent || "") : ""
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: {
+                                    if (!root.task || !root.task.subagent) return Theme.textSecondary
+                                    switch(root.task.subagent) {
+                                        case "Explore": return "#5C6BC0"
+                                        case "general-purpose": return "#4CAF50"
+                                        case "gemini-reviewer": return "#F57C00"
+                                        case "codex-reviewer": return "#F57C00"
+                                        default: return Theme.textSecondary
+                                    }
+                                }
+                            }
+                        }
+
                         // Type badge (if specified)
                         Rectangle {
                             visible: Boolean(root.task && root.task.type)

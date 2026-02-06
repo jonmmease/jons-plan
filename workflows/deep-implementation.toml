@@ -66,7 +66,7 @@ Execute the research plan (injected above) with multiple parallel investigations
 
 ## Tasks
 
-Launch exploration agents using `haiku` model. **You decide** how many agents to launch based on the topic's complexity.
+Launch exploration agents. **You decide** how many agents to launch based on the topic's complexity.
 
 1. Launch Explore agents for codebase investigation
 2. Use WebSearch/WebFetch for external research
@@ -83,9 +83,8 @@ Launch exploration agents using `haiku` model. **You decide** how many agents to
 
 | Task Type | Model |
 |-----------|-------|
-| Quick file lookup | `haiku` |
-| Thorough codebase research | `haiku` |
-| External API/library research | `haiku` |
+| Codebase research | `opus` |
+| External API/library/web research | `haiku` |
 | Prototyping spike | `sonnet` |
 
 ## Outputs

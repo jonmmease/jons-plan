@@ -19,7 +19,7 @@ Thoroughly investigate the problem space before designing.
 
 ## Tasks
 
-Launch exploration agents using `haiku` model to understand the problem space. **You decide** how many agents to launch and what each explores based on the topic's complexity.
+Launch exploration agents to understand the problem space. **You decide** how many agents to launch and what each explores based on the topic's complexity.
 
 Common exploration angles:
 - **Codebase patterns** — Existing implementations, architectural conventions, file organization
@@ -38,9 +38,8 @@ Launch agents appropriately:
 
 | Task Type | Model |
 |-----------|-------|
-| Quick codebase lookup | `haiku` |
-| Thorough codebase research | `haiku` |
-| External API/library research | `haiku` |
+| Codebase research | `opus` |
+| External API/library/web research | `haiku` |
 | Prototyping spike | `sonnet` |
 | Trade-off analysis | `opus` |
 
@@ -193,7 +192,7 @@ Incorporate feedback and finalize the design.
 
 1. Address all ACCEPT items by updating design.md
 2. For INVESTIGATE items:
-   - Launch `haiku` exploration agents for each question
+   - Launch `opus` exploration agents for each question
    - Write findings to `investigation-findings.md`
    - Update design based on findings
 3. Document rationale for REJECT items (brief note is fine)

@@ -272,7 +272,7 @@ Each task should follow this schema:
 | `parents` | Yes | Array of task IDs that must complete first (empty `[]` if none) |
 | `steps` | Yes | Array of steps to complete the task |
 | `status` | Yes | Always `"todo"` when creating (execution changes to `in-progress`, `done`) |
-| `subagent` | No | `general-purpose` (default), `Explore`, `Plan`, `claude-code-guide` |
+| `subagent` | No | `general-purpose` (default), `Explore`, `Plan`, `claude-code-guide`. See **Subagent Write Capabilities** below. |
 | `subagent_prompt` | No | Additional context (e.g., "very thorough analysis") |
 | `model` | No | `sonnet` (default), `haiku`, `opus` |
 | `resources` | No | Array of resource identifiers requiring exclusive access |
@@ -284,7 +284,7 @@ Example task:
   "description": "Research existing authentication patterns in codebase",
   "subagent": "Explore",
   "subagent_prompt": "very thorough analysis",
-  "model": "haiku",
+  "model": "opus",
   "parents": [],
   "steps": ["Find auth-related files", "Document existing patterns"],
   "status": "todo"
@@ -336,13 +336,31 @@ Tasks sharing resources are serialized even without parent dependencies. Use for
 
 | Task Type | `subagent` | `subagent_prompt` | `model` |
 |-----------|------------|-------------------|---------|
-| Quick file lookup | `Explore` | `quick search` | `haiku` |
-| Thorough codebase research | `Explore` | `very thorough analysis` | `haiku` |
+| Quick file lookup (no written output) | `Explore` | `quick search` | `opus` |
+| Thorough research with written findings | `general-purpose` | `very thorough analysis` | `opus` |
+| Codebase exploration (no written output) | `Explore` | `very thorough analysis` | `opus` |
+| Web/API/library research | `general-purpose` | (omit) | `haiku` |
+| Slop detection | `general-purpose` | (omit) | `haiku` |
 | Simple implementation | (omit) | (omit) | (omit) |
 | Complex implementation | (omit) | (omit) | `opus` |
 | Architecture decisions | (omit) | (omit) | `opus` |
+| Code correctness critique | (omit) | (omit) | `opus` |
 | Test definition | (omit) | (omit) | (omit) |
 | Validation/verification | (omit) | (omit) | (omit) |
+
+## Subagent Write Capabilities
+
+**Critical:** Not all subagent types can write files. If a task needs to produce output artifacts (e.g., `findings.md`, code files), it **must** use a subagent type with Write access.
+
+| Subagent | Can Write Files | Use For |
+|----------|----------------|---------|
+| `general-purpose` | Yes | Implementation, analysis with written output, any task needing file creation |
+| `Explore` | **No** (read-only) | Codebase search and exploration only — findings returned as text response |
+| `Plan` | **No** (read-only) | Planning and strategy design — plans returned as text response |
+| `gemini-reviewer` | Yes | External review via Gemini |
+| `codex-reviewer` | Yes | External review via Codex |
+
+**Common mistake:** Using `Explore` for research tasks that have a "Write findings.md" step. The agent will complete the research but fail to write the file, falling back to returning findings as its text response. Use `general-purpose` instead when the task needs to write artifacts.
 
 ## Task Sizing Guidelines
 

@@ -116,7 +116,7 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
        "status": "todo",          // *one of: todo, in-progress, done, blocked
        "steps": ["step 1", ...],  // ordered list of steps
        "parents": ["other-id"],   // task IDs that must complete first
-       "subagent": "Explore",     // agent type (Explore, general-purpose)
+       "subagent": "Explore",     // agent type (Explore=read-only, general-purpose=can write files)
        "model": "sonnet",         // optional: sonnet, haiku, opus
        "locks": ["cargo"]         // optional: exclusive access (files, tools, resources)
      }
@@ -126,7 +126,7 @@ If you're unsure whether to ask, **don't ask** - document your recommendation an
    **Guidelines:**
    - ~10 steps max per task
    - Scope research to single topic, implementation to single file or related files
-   - Use appropriate subagents (Explore for research, general-purpose for implementation)
+   - Use appropriate subagents: `Explore` for read-only codebase search, `general-purpose` for tasks that write output files (findings.md, code, etc.)
 
    **After tasks exist**, check what's available:
    ```bash

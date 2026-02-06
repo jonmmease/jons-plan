@@ -68,7 +68,7 @@ id = "analyze"
 use_tasks = true
 required_tasks = [
   { id = "slop-detection", description = "Scan for LLM-generated code patterns", subagent = "general-purpose", prompt_file = "slop-detection", model = "haiku" },
-  { id = "edge-case-adversary", description = "Identify assumptions that could be violated", subagent = "general-purpose", subagent_prompt = "Adopt a gruff senior developer persona. Find edge cases: null/undefined inputs, empty collections, concurrent access, network failures, resource exhaustion, invalid state transitions", model = "haiku" },
+  { id = "edge-case-adversary", description = "Identify assumptions that could be violated", subagent = "general-purpose", subagent_prompt = "Adopt a gruff senior developer persona. Find edge cases: null/undefined inputs, empty collections, concurrent access, network failures, resource exhaustion, invalid state transitions", model = "opus" },
   { id = "architect-review", description = "Architectural review via Gemini", subagent = "gemini-reviewer", subagent_prompt = "Adopt a gruff senior developer persona. Review architecture: system-level fit, architectural drift, coupling/cohesion, API design, scalability" },
   { id = "bug-hunter-review", description = "Bug hunting review via Codex", subagent = "codex-reviewer", subagent_prompt = "Adopt a gruff senior developer persona. Hunt bugs: edge cases, race conditions, error handling, resource leaks, security vulnerabilities" },
   { id = "maintainer-review", description = "Maintainability review", subagent = "general-purpose", subagent_prompt = "Adopt a gruff senior developer persona. Review maintainability: code clarity, 6-month comprehension test, documentation adequacy, test coverage, naming", model = "opus" },
