@@ -103,24 +103,13 @@ suggested_next = ["evaluate-research"]
 [[phases]]
 id = "evaluate-research"
 max_retries = 4
+prompt_files = ["evaluate-research"]
 context_artifacts = ["research-plan", "research"]
-prompt = """
-# Evaluate Research Phase
-
-Evaluate whether the research adequately answers the questions from the research plan.
-
-## Process
-
-1. Read the research plan (injected above) and list each question
-2. Read the research findings (injected above)
-3. For each question, assess: answered, partially answered, or unanswered
-
-## Decision
-
-- If all questions are adequately answered: transition to **draft**
-- If significant gaps remain: transition to **research-planning** to plan additional research
-"""
-suggested_next = ["draft", "research-planning"]
+prompt = ""
+suggested_next = [
+    { phase = "draft", instruction = "All questions adequately answered" },
+    { phase = "research-planning", instruction = "Significant gaps remain — plan additional research for unanswered questions" }
+]
 
 [[phases]]
 id = "draft"
@@ -234,14 +223,20 @@ suggested_next = ["review"]
 
 [[phases]]
 id = "review"
+prompt_files = ["selective-re-review"]
+context_artifacts = ["review-feedback"]
+required_artifacts = ["review-feedback"]
 prompt = """
 # Review Phase
 
 Get comprehensive feedback on documentation quality.
 
+Link validation and slop detection are cheap — always re-run these on re-review.
+Only skip gemini-reviewer or codex-reviewer if their Critical items are all resolved.
+
 ## Tasks
 
-Run these reviews in parallel:
+Run these reviews in parallel (on re-review, skip resolved reviewers):
 
 ### 1. Link Validation
 Verify all source file links resolve:
@@ -272,6 +267,7 @@ Launch gemini-reviewer for content review:
 - Check logical flow between sections
 - Identify gaps (unanswered reader questions)
 - Verify examples appear before explanations
+- Tag each item as **Critical**, **Suggestion**, or **Nit**
 
 ### 4. Codex Accuracy Review
 Launch codex-reviewer for technical accuracy:
@@ -280,60 +276,63 @@ Launch codex-reviewer for technical accuracy:
 - Verify claimed behavior matches implementation
 - Check configuration options exist
 - Flag unverifiable claims
+- Tag each item as **Critical**, **Suggestion**, or **Nit**
 
 ## Outputs
 
-Write `review-feedback.md` with:
-- Link validation results
-- Slop detection findings
-- Content feedback from gemini-reviewer
-- Technical accuracy issues from codex-reviewer
-- Suggestions for improvement
+Write `review-feedback.md` with severity-tagged feedback organized by source:
+- Link validation results (Critical for broken links)
+- Slop detection findings (Critical for high-severity slop)
+- Content feedback from gemini-reviewer (Critical/Suggestion/Nit)
+- Technical accuracy issues from codex-reviewer (Critical/Suggestion/Nit)
 """
-suggested_next = ["finalize"]
+suggested_next = ["revise"]
 
 [[phases]]
-id = "finalize"
+id = "revise"
+context_artifacts = ["review-feedback"]
 prompt = """
-# Finalize Phase
+# Revise Phase
 
-Incorporate feedback and complete documentation.
+Incorporate review feedback into the documentation.
 
 ## Inputs
 
 - Draft documentation from draft phase
-- review-feedback.md from review phase
-
-## Feedback Synthesis
-
-Categorize each finding as ACCEPT or DISCARD:
-
-**ACCEPT (apply these):**
-- Broken links
-- Inaccuracies
-- Missing critical info
-- High-severity slop
-
-**DISCARD (skip these):**
-- Style preferences
-- Short lists flagged as exhaustive
-- Pedantic changes
-
-Priority order: correctness > broken links > completeness > clarity > style
+- review-feedback.md (injected above)
 
 ## Tasks
 
+For each feedback item, categorize your response:
+- **ACCEPT** — Apply the change to the documentation
+- **INVESTIGATE** — Launch exploration agents to verify, then update based on findings
+- **REJECT** — Document brief rationale for why it doesn't apply
+
+Priority order: correctness > broken links > completeness > clarity > style
+
+Then:
 1. Apply all ACCEPT feedback items
-2. Fix any broken links
-3. Remove slop patterns
-4. Verify version anchor is present
-5. Add final polish
+2. Investigate uncertain items, update docs based on findings
+3. Fix any broken links
+4. Remove slop patterns
+5. Verify version anchor is present
 
 ## Outputs
 
-Final documentation ready for publication.
+Updated documentation with addressed feedback.
 """
-suggested_next = ["complete"]
+suggested_next = ["evaluate-revisions"]
+
+[[phases]]
+id = "evaluate-revisions"
+max_retries = 2
+prompt_files = ["evaluate-revisions"]
+context_artifacts = ["review-feedback"]
+prompt = ""
+suggested_next = [
+    { phase = "complete", instruction = "All critical items resolved" },
+    { phase = "review", instruction = "Critical items remain unresolved — re-engage only reviewers/checks with unresolved Critical items" }
+]
 
 [[phases]]
 id = "complete"

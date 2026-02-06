@@ -78,24 +78,13 @@ suggested_next = ["evaluate-research"]
 [[phases]]
 id = "evaluate-research"
 max_retries = 4
+prompt_files = ["evaluate-research"]
 context_artifacts = ["research-plan", "research"]
-prompt = """
-# Evaluate Research Phase
-
-Evaluate whether the research adequately answers the questions from the research plan.
-
-## Process
-
-1. Read the research plan (injected above) and list each question
-2. Read the research findings (injected above)
-3. For each question, assess: answered, partially answered, or unanswered
-
-## Decision
-
-- If all questions are adequately answered: transition to **plan**
-- If significant gaps remain: transition to **research-planning** to plan additional research
-"""
-suggested_next = ["plan", "research-planning"]
+prompt = ""
+suggested_next = [
+    { phase = "plan", instruction = "All questions adequately answered" },
+    { phase = "research-planning", instruction = "Significant gaps remain — plan additional research for unanswered questions" }
+]
 
 [[phases]]
 id = "plan"
@@ -259,33 +248,12 @@ suggested_next = ["execute"]
 [[phases]]
 id = "complete"
 terminal = true
+prompt_files = ["proposals-and-challenges"]
 context_artifacts = ["evaluation"]
 prompt = """
 # Complete Phase
 
 All acceptance criteria met. Summarize the work completed.
-
-## Review CLAUDE.md Proposals
-
-Proposals are auto-collected from execute phases. Check for pending proposals:
-
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py list-proposals
-```
-
-For each pending proposal, present to user via AskUserQuestion:
-- Show: target file, proposed content, rationale
-- Options: Accept, Reject
-- If Accept: use Edit tool to apply the change to the target file
-- Update status: `uv run ~/.claude-plugins/jons-plan/plan.py update-proposal-status <id> accepted|rejected`
-
-## Review Challenges
-
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py list-challenges
-```
-
-For each pending challenge, present to user for acknowledgement.
 
 ## Final Summary
 

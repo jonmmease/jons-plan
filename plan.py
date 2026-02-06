@@ -664,7 +664,7 @@ class WorkflowManager:
     def get_suggested_next_full(self, phase_id: str) -> list[dict]:
         """Get suggested_next with full metadata for each item.
 
-        Returns list of dicts with 'phase', 'requires_approval', 'approval_prompt'.
+        Returns list of dicts with 'phase', 'instruction', 'requires_approval', 'approval_prompt'.
         """
         phase = self.get_phase(phase_id)
         if not phase:
@@ -676,11 +676,14 @@ class WorkflowManager:
                 result.append({"phase": item, "requires_approval": False})
             elif isinstance(item, dict):
                 # Ensure required fields are present
-                result.append({
+                entry = {
                     "phase": item.get("phase", ""),
                     "requires_approval": item.get("requires_approval", False),
                     "approval_prompt": item.get("approval_prompt"),
-                })
+                }
+                if "instruction" in item:
+                    entry["instruction"] = item["instruction"]
+                result.append(entry)
         return result
 
     def get_approval_prompt(self, from_phase: str, to_phase: str) -> str | None:
@@ -719,11 +722,43 @@ class WorkflowManager:
         return None
 
     def get_phase_prompt(self, phase_id: str) -> str | None:
-        """Get the prompt for a phase."""
+        """Get the raw inline prompt for a phase."""
         phase = self.get_phase(phase_id)
         if phase:
             return phase.get("prompt")
         return None
+
+    def resolve_phase_prompt(self, phase_id: str) -> str:
+        """Get the full phase prompt, combining prompt_files content + inline prompt.
+
+        If prompt_files is set, loads each file from prompts/ directory in order.
+        The inline prompt is appended after the file content.
+        """
+        phase = self.get_phase(phase_id)
+        if not phase:
+            return ""
+
+        parts = []
+
+        # Load prompt_files if specified
+        prompt_files = phase.get("prompt_files", [])
+        if prompt_files:
+            plugin_root = Path(__file__).parent
+            for pf in prompt_files:
+                prompt_path = plugin_root / "prompts" / f"{pf}.md"
+                if prompt_path.exists():
+                    content = prompt_path.read_text().strip()
+                    if content:
+                        parts.append(content)
+                else:
+                    print(f"Warning: prompt_file '{pf}' not found at {prompt_path}", file=sys.stderr)
+
+        # Add inline prompt
+        inline_prompt = phase.get("prompt", "").strip()
+        if inline_prompt:
+            parts.append(inline_prompt)
+
+        return "\n\n".join(parts)
 
     def get_user_review_artifacts(self, phase_id: str) -> list[str]:
         """Get artifacts to present to user for review."""
@@ -960,7 +995,7 @@ class WorkflowManager:
 
         # Valid [[phases]] keys
         VALID_PHASE_KEYS = {
-            "id", "prompt", "suggested_next", "terminal", "use_tasks",
+            "id", "prompt", "prompt_files", "suggested_next", "terminal", "use_tasks",
             "requires_user_input", "on_blocked", "max_retries", "max_iterations",
             "supports_proposals",  # deprecated: kept for compat with existing plans
             "supports_prototypes", "supports_cache_reference",
@@ -968,7 +1003,7 @@ class WorkflowManager:
             "required_tasks", "required_json_artifacts",
         }
         # Valid keys in suggested_next objects
-        VALID_TRANSITION_KEYS = {"phase", "requires_approval", "approval_prompt"}
+        VALID_TRANSITION_KEYS = {"phase", "instruction", "requires_approval", "approval_prompt"}
 
         # Valid keys in required_tasks items
         VALID_REQUIRED_TASK_KEYS = {
@@ -1196,15 +1231,18 @@ def get_assembled_prompts(workflow_mgr: "WorkflowManager", phase_id: str) -> str
 
     # User review instructions for phases requiring user input
     if workflow_mgr.requires_user_input(phase_id):
-        suggested_next = workflow_mgr.get_suggested_next(phase_id)
-        if suggested_next:
-            # Build numbered options list
+        suggested_full = workflow_mgr.get_suggested_next_full(phase_id)
+        if suggested_full:
+            # Build numbered options list with instructions
             options_lines = []
-            for i, opt in enumerate(suggested_next, 1):
-                # Handle both string and object formats
-                phase_name = opt if isinstance(opt, str) else opt.get("phase", "")
+            for i, item in enumerate(suggested_full, 1):
+                phase_name = item.get("phase", "")
+                instruction = item.get("instruction", "")
                 if phase_name:
-                    options_lines.append(f"{i}. **{phase_name}**")
+                    line = f"{i}. **{phase_name}**"
+                    if instruction:
+                        line += f" — {instruction}"
+                    options_lines.append(line)
 
             if options_lines:
                 user_review = """# User Review Required
@@ -3576,7 +3614,9 @@ def cmd_suggested_next(args: argparse.Namespace) -> int:
             if item.get("requires_approval"):
                 markers.append("requires approval")
             marker_str = f" ({', '.join(markers)})" if markers else ""
-            print(f"{phase_id}{marker_str}")
+            instruction = item.get("instruction", "")
+            instruction_str = f" — {instruction}" if instruction else ""
+            print(f"{phase_id}{marker_str}{instruction_str}")
     else:
         # Check if current phase is terminal
         if workflow_mgr.is_terminal(current_phase):
@@ -4385,7 +4425,7 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
         output = {
             "phase_id": current_phase,
             "phase_dir": str(plan_dir / current_phase_dir) if current_phase_dir else None,
-            "prompt": phase.get("prompt", ""),
+            "prompt": workflow_mgr.resolve_phase_prompt(current_phase),
             "terminal": phase.get("terminal", False),
             "requires_user_input": phase.get("requires_user_input", False),
             "use_tasks": use_tasks,
@@ -4430,11 +4470,29 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
                 print(info["content"])
                 print()
 
-        # Phase prompt
-        prompt = phase.get("prompt", "")
+        # Phase prompt (prompt_file + inline prompt)
+        prompt = workflow_mgr.resolve_phase_prompt(current_phase)
         if prompt:
             print("## Phase Prompt")
             print(prompt)
+            print()
+
+        # Transition instructions (from suggested_next)
+        transitions = workflow_mgr.get_suggested_next_full(current_phase)
+        instructed = [t for t in transitions if t.get("instruction")]
+        if instructed:
+            print("## Transition Decisions")
+            print()
+            print("Choose the next phase based on these criteria:")
+            print()
+            for t in transitions:
+                phase_name = t.get("phase", "")
+                instruction = t.get("instruction", "")
+                approval = " *(requires approval)*" if t.get("requires_approval") else ""
+                if instruction:
+                    print(f"- **{phase_name}**{approval} — {instruction}")
+                else:
+                    print(f"- **{phase_name}**{approval}")
             print()
 
         # Context artifacts (injected from upstream phases)

@@ -59,6 +59,7 @@ suggested_next = ["evaluate-research"]
 [[phases]]
 id = "evaluate-research"
 max_retries = 4
+prompt_files = ["evaluate-research"]
 context_artifacts = ["research-plan", "research"]
 expand_prompt = """
 Generate the workflow phases based on your research findings.
@@ -122,28 +123,17 @@ Validation phases should specify how to verify:
 
 The `complete` phase already exists - point your final phase to it.
 """
-prompt = """
-# Evaluate Research Phase
-
-Evaluate whether the research adequately answers the questions from the research plan.
-
-## Process
-
-1. Read the research plan (injected above) and list each question
-2. Read the research findings (injected above)
-3. For each question, assess: answered, partially answered, or unanswered
-
-## Decision
-
-- If all questions answered and work is **simple** (single component, clear changes): transition to **complete**
-- If all questions answered and work is **complex** (multiple components, unclear dependencies): use **__expand__** to generate phases
-- If significant gaps remain: transition to **research-planning** to plan additional research
-"""
-suggested_next = ["complete", "__expand__", "research-planning"]
+prompt = ""
+suggested_next = [
+    { phase = "complete", instruction = "All questions answered and work is simple (single component, clear changes)" },
+    { phase = "__expand__", instruction = "All questions answered and work is complex (multiple components, unclear dependencies) — generate phases" },
+    { phase = "research-planning", instruction = "Significant gaps remain — plan additional research for unanswered questions" }
+]
 
 [[phases]]
 id = "complete"
 terminal = true
+prompt_files = ["proposals-and-challenges"]
 suggested_next = [
     { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
 ]
@@ -152,35 +142,7 @@ prompt = """
 
 Finalize the implementation.
 
-## Review CLAUDE.md Proposals
-
-Proposals are auto-collected from implement phases. Check for pending proposals:
-
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py list-proposals
-```
-
-For each pending proposal, present to user via AskUserQuestion:
-- Show: target file, proposed content, rationale
-- Options: Accept, Reject
-- If Accept: use Edit tool to apply the change to the target file
-- Update status: `uv run ~/.claude-plugins/jons-plan/plan.py update-proposal-status <id> accepted|rejected`
-
-## Review Challenges
-
-Challenges are auto-collected from implement phases. Check for pending challenges:
-
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py list-challenges
-```
-
-For each pending challenge, present to user for acknowledgement:
-- Show: title, what was attempted, what went wrong, workaround used
-- No action needed - just acknowledge
-- Update status: `uv run ~/.claude-plugins/jons-plan/plan.py acknowledge-challenge <id>`
-
 ## Final Tasks
-
 1. Review all changes made
 2. Ensure tests pass
 3. Prepare commit message summarizing changes

@@ -75,24 +75,13 @@ suggested_next = ["evaluate-research"]
 [[phases]]
 id = "evaluate-research"
 max_retries = 4
+prompt_files = ["evaluate-research"]
 context_artifacts = ["research-plan", "research"]
-prompt = """
-# Evaluate Research Phase
-
-Evaluate whether the research adequately answers the questions from the research plan.
-
-## Process
-
-1. Read the research plan (injected above) and list each question
-2. Read the research findings (injected above)
-3. For each question, assess: answered, partially answered, or unanswered
-
-## Decision
-
-- If all questions are adequately answered: transition to **draft**
-- If significant gaps remain: transition to **research-planning** to plan additional research
-"""
-suggested_next = ["draft", "research-planning"]
+prompt = ""
+suggested_next = [
+    { phase = "draft", instruction = "All questions adequately answered" },
+    { phase = "research-planning", instruction = "Significant gaps remain — plan additional research for unanswered questions" }
+]
 
 [[phases]]
 id = "draft"
@@ -143,6 +132,9 @@ suggested_next = ["review"]
 [[phases]]
 id = "review"
 use_tasks = true
+prompt_files = ["selective-re-review"]
+context_artifacts = ["design", "verification-plan", "review-feedback"]
+required_artifacts = ["review-feedback"]
 prompt = """
 # Review Phase
 
@@ -150,7 +142,7 @@ Get external feedback on the design using reviewer agents.
 
 ## Setup
 
-Create tasks.json with reviewer tasks. Reviewer tasks can run in parallel since they have no dependencies on each other.
+Create tasks.json with reviewer tasks. On first review, create tasks for all reviewers. On re-review, only create tasks for reviewers with unresolved Critical items.
 
 ### Example tasks.json
 
@@ -160,7 +152,7 @@ Create tasks.json with reviewer tasks. Reviewer tasks can run in parallel since 
     "id": "gemini-review",
     "description": "Get design feedback from Gemini",
     "subagent": "gemini-reviewer",
-    "subagent_prompt": "Review the design for architectural concerns, completeness, and clarity",
+    "subagent_prompt": "Review the design for architectural concerns, completeness, and clarity. Tag each item as Critical, Suggestion, or Nit.",
     "context_artifacts": ["design", "verification-plan"],
     "parents": [],
     "status": "todo"
@@ -169,7 +161,7 @@ Create tasks.json with reviewer tasks. Reviewer tasks can run in parallel since 
     "id": "codex-review",
     "description": "Get design feedback from Codex",
     "subagent": "codex-reviewer",
-    "subagent_prompt": "Review the design for technical accuracy and implementation feasibility",
+    "subagent_prompt": "Review the design for technical accuracy and implementation feasibility. Tag each item as Critical, Suggestion, or Nit.",
     "context_artifacts": ["design", "verification-plan"],
     "parents": [],
     "status": "todo"
@@ -180,7 +172,7 @@ Create tasks.json with reviewer tasks. Reviewer tasks can run in parallel since 
     "parents": ["gemini-review", "codex-review"],
     "steps": [
       "Read output from parent tasks",
-      "Categorize feedback: critical, suggestion, nit",
+      "Organize by source, then by severity: Critical, Suggestion, Nit",
       "Write review-feedback.md"
     ],
     "status": "todo"
@@ -196,20 +188,22 @@ Create tasks.json with reviewer tasks. Reviewer tasks can run in parallel since 
 
 ## Outputs
 
-Write `review-feedback.md` with categorized feedback from all reviewers.
+Write `review-feedback.md` with severity-tagged feedback from all reviewers (Critical/Suggestion/Nit).
 """
 suggested_next = ["revise"]
 
 [[phases]]
 id = "revise"
+context_artifacts = ["design", "review-feedback"]
+required_artifacts = ["design"]
 prompt = """
 # Revise Phase
 
-Incorporate reviewer feedback into design.md. This is a work phase - do NOT present output to the user. The user will review in the next phase.
+Incorporate reviewer feedback into design.md. This is a work phase - do NOT present output to the user.
 
 ## Inputs
-- design.md from previous draft/revise
-- review-feedback.md from external reviewers
+- design.md (injected above)
+- review-feedback.md (injected above)
 - User guidance (if re-entering from user-decision)
 
 ## Check for User Guidance
@@ -226,16 +220,26 @@ uv run ~/.claude-plugins/jons-plan/plan.py clear-user-guidance
 
 ## Tasks
 1. Read user guidance if present
-2. Address feedback in design.md (focus on user's concerns)
-3. Update confidence assessment
+2. For each feedback item, categorize: ACCEPT, INVESTIGATE, or REJECT
+3. Update design.md with accepted changes
+4. Investigate uncertain items, update design based on findings
+5. Update confidence assessment
 
 ## Outputs
 Updated design.md.
-
-## Transition
-After updating design.md, immediately transition to user-decision phase. Do NOT summarize or present the changes - the user will review in the next phase.
 """
-suggested_next = ["user-decision"]
+suggested_next = ["evaluate-revisions"]
+
+[[phases]]
+id = "evaluate-revisions"
+max_retries = 2
+prompt_files = ["evaluate-revisions"]
+context_artifacts = ["design", "review-feedback"]
+prompt = ""
+suggested_next = [
+    { phase = "user-decision", instruction = "All critical items resolved" },
+    { phase = "review", instruction = "Critical items remain unresolved — re-engage only reviewers with unresolved Critical items" }
+]
 
 [[phases]]
 id = "user-decision"
@@ -352,37 +356,11 @@ on_blocked = "implement"
 
 [[phases]]
 id = "complete"
+prompt_files = ["proposals-and-challenges"]
 prompt = """
 # Complete Phase
 
 Finalize the implementation.
-
-## Review CLAUDE.md Proposals
-
-Proposals are auto-collected from implement phases. Check for pending proposals:
-
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py list-proposals
-```
-
-For each pending proposal, present to user via AskUserQuestion:
-- Show: target file, proposed content, rationale
-- Options: Accept, Reject
-- If Accept: use Edit tool to apply the change to the target file
-- Update status: `uv run ~/.claude-plugins/jons-plan/plan.py update-proposal-status <id> accepted|rejected`
-
-## Review Challenges
-
-Challenges are auto-collected from implement phases. Check for pending challenges:
-
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py list-challenges
-```
-
-For each pending challenge, present to user for acknowledgement:
-- Show: title, what was attempted, what went wrong, workaround used
-- No action needed - just acknowledge
-- Update status: `uv run ~/.claude-plugins/jons-plan/plan.py acknowledge-challenge <id>`
 
 ## Final Tasks
 1. Review all changes

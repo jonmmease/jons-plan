@@ -111,25 +111,13 @@ suggested_next = ["evaluate-research"]
 [[phases]]
 id = "evaluate-research"
 max_retries = 4
+prompt_files = ["evaluate-research"]
 context_artifacts = ["research-plan", "research-findings"]
-prompt = """
-# Evaluate Research Phase
-
-Evaluate whether the research adequately answers the questions from the research plan.
-
-## Process
-
-1. Read the research plan (injected above) and list each question
-2. Read the research findings (injected above)
-3. For each question, assess: answered, partially answered, or unanswered
-
-## Decision
-
-- If all questions are adequately answered: transition to **synthesize**
-- If significant gaps remain: transition to **research-planning** to plan additional research
-  (The updated research plan should focus only on unanswered questions)
-"""
-suggested_next = ["synthesize", "research-planning"]
+prompt = ""
+suggested_next = [
+    { phase = "synthesize", instruction = "All questions adequately answered" },
+    { phase = "research-planning", instruction = "Significant gaps remain — plan additional research focusing only on unanswered questions" }
+]
 
 [[phases]]
 id = "synthesize"
@@ -221,20 +209,23 @@ Analyze and document:
 - <criterion from request>
 ```
 """
-suggested_next = ["external-review"]
+suggested_next = ["review"]
 
 [[phases]]
-id = "external-review"
+id = "review"
+prompt_files = ["selective-re-review"]
+context_artifacts = ["implementation-plan", "verification-plan", "review-feedback"]
+required_artifacts = ["review-feedback"]
 prompt = """
-# External Review Phase
+# Review Phase
 
 Get multiple external perspectives on the plan.
 
 ## Tasks
 
-1. Launch gemini-reviewer for plan review
-2. Launch codex-reviewer for second opinion
-3. Collect all feedback
+1. Launch gemini-reviewer for plan review (skip on re-review if no unresolved Critical items from gemini)
+2. Launch codex-reviewer for second opinion (skip on re-review if no unresolved Critical items from codex)
+3. Collect all feedback with severity levels
 
 **Important for reviewer tasks:**
 - Do NOT include `model` field (reviewers use their own external models)
@@ -247,82 +238,43 @@ Get multiple external perspectives on the plan.
 - Are there blind spots or unconsidered edge cases?
 - Is the task breakdown logical and well-sequenced?
 - Are dependencies correctly identified?
-- Any structural improvements to suggest?
+- Tag each item as **Critical**, **Suggestion**, or **Nit**
 
 **codex-reviewer:**
 - Is the technical approach sound?
 - Are there better architectural choices?
 - Any potential implementation pitfalls?
 - Are the tasks appropriately scoped?
-- Any code organization concerns?
+- Tag each item as **Critical**, **Suggestion**, or **Nit**
 
 ## Outputs
 
-Write `external-feedback.md` with all reviewer feedback, organized by source.
+Write `review-feedback.md` with severity-tagged feedback organized by source (Critical/Suggestion/Nit).
 """
-suggested_next = ["process-feedback"]
+suggested_next = ["revise"]
 
 [[phases]]
-id = "process-feedback"
-requires_user_input = true
+id = "revise"
+context_artifacts = ["implementation-plan", "review-feedback"]
+required_artifacts = ["implementation-plan"]
 prompt = """
-# Process Feedback Phase
+# Revise Phase
 
 Categorize and act on reviewer feedback.
 
 ## Inputs
 
-- implementation-plan.md from synthesize
-- external-feedback.md from review
+- implementation-plan.md (injected above)
+- review-feedback.md (injected above)
 
 ## Tasks
 
 1. Categorize each feedback item:
-   - **ACCEPT** — Valid feedback that should be incorporated into the plan
-   - **INVESTIGATE** — Raises a question that needs exploration before deciding
-   - **REJECT** — Doesn't apply to this context or is based on misunderstanding
-2. If INVESTIGATE items exist, launch exploration
-3. Update plan based on accepted feedback
-4. Re-assess confidence
-
-## Categorized Feedback Format
-
-Write `categorized-feedback.md`:
-
-```markdown
-# Categorized Feedback
-
-## Confidence: [1-5]
-[Brief rationale for the confidence score]
-
-## Source: gemini-reviewer
-
-### ACCEPT
-- [Feedback point]: [How this will be addressed in the plan]
-
-### INVESTIGATE
-- [Feedback point]: [Question that needs exploration]
-  - Domain: codebase|technical|requirements
-  - Specific question: "[Precise question for an explore agent]"
-
-### REJECT
-- [Feedback point]: [Why this doesn't apply or is incorrect]
-
-## Source: codex-reviewer
-
-[Same structure]
-
-## Investigation Questions Summary
-
-**Codebase questions:**
-- [Question 1]
-
-**Technical questions:**
-- [Question 1]
-
-**Requirements questions:**
-- [Question 1]
-```
+   - **ACCEPT** — Incorporate into the plan
+   - **INVESTIGATE** — Launch exploration agents, then update plan based on findings
+   - **REJECT** — Document brief rationale
+2. Update implementation-plan.md with accepted changes
+3. Re-assess confidence
 
 ## Investigation Findings Format
 
@@ -331,31 +283,34 @@ If investigations were needed, write `investigation-findings.md`:
 ```markdown
 # Investigation Findings
 
-## Question: [Original question from categorized-feedback.md]
+## Question: [Original question]
 **Domain:** codebase|technical|requirements
 **Finding:** [What was discovered]
 **Impact on Plan:** [How this affects the implementation plan]
 **Recommendation:** accept-feedback|reject-feedback|modify-approach
 ```
 
-## Checkpoint
+## Outputs
 
-**If confidence score is below 4**, STOP and discuss with the user:
-- Present the categorized feedback
-- List unresolved INVESTIGATE items
-- Ask: proceed anyway, investigate further, or pivot
+Updated implementation-plan.md with addressed feedback and updated confidence score.
+"""
+suggested_next = ["evaluate-revisions"]
+on_blocked = "synthesize"
 
-## Branching
-
-If confidence >= 4: proceed to implement
-If confidence < 4: back to synthesize with new info
+[[phases]]
+id = "evaluate-revisions"
+max_retries = 2
+prompt_files = ["evaluate-revisions"]
+context_artifacts = ["implementation-plan", "review-feedback"]
+prompt = """
+Also check the confidence score — if below 4, note this as a concern.
 """
 suggested_next = [
-    "implement",
-    "synthesize",
-    { phase = "research", requires_approval = true, approval_prompt = "Return to research for additional investigation?" }
+    { phase = "implement", instruction = "All critical items resolved and confidence >= 4" },
+    { phase = "review", instruction = "Critical items remain unresolved — re-engage only reviewers with unresolved Critical items" },
+    { phase = "synthesize", instruction = "Confidence < 4 despite revisions — rethink approach" },
+    { phase = "research", instruction = "Fundamental gaps require additional investigation", requires_approval = true, approval_prompt = "Return to research for additional investigation?" }
 ]
-on_blocked = "synthesize"
 
 [[phases]]
 id = "implement"
@@ -416,7 +371,7 @@ Common artifacts in this workflow:
 """
 suggested_next = [
     "validate",
-    { phase = "process-feedback", requires_approval = true, approval_prompt = "Return to process-feedback to reassess based on implementation findings?" }
+    { phase = "revise", requires_approval = true, approval_prompt = "Return to revise to reassess based on implementation findings?" }
 ]
 
 [[phases]]
@@ -461,46 +416,19 @@ Verify each criterion from the verification plan is met.
 """
 suggested_next = [
     "complete",
-    { phase = "process-feedback", requires_approval = true, approval_prompt = "Return to process-feedback to reassess based on validation findings?" }
+    { phase = "revise", requires_approval = true, approval_prompt = "Return to revise to reassess based on validation findings?" }
 ]
 on_blocked = "implement"
 
 [[phases]]
 id = "complete"
+prompt_files = ["proposals-and-challenges"]
 prompt = """
 # Complete Phase
 
 Finalize the deep implementation.
 
-## Review CLAUDE.md Proposals
-
-Proposals are auto-collected from implement phases. Check for pending proposals:
-
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py list-proposals
-```
-
-For each pending proposal, present to user via AskUserQuestion:
-- Show: target file, proposed content, rationale
-- Options: Accept, Reject
-- If Accept: use Edit tool to apply the change to the target file
-- Update status: `uv run ~/.claude-plugins/jons-plan/plan.py update-proposal-status <id> accepted|rejected`
-
-## Review Challenges
-
-Challenges are auto-collected from implement phases. Check for pending challenges:
-
-```bash
-uv run ~/.claude-plugins/jons-plan/plan.py list-challenges
-```
-
-For each pending challenge, present to user for acknowledgement:
-- Show: title, what was attempted, what went wrong, workaround used
-- No action needed - just acknowledge
-- Update status: `uv run ~/.claude-plugins/jons-plan/plan.py acknowledge-challenge <id>`
-
 ## Final Tasks
-
 1. Review all changes made
 2. Verify tests pass
 3. Prepare comprehensive commit message

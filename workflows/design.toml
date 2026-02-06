@@ -91,24 +91,13 @@ suggested_next = ["evaluate-research"]
 [[phases]]
 id = "evaluate-research"
 max_retries = 4
+prompt_files = ["evaluate-research"]
 context_artifacts = ["research-plan", "research"]
-prompt = """
-# Evaluate Research Phase
-
-Evaluate whether the research adequately answers the questions from the research plan.
-
-## Process
-
-1. Read the research plan (injected above) and list each question
-2. Read the research findings (injected above)
-3. For each question, assess: answered, partially answered, or unanswered
-
-## Decision
-
-- If all questions are adequately answered: transition to **draft**
-- If significant gaps remain: transition to **research-planning** to plan additional research
-"""
-suggested_next = ["draft", "research-planning"]
+prompt = ""
+suggested_next = [
+    { phase = "draft", instruction = "All questions adequately answered" },
+    { phase = "research-planning", instruction = "Significant gaps remain — plan additional research for unanswered questions" }
+]
 
 [[phases]]
 id = "draft"
@@ -170,6 +159,9 @@ suggested_next = ["review"]
 
 [[phases]]
 id = "review"
+prompt_files = ["selective-re-review"]
+context_artifacts = ["design", "review-feedback"]
+required_artifacts = ["review-feedback"]
 prompt = """
 # Review Phase
 
@@ -177,9 +169,9 @@ Get external feedback on the design.
 
 ## Tasks
 
-1. Launch gemini-reviewer agent to review design.md
-2. Launch codex-reviewer agent for second opinion
-3. Collect and organize feedback
+1. Launch gemini-reviewer agent to review design.md (skip on re-review if no unresolved Critical items from gemini)
+2. Launch codex-reviewer agent for second opinion (skip on re-review if no unresolved Critical items from codex)
+3. Collect and organize feedback with severity levels
 
 **Important for reviewer tasks:**
 - Do NOT include `model` field (reviewers use their own external models)
@@ -187,106 +179,81 @@ Get external feedback on the design.
 
 ## Outputs
 
-Write `review-feedback.md` using this format:
+Write `review-feedback.md` with severity-tagged items:
 
 ```markdown
 # Review Feedback
 
 ## Source: gemini-reviewer
 
-### ACCEPT
-- [Feedback point]: [How this will be addressed]
+### Critical
+- [Issue that must be addressed before proceeding]
 
-### INVESTIGATE
-- [Feedback point]: [Question that needs exploration]
-  - Domain: codebase|technical|requirements
-  - Specific question: "[Precise question for an explore agent]"
+### Suggestion
+- [Would improve the design but not blocking]
 
-### REJECT
-- [Feedback point]: [Why this doesn't apply or is incorrect]
+### Nit
+- [Minor style or preference issue]
 
 ## Source: codex-reviewer
 
-### ACCEPT
+### Critical
 - [...]
 
-### INVESTIGATE
+### Suggestion
 - [...]
 
-### REJECT
+### Nit
 - [...]
-
-## Investigation Questions Summary
-
-**Codebase questions:**
-- [Question 1]
-
-**Technical questions:**
-- [Question 1]
-
-**Requirements questions:**
-- [Question 1]
 ```
 """
 suggested_next = ["revise"]
 
 [[phases]]
 id = "revise"
-requires_user_input = true
+context_artifacts = ["design", "review-feedback"]
+required_artifacts = ["design"]
 prompt = """
 # Revise Phase
 
-Incorporate feedback and finalize the design.
+Incorporate review feedback into the design.
 
 ## Inputs
 
-- design.md from draft phase
-- review-feedback.md from review phase
+- design.md (injected above)
+- review-feedback.md (injected above)
 
 ## Tasks
 
-1. Address all ACCEPT items by updating design.md
-2. For INVESTIGATE items:
-   - Launch `opus` exploration agents for each question
-   - Write findings to `investigation-findings.md`
-   - Update design based on findings
-3. Document rationale for REJECT items (brief note is fine)
-4. Update confidence assessment
+For each feedback item, categorize your response:
+- **ACCEPT** — Incorporate into design.md
+- **INVESTIGATE** — Launch `opus` exploration agents, then update design based on findings
+- **REJECT** — Document brief rationale for why it doesn't apply
 
-## Investigation Findings Format
-
-If investigations were needed:
-
-```markdown
-# Investigation Findings
-
-## Question: [Original question]
-**Domain:** codebase|technical|requirements
-**Finding:** [What was discovered]
-**Impact on Design:** [How this affects the design]
-**Recommendation:** accept-feedback|reject-feedback|modify-approach
-```
-
-## Final Confidence Check
-
-After incorporating feedback, re-assess confidence (1-5).
-
-**If final confidence score is below 4**, STOP and discuss with the user:
-- Present updated confidence assessment
-- Explain what concerns remain
-- Ask: create design anyway, discuss concerns, or abandon
+Then:
+1. Update design.md with all accepted changes
+2. Write investigation findings if any INVESTIGATE items existed
+3. Update confidence assessment
 
 ## Outputs
 
 Updated design.md with:
 - Addressed feedback
 - Investigation findings (if any)
-- Final confidence score (1-5) with rationale
+- Updated confidence score (1-5) with rationale
 """
+suggested_next = ["evaluate-revisions"]
+
+[[phases]]
+id = "evaluate-revisions"
+max_retries = 2
+prompt_files = ["evaluate-revisions"]
+context_artifacts = ["design", "review-feedback"]
+prompt = ""
 suggested_next = [
-    "complete",
-    "revise",
-    { phase = "research", requires_approval = true, approval_prompt = "Return to research for fundamental rethinking of the approach?" }
+    { phase = "complete", instruction = "All critical items resolved" },
+    { phase = "review", instruction = "Critical items remain unresolved — re-engage only reviewers with unresolved Critical items" },
+    { phase = "research", instruction = "Fundamental issues require rethinking the approach", requires_approval = true, approval_prompt = "Return to research for fundamental rethinking of the approach?" }
 ]
 
 [[phases]]
