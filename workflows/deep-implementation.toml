@@ -328,13 +328,10 @@ on_blocked = "synthesize"
 [[phases]]
 id = "implement"
 use_tasks = true
-supports_proposals = true
 on_blocked = "self"
 max_retries = 3
 context_artifacts = ["implementation-plan"]
-required_json_artifacts = [
-    { name = "proposals", schema = "proposals" }
-]
+required_json_artifacts = ["proposals", "challenges"]
 prompt = """
 # Implement Phase
 

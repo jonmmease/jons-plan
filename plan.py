@@ -712,13 +712,6 @@ class WorkflowManager:
             return phase.get("supports_test_definition", False)
         return False
 
-    def supports_proposals(self, phase_id: str) -> bool:
-        """Check if phase supports CLAUDE.md proposals."""
-        phase = self.get_phase(phase_id)
-        if phase:
-            return phase.get("supports_proposals", False)
-        return False
-
     def get_max_iterations(self, phase_id: str) -> int | None:
         """Get max iterations for a phase (for research loops)."""
         phase = self.get_phase(phase_id)
@@ -776,11 +769,22 @@ class WorkflowManager:
         Returns list of dicts with 'name' and 'schema' keys that must be
         validated against JSON schemas before transitioning out of this phase.
         Empty list if none required.
+
+        Supports both string format ("proposals") and object format
+        ({"name": "proposals", "schema": "proposals"}). Strings are
+        normalized to objects where name and schema are the same value.
         """
         phase = self.get_phase(phase_id)
-        if phase:
-            return phase.get("required_json_artifacts", [])
-        return []
+        if not phase:
+            return []
+        raw = phase.get("required_json_artifacts", [])
+        result = []
+        for item in raw:
+            if isinstance(item, str):
+                result.append({"name": item, "schema": item})
+            elif isinstance(item, dict):
+                result.append(item)
+        return result
 
     def get_workflow_name(self) -> str:
         """Get the workflow name."""
@@ -910,7 +914,8 @@ class WorkflowManager:
         VALID_PHASE_KEYS = {
             "id", "prompt", "suggested_next", "terminal", "use_tasks",
             "requires_user_input", "on_blocked", "max_retries", "max_iterations",
-            "supports_proposals", "supports_prototypes", "supports_cache_reference",
+            "supports_proposals",  # deprecated: kept for compat with existing plans
+            "supports_prototypes", "supports_cache_reference",
             "expand_prompt", "required_artifacts", "context_artifacts",
             "required_tasks", "required_json_artifacts",
         }
@@ -1126,11 +1131,15 @@ def get_assembled_prompts(workflow_mgr: "WorkflowManager", phase_id: str) -> str
         if test_def_file.exists():
             prompt_parts.append(test_def_file.read_text())
 
-    # CLAUDE.md proposals support
-    if workflow_mgr.supports_proposals(phase_id):
-        proposals_file = prompts_dir / "claude-md-proposals.md"
-        if proposals_file.exists():
-            prompt_parts.append(proposals_file.read_text())
+    # Task guidance for required JSON artifacts
+    if workflow_mgr.uses_tasks(phase_id):
+        artifacts_dir = Path(__file__).parent / "artifacts"
+        for artifact_spec in workflow_mgr.get_required_json_artifacts(phase_id):
+            artifact_name = artifact_spec.get("name", "")
+            if artifact_name:
+                guidance_file = artifacts_dir / artifact_name / "task-guidance.md"
+                if guidance_file.exists():
+                    prompt_parts.append(guidance_file.read_text())
 
     # User review instructions for phases requiring user input
     if workflow_mgr.requires_user_input(phase_id):
@@ -1262,11 +1271,14 @@ def validate_json_artifact(
     """
     errors: list[str] = []
 
-    # Find schema file
+    # Find schema file (look in artifacts/{name}/ first, fall back to schemas/)
     plugin_dir = Path(__file__).parent
-    schema_path = plugin_dir / "schemas" / f"{schema_name}.schema.json"
+    schema_path = plugin_dir / "artifacts" / artifact_name / "schema.json"
     if not schema_path.exists():
-        errors.append(f"Schema not found: {schema_path}")
+        # Fallback to legacy schemas/ directory
+        schema_path = plugin_dir / "schemas" / f"{schema_name}.schema.json"
+    if not schema_path.exists():
+        errors.append(f"Schema not found for artifact '{artifact_name}'")
         return errors
 
     # Find artifact in current phase
@@ -2743,16 +2755,19 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
         prompt_parts.append(f"- Output path: `{output_dir}/`")
         prompt_parts.append(f"- Create files as needed (e.g., findings.md, analysis.md)")
 
-    # 8. CLAUDE.md proposals (if phase supports it)
+    # 8. Task guidance for required JSON artifacts
     workflow_mgr = WorkflowManager(plan_dir)
     state_mgr = StateManager(plan_dir)
     state = state_mgr.load()
     current_phase_id = state.get("current_phase")
-    if current_phase_id and workflow_mgr.supports_proposals(current_phase_id):
-        prompts_dir = Path(__file__).parent / "prompts"
-        proposals_file = prompts_dir / "claude-md-proposals.md"
-        if proposals_file.exists():
-            prompt_parts.append("\n\n" + proposals_file.read_text().strip())
+    if current_phase_id:
+        artifacts_dir = Path(__file__).parent / "artifacts"
+        for artifact_spec in workflow_mgr.get_required_json_artifacts(current_phase_id):
+            artifact_name = artifact_spec.get("name", "")
+            if artifact_name:
+                guidance_file = artifacts_dir / artifact_name / "task-guidance.md"
+                if guidance_file.exists():
+                    prompt_parts.append("\n\n" + guidance_file.read_text().strip())
 
     # 9. CLI reference for task completion
     prompt_parts.append("\n\n## When Done")
@@ -3071,6 +3086,17 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                 )
                 for error in all_validation_errors:
                     print(f"  - {error}", file=sys.stderr)
+                # Print instructions for each failing artifact
+                artifacts_dir = Path(__file__).parent / "artifacts"
+                failed_artifacts = set()
+                for error in all_validation_errors:
+                    artifact_name = error.split(":")[0].strip()
+                    failed_artifacts.add(artifact_name)
+                for artifact_name in sorted(failed_artifacts):
+                    instructions_file = artifacts_dir / artifact_name / "instructions.md"
+                    if instructions_file.exists():
+                        print("", file=sys.stderr)
+                        print(instructions_file.read_text().strip(), file=sys.stderr)
                 return 1
 
             # Auto-import cache-candidates if present and validated
@@ -3174,6 +3200,65 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                                         print(f"Auto-collected {imported} proposals")
                             except Exception as e:
                                 print(f"Warning: Failed to auto-import proposals: {e}", file=sys.stderr)
+
+            # Auto-import challenges if present and validated
+            for artifact_spec in required_json_artifacts:
+                artifact_name = artifact_spec.get("name", "")
+                if artifact_name == "challenges":
+                    # Find the artifact path
+                    current_entry_data = None
+                    for entry in reversed(state.get("phase_history", [])):
+                        if entry.get("entry") == state.get("current_phase_entry"):
+                            current_entry_data = entry
+                            break
+                    if current_entry_data:
+                        artifacts = current_entry_data.get("artifacts", {})
+                        if artifact_name in artifacts:
+                            artifact_path = plan_dir / artifacts[artifact_name]
+                            # Import challenges into manifest
+                            try:
+                                with open(artifact_path) as f:
+                                    data = json.load(f)
+                                challenges_list = data.get("challenges", [])
+                                if challenges_list:
+                                    # Load existing manifest
+                                    manifest_file = plan_dir / "challenges-manifest.json"
+                                    existing_challenges = []
+                                    existing_ids = set()
+                                    if manifest_file.exists():
+                                        try:
+                                            manifest_data = json.loads(manifest_file.read_text())
+                                            existing_challenges = manifest_data.get("challenges", [])
+                                            existing_ids = {c.get("id") for c in existing_challenges}
+                                        except (json.JSONDecodeError, KeyError):
+                                            pass
+
+                                    # Add new challenges
+                                    imported = 0
+                                    phase_dir_name = f"{state.get('current_phase_entry'):02d}-{current_phase}"
+                                    for c in challenges_list:
+                                        # Generate ID as phase:title-slug
+                                        challenge_id = f"{phase_dir_name}:{slugify(c.get('title', 'untitled'))}"
+                                        if challenge_id not in existing_ids:
+                                            challenge = {
+                                                "id": challenge_id,
+                                                "source_phase": f"phases/{phase_dir_name}",
+                                                "title": c.get("title", ""),
+                                                "attempted": c.get("attempted", ""),
+                                                "issue": c.get("issue", ""),
+                                                "workaround": c.get("workaround", ""),
+                                                "status": "pending",
+                                            }
+                                            existing_challenges.append(challenge)
+                                            existing_ids.add(challenge_id)
+                                            imported += 1
+
+                                    # Write updated manifest
+                                    manifest_file.write_text(json.dumps({"challenges": existing_challenges}, indent=2))
+                                    if imported:
+                                        print(f"Auto-collected {imported} challenges")
+                            except Exception as e:
+                                print(f"Warning: Failed to auto-import challenges: {e}", file=sys.stderr)
 
     # Count existing entries for this phase (for re-entry detection)
     prev_entries = [
@@ -5632,7 +5717,7 @@ Study these patterns before generating:
 | `use_tasks` | Phase uses tasks.json for work breakdown |
 | `on_blocked = "self"` | Retry phase on blocked tasks |
 | `max_retries` | Limit retries before escalating |
-| `supports_proposals` | Enable CLAUDE.md improvement proposals |
+| `required_json_artifacts` | JSON artifacts to validate before leaving (e.g., `["proposals", "challenges"]`) |
 | `supports_prototypes` | Enable prototype tasks |
 | `terminal = true` | Final phase, workflow ends here |
 

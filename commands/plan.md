@@ -184,7 +184,7 @@ description = "What it does"     # Optional
 | `context_artifacts` | array | Artifact names to inject from upstream phases into phase prompt |
 | `on_blocked` | string | Phase to go to when blocked (`"self"` or phase ID) |
 | `max_retries` | int | Max re-entries before escalation |
-| `supports_proposals` | bool | Enable CLAUDE.md proposals |
+| `required_json_artifacts` | array | JSON artifacts validated before leaving (e.g., `["proposals", "challenges"]`) |
 | `supports_prototypes` | bool | Enable prototype tasks |
 | `expand_prompt` | string | For dynamic phase expansion |
 

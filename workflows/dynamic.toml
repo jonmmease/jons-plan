@@ -120,7 +120,6 @@ suggested_next = ["complete", "__expand__"]
 [[phases]]
 id = "complete"
 terminal = true
-supports_proposals = true
 suggested_next = [
     { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
 ]

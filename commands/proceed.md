@@ -416,51 +416,20 @@ uv run ~/.claude-plugins/jons-plan/plan.py log "DECISION: Using JWT for auth. Co
 
 **Why this matters:** When a validation phase fails and loops back to research or implementation, these decision logs explain what was already tried and why. Without them, agents may repeat failed approaches.
 
-### CLAUDE.md Proposals
+### Proposals and Challenges (Two-Tier System)
 
-When you discover patterns, gotchas, or conventions that would help future agents, write a `proposals.md` file in the task output directory:
+This phase uses a two-tier system for capturing feedback:
 
-```bash
-TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
-# Write proposals to $TASK_DIR/proposals.md
-```
+**Tier 1 — Individual tasks write markdown:**
+- Tasks write `proposals.md` (patterns, gotchas, conventions discovered) in their task output directory
+- Tasks write `challenges.md` (unsolvable issues, workarounds) in their task output directory
+- Task-level guidance is automatically injected into subagent prompts
 
-**When to propose:**
-- Common patterns that should be documented
-- Gotchas or pitfalls that tripped you up
-- File organization conventions
-- Tool usage patterns specific to this project
-
-See `phase-context` output for the full proposal format.
-
-### Challenges Reporting
-
-When you encounter issues you **could not solve**, write a `challenges.md` file in the task output directory:
-
-```bash
-TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
-# Write challenges to $TASK_DIR/challenges.md
-```
-
-**When to record challenges:**
-- You couldn't figure out how to do something and used a workaround
-- You encountered a limitation or missing feature
-- A tool or library didn't work as expected
-- You couldn't find documentation for something
-
-**Challenge format:**
-```markdown
-## Challenge: <brief title>
-
-**What was attempted**:
-<what you tried to do>
-
-**What went wrong**:
-<the issue or limitation>
-
-**Workaround used**:
-<how you worked around it, or "None" if blocked>
-```
+**Tier 2 — You consolidate into JSON before transitioning:**
+- After all tasks complete, scan task directories for these markdown files
+- Review, consolidate duplicates, and build structured JSON artifacts
+- Record the artifacts before attempting the phase transition
+- The transition gate will block and print detailed instructions if artifacts are missing
 
 **Challenges vs Proposals:** Use proposals when you **solved** an issue and have advice. Use challenges when you **couldn't solve** an issue and had to work around it.
 
@@ -468,17 +437,21 @@ TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
 
 After all tasks are `done`:
 1. Run any verification/tests if appropriate
-2. Collect and present CLAUDE.md proposals (if any were written):
+2. Consolidate proposals from task directories into `proposals.json`:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py collect-proposals
-   uv run ~/.claude-plugins/jons-plan/plan.py list-proposals
    ```
-   If proposals exist, present them to the user for approval before committing.
-3. Collect and present challenges (if any were written):
+   Review the output, then create `proposals.json` (see phase transition instructions for format).
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py record-artifact proposals proposals.json
+   ```
+3. Consolidate challenges from task directories into `challenges.json`:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py collect-challenges
-   uv run ~/.claude-plugins/jons-plan/plan.py list-challenges
    ```
-   Present challenges for user acknowledgement.
+   Review the output, then create `challenges.json` (see phase transition instructions for format).
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py record-artifact challenges challenges.json
+   ```
 4. Summarize what was accomplished
 5. Ask user if they want to commit the changes

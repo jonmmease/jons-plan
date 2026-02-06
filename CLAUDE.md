@@ -136,7 +136,6 @@ Each `[[phases]]` entry supports these fields:
 | `on_blocked` | string | No | Phase to transition to when blocked ("self" or phase ID) |
 | `max_retries` | int | No | Max re-entries before requiring user intervention |
 | `max_iterations` | int | No | Legacy: max iterations for research loops |
-| `supports_proposals` | bool | No | Enable CLAUDE.md improvement proposals |
 | `supports_prototypes` | bool | No | Enable prototype tasks |
 | `supports_cache_reference` | bool | No | Enable research cache lookups |
 | `expand_prompt` | string | No | Instructions for dynamic phase expansion |
@@ -144,26 +143,30 @@ Each `[[phases]]` entry supports these fields:
 
 ### Required JSON Artifacts
 
-The `required_json_artifacts` field specifies JSON artifacts that must exist and validate against a schema before leaving a phase. This enables structured data validation for phase outputs.
+The `required_json_artifacts` field specifies JSON artifacts that must exist and validate against a schema before leaving a phase. Each artifact type is defined in the `artifacts/` directory.
 
 ```toml
 [[phases]]
-id = "research"
+id = "implement"
 use_tasks = true
-required_json_artifacts = [
-  { name = "cache-candidates", schema = "cache-candidates" }
-]
+required_json_artifacts = ["proposals", "challenges"]
 ```
 
-**Schema storage:** Schemas are stored in `~/.claude-plugins/jons-plan/schemas/<name>.schema.json`
+**Artifact definitions:** Each artifact type lives in `~/.claude-plugins/jons-plan/artifacts/<name>/`:
+- `schema.json` — JSON schema for validation
+- `instructions.md` — Guide for the phase agent (printed when transition is blocked)
+- `task-guidance.md` — Injected into subagent task prompts (for phases with `use_tasks`)
 
 **Behavior:**
 - On phase transition: each artifact is validated against its schema
-- Validation failures block the transition with clear error messages
-- Special handling: `cache-candidates` artifacts are auto-imported to the research cache
+- Validation failures block the transition and print `instructions.md` as guidance
+- Auto-import: `proposals` and `challenges` are imported into plan manifests; `cache-candidates` are imported to the research cache
+- Task-level guidance is automatically injected into subagent prompts
 
-**Built-in schemas:**
-- `cache-candidates` - Research cache entries with file references
+**Built-in artifact types:**
+- `proposals` — CLAUDE.md improvement proposals (tasks write `proposals.md`, phase agent consolidates)
+- `challenges` — Issues encountered and workarounds (tasks write `challenges.md`, phase agent consolidates)
+- `cache-candidates` — Research cache entries with file references
 
 ### Required Tasks
 
