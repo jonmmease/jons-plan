@@ -7,11 +7,16 @@ description = "Complex features requiring thorough exploration and multi-round f
 
 [[phases]]
 id = "research-planning"
+context_artifacts = ["research-findings"]
 required_artifacts = ["research-plan"]
 prompt = """
 # Research Planning Phase
 
 Plan the research before diving in.
+
+## Prior Research
+
+If prior research findings are injected above (from a previous iteration), review them to identify what's already been answered. Focus the new research plan on unanswered questions only.
 
 ## Tasks
 
@@ -56,14 +61,15 @@ id = "research"
 use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
-max_iterations = 4
-context_artifacts = ["research-plan"]
+context_artifacts = ["research-plan", "research-findings"]
 required_artifacts = ["research-findings"]
 required_json_artifacts = ["cache-candidates"]
 prompt = """
 # Research Phase
 
 Execute the research plan (injected above) with multiple parallel investigations.
+
+If prior research findings are injected above (from a previous iteration), build on them — add new findings without removing existing content.
 
 ## Tasks
 
@@ -97,8 +103,33 @@ Write `research-findings.md` with:
 - Remaining unknowns
 
 Use prototype tasks if you need to answer questions through implementation.
+
+If this is a subsequent iteration, append new findings to the existing research-findings.md content.
 """
-suggested_next = ["research", "synthesize"]
+suggested_next = ["evaluate-research"]
+
+[[phases]]
+id = "evaluate-research"
+max_retries = 4
+context_artifacts = ["research-plan", "research-findings"]
+prompt = """
+# Evaluate Research Phase
+
+Evaluate whether the research adequately answers the questions from the research plan.
+
+## Process
+
+1. Read the research plan (injected above) and list each question
+2. Read the research findings (injected above)
+3. For each question, assess: answered, partially answered, or unanswered
+
+## Decision
+
+- If all questions are adequately answered: transition to **synthesize**
+- If significant gaps remain: transition to **research-planning** to plan additional research
+  (The updated research plan should focus only on unanswered questions)
+"""
+suggested_next = ["synthesize", "research-planning"]
 
 [[phases]]
 id = "synthesize"

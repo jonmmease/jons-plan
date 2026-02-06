@@ -6,45 +6,60 @@ name = "dynamic"
 description = "Research-first workflow - phases generated based on codebase exploration"
 
 [[phases]]
+id = "research-planning"
+context_artifacts = ["research"]
+required_artifacts = ["research-plan"]
+prompt = """
+# Research Planning Phase
+
+Plan the research before diving in.
+
+## Prior Research
+
+If prior research findings are injected above (from a previous iteration), review them to identify what's already been answered. Focus the new research plan on unanswered questions only.
+
+## Tasks
+
+Identify what needs to be explored for this request:
+
+1. **Project Structure** — Is this a monorepo? Frameworks? Where should changes go?
+2. **Components Involved** — Frontend, backend, database, infrastructure?
+3. **Domains and Concerns** — Security-sensitive? Migration? Performance?
+4. **Dependencies** — Build order? Parallelization? Integration points?
+
+## Outputs
+
+Write `research-plan.md` with:
+- Questions to answer (grouped by domain)
+- Sources to consult
+- Research task assignments
+"""
+suggested_next = ["research"]
+
+[[phases]]
 id = "research"
 use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
-max_iterations = 4
+context_artifacts = ["research-plan", "research"]
+required_artifacts = ["research"]
 prompt = """
 # Research Phase
 
-Explore the codebase and requirements to understand:
+Execute the research plan (injected above).
 
-1. **Project Structure**
-   - Is this a monorepo? What packages/modules exist?
-   - What frameworks are used (frontend, backend)?
-   - Where should changes be made?
+If prior research findings are injected above (from a previous iteration), build on them — add new findings without removing existing content.
 
-2. **Components Involved**
-   - Frontend components needed?
-   - Backend services affected?
-   - Database changes required?
-   - Infrastructure considerations?
+Explore the codebase and requirements. Document findings in `research.md` with sections for each area from the research plan.
 
-3. **Domains and Concerns**
-   - Security-sensitive (auth, payments)?
-   - Data migration needed?
-   - Performance critical?
-
-4. **Dependencies**
-   - What must be built first?
-   - Can components be developed in parallel?
-   - Integration points?
-
-Document findings in research.md with sections for each area.
-
-## After Research
-
-When research is complete, check suggested-next for options:
-- If the work is simple (single component, clear changes), go to `complete`
-- If complex (multiple components, unclear dependencies), use `__expand__` to generate phases
+If this is a subsequent iteration, append new findings to the existing research.md content.
 """
+suggested_next = ["evaluate-research"]
+
+[[phases]]
+id = "evaluate-research"
+max_retries = 4
+context_artifacts = ["research-plan", "research"]
 expand_prompt = """
 Generate the workflow phases based on your research findings.
 
@@ -106,16 +121,25 @@ Validation phases should specify how to verify:
 - `validate-all`: Final integration check
 
 The `complete` phase already exists - point your final phase to it.
-
-## Decision Point
-
-After research, decide:
-- If the work is straightforward (single component, clear changes), go directly to `complete`
-- If complex (multiple components, unclear dependencies), expand into detailed phases
-
-This is a judgment call based on what you learned.
 """
-suggested_next = ["complete", "__expand__"]
+prompt = """
+# Evaluate Research Phase
+
+Evaluate whether the research adequately answers the questions from the research plan.
+
+## Process
+
+1. Read the research plan (injected above) and list each question
+2. Read the research findings (injected above)
+3. For each question, assess: answered, partially answered, or unanswered
+
+## Decision
+
+- If all questions answered and work is **simple** (single component, clear changes): transition to **complete**
+- If all questions answered and work is **complex** (multiple components, unclear dependencies): use **__expand__** to generate phases
+- If significant gaps remain: transition to **research-planning** to plan additional research
+"""
+suggested_next = ["complete", "__expand__", "research-planning"]
 
 [[phases]]
 id = "complete"

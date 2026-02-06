@@ -6,16 +6,46 @@ name = "iteration"
 description = "Iterative execution with evaluate-generate loops for long-horizon goals"
 
 [[phases]]
+id = "research-planning"
+context_artifacts = ["research"]
+required_artifacts = ["research-plan"]
+prompt = """
+# Research Planning Phase
+
+Plan the research before diving in.
+
+## Prior Research
+
+If prior research findings are injected above (from a previous iteration), review them to identify what's already been answered. Focus the new research plan on unanswered questions only.
+
+## Tasks
+
+1. Identify what needs to be researched for this goal
+2. List specific questions to answer
+3. Include: acceptance criteria, verification methods, scope assessment
+
+## Outputs
+
+Write `research-plan.md` with:
+- Questions to answer (grouped by domain)
+- Sources to consult
+- Research task assignments
+"""
+suggested_next = ["research"]
+
+[[phases]]
 id = "research"
 use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
-max_iterations = 4
+context_artifacts = ["research-plan", "research"]
 required_artifacts = ["research"]
 prompt = """
 # Research Phase
 
-Research the problem space. Identify what needs to be done and how to verify success.
+Execute the research plan (injected above).
+
+If prior research findings are injected above (from a previous iteration), build on them — add new findings without removing existing content.
 
 ## Tasks
 
@@ -40,8 +70,32 @@ Write `research.md` with:
 - Acceptance criteria for the goal
 - Available verification methods and commands
 - Scope assessment and potential approaches
+
+If this is a subsequent iteration, append new findings to the existing research.md content.
 """
-suggested_next = ["research", "plan"]
+suggested_next = ["evaluate-research"]
+
+[[phases]]
+id = "evaluate-research"
+max_retries = 4
+context_artifacts = ["research-plan", "research"]
+prompt = """
+# Evaluate Research Phase
+
+Evaluate whether the research adequately answers the questions from the research plan.
+
+## Process
+
+1. Read the research plan (injected above) and list each question
+2. Read the research findings (injected above)
+3. For each question, assess: answered, partially answered, or unanswered
+
+## Decision
+
+- If all questions are adequately answered: transition to **plan**
+- If significant gaps remain: transition to **research-planning** to plan additional research
+"""
+suggested_next = ["plan", "research-planning"]
 
 [[phases]]
 id = "plan"

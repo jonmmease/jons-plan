@@ -6,60 +6,93 @@ name = "design-and-implementation"
 description = "Design a solution, get user approval, then optionally implement"
 
 [[phases]]
+id = "research-planning"
+context_artifacts = ["research"]
+required_artifacts = ["research-plan"]
+prompt = """
+# Research Planning Phase
+
+Plan the research before diving in.
+
+## Prior Research
+
+If prior research findings are injected above (from a previous iteration), review them to identify what's already been answered. Focus the new research plan on unanswered questions only.
+
+## Tasks
+
+1. Identify what needs to be researched for this request
+2. List specific questions to answer
+3. Identify sources (codebase, web, docs)
+4. Include verification capability assessment as a research question
+
+## Outputs
+
+Write `research-plan.md` with:
+- Questions to answer (grouped by domain)
+- Sources to consult
+- Research task assignments
+- Verification question: "What test/lint/type-check/MCP tools are available?"
+"""
+suggested_next = ["research"]
+
+[[phases]]
 id = "research"
 use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
-max_iterations = 4
+context_artifacts = ["research-plan", "research"]
 required_artifacts = ["research"]
 prompt = """
 # Research Phase
 
-Investigate the problem space before designing.
+Execute the research plan (injected above).
+
+If prior research findings are injected above (from a previous iteration), build on them — add new findings without removing existing content.
 
 ## Tasks
 1. Explore the existing codebase
 2. Research potential approaches
 3. Identify constraints and requirements
 4. Document trade-offs
-5. **Assess verification capabilities** (see below)
+5. **Assess verification capabilities**: What test frameworks, MCP servers, build/lint/type-check commands exist?
 
 ## Verification-Aware Research
 
-Before finalizing your research, understand what verification is possible:
-
-### Discover Available Tools
-- What test frameworks exist? (`package.json`, `pytest.ini`, `go.mod`, etc.)
-- What MCP servers are available? (browser automation, API testing, etc.)
-- What build/lint/type-check commands exist?
-
-### Influence Design Choices
 **Prefer approaches that can be self-verified.** When comparing options:
 - Favor technologies with existing test patterns in the codebase
 - Prefer architectures that work with available MCP tools
 - Consider: "How will I verify this actually works?"
 
-### Document in research.md
-Include a section:
-```markdown
-## Verification Capabilities
-
-### Available Tools
-- Test suite: `npm test` (Jest)
-- Type checking: `tsc --noEmit`
-- MCP: Browser automation available via playwright MCP
-
-### Verification Considerations
-- [How each approach option can be verified]
-- [Which option is easiest to verify]
-```
-
 ## Outputs
-Write `research.md` with findings, including verification capabilities.
+Write `research.md` with findings, including a Verification Capabilities section.
 
 Use prototype tasks if you need to answer questions through implementation.
+
+If this is a subsequent iteration, append new findings to the existing research.md content.
 """
-suggested_next = ["research", "draft"]
+suggested_next = ["evaluate-research"]
+
+[[phases]]
+id = "evaluate-research"
+max_retries = 4
+context_artifacts = ["research-plan", "research"]
+prompt = """
+# Evaluate Research Phase
+
+Evaluate whether the research adequately answers the questions from the research plan.
+
+## Process
+
+1. Read the research plan (injected above) and list each question
+2. Read the research findings (injected above)
+3. For each question, assess: answered, partially answered, or unanswered
+
+## Decision
+
+- If all questions are adequately answered: transition to **draft**
+- If significant gaps remain: transition to **research-planning** to plan additional research
+"""
+suggested_next = ["draft", "research-planning"]
 
 [[phases]]
 id = "draft"

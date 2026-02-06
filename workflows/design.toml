@@ -6,27 +6,58 @@ name = "design"
 description = "Research, explore, and produce a design document"
 
 [[phases]]
+id = "research-planning"
+context_artifacts = ["research"]
+required_artifacts = ["research-plan"]
+prompt = """
+# Research Planning Phase
+
+Plan the research before diving in.
+
+## Prior Research
+
+If prior research findings are injected above (from a previous iteration), review them to identify what's already been answered. Focus the new research plan on unanswered questions only.
+
+## Tasks
+
+1. Identify what needs to be researched for this topic
+2. List specific questions to answer
+3. Identify sources (codebase, web, docs, prototyping)
+
+## Exploration Angles to Consider
+
+- **Codebase patterns** — Existing implementations, architectural conventions, file organization
+- **External approaches** — Web research on best practices, libraries, how others solve this
+- **Requirements analysis** — Constraints, edge cases, acceptance criteria
+- **Prototyping** — Quick spikes to validate assumptions
+- **API/library research** — Documentation, capabilities, integration patterns
+
+## Outputs
+
+Write `research-plan.md` with:
+- Questions to answer (grouped by domain)
+- Sources to consult
+- Research task assignments
+"""
+suggested_next = ["research"]
+
+[[phases]]
 id = "research"
 use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
-max_iterations = 4
+context_artifacts = ["research-plan", "research"]
 required_artifacts = ["research"]
 prompt = """
 # Research Phase
 
-Thoroughly investigate the problem space before designing.
+Execute the research plan (injected above).
+
+If prior research findings are injected above (from a previous iteration), build on them — add new findings without removing existing content.
 
 ## Tasks
 
-Launch exploration agents to understand the problem space. **You decide** how many agents to launch and what each explores based on the topic's complexity.
-
-Common exploration angles:
-- **Codebase patterns** — Existing implementations, architectural conventions, file organization
-- **External approaches** — Web research on best practices, libraries, how others solve this
-- **Requirements analysis** — Constraints, edge cases, acceptance criteria
-- **Prototyping** — Quick spikes to validate assumptions (write to plan directory only)
-- **API/library research** — Documentation, capabilities, integration patterns
+Launch exploration agents. **You decide** how many agents to launch and what each explores based on the topic's complexity.
 
 Launch agents appropriately:
 - Run independent explorations in parallel for speed
@@ -52,8 +83,32 @@ Write findings to `research.md`:
 - Potential approaches with pros/cons
 
 Use prototype tasks if you need to answer questions through implementation.
+
+If this is a subsequent iteration, append new findings to the existing research.md content.
 """
-suggested_next = ["research", "draft"]
+suggested_next = ["evaluate-research"]
+
+[[phases]]
+id = "evaluate-research"
+max_retries = 4
+context_artifacts = ["research-plan", "research"]
+prompt = """
+# Evaluate Research Phase
+
+Evaluate whether the research adequately answers the questions from the research plan.
+
+## Process
+
+1. Read the research plan (injected above) and list each question
+2. Read the research findings (injected above)
+3. For each question, assess: answered, partially answered, or unanswered
+
+## Decision
+
+- If all questions are adequately answered: transition to **draft**
+- If significant gaps remain: transition to **research-planning** to plan additional research
+"""
+suggested_next = ["draft", "research-planning"]
 
 [[phases]]
 id = "draft"

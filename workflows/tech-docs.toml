@@ -6,21 +6,23 @@ name = "tech-docs"
 description = "Create technical documentation with multi-source research and review"
 
 [[phases]]
-id = "research"
-use_tasks = true
+id = "research-planning"
+context_artifacts = ["research"]
+required_artifacts = ["research-plan"]
 prompt = """
-# Research Phase
+# Research Planning Phase
 
-Gather information from multiple sources about the topic.
+Plan the research before diving in.
 
-## Target Audience
+## Prior Research
 
-Write for developers who:
-- Know the programming language and framework basics
-- Have not used this specific codebase before
-- Will search for specific answers, not read front-to-back
+If prior research findings are injected above (from a previous iteration), review them to identify what's already been answered. Focus the new research plan on unanswered questions only.
 
-Do NOT write for beginners, experts, or managers.
+## Tasks
+
+1. Identify what needs to be researched for this documentation topic
+2. List specific questions to answer
+3. Identify sources (codebase, web, docs, GitHub issues/PRs)
 
 ## Source Hierarchy (Code is Truth)
 
@@ -33,6 +35,38 @@ Do NOT write for beginners, experts, or managers.
 | 5 | External resources | Background | Always verify |
 
 **Core principle:** If documentation contradicts code, code wins. Claims from sources 2-5 must be verified.
+
+## Outputs
+
+Write `research-plan.md` with:
+- Questions to answer (grouped by domain)
+- Sources to consult (prioritized per hierarchy above)
+- Research task assignments
+"""
+suggested_next = ["research"]
+
+[[phases]]
+id = "research"
+use_tasks = true
+supports_prototypes = true
+supports_cache_reference = true
+context_artifacts = ["research-plan", "research"]
+required_artifacts = ["research"]
+prompt = """
+# Research Phase
+
+Execute the research plan (injected above).
+
+If prior research findings are injected above (from a previous iteration), build on them — add new findings without removing existing content.
+
+## Target Audience
+
+Write for developers who:
+- Know the programming language and framework basics
+- Have not used this specific codebase before
+- Will search for specific answers, not read front-to-back
+
+Do NOT write for beginners, experts, or managers.
 
 ## Tasks
 
@@ -61,8 +95,32 @@ Write `research.md` with:
 - External references
 - Questions that need answers
 - Git commit hash for version anchor
+
+If this is a subsequent iteration, append new findings to the existing research.md content.
 """
-suggested_next = ["draft"]
+suggested_next = ["evaluate-research"]
+
+[[phases]]
+id = "evaluate-research"
+max_retries = 4
+context_artifacts = ["research-plan", "research"]
+prompt = """
+# Evaluate Research Phase
+
+Evaluate whether the research adequately answers the questions from the research plan.
+
+## Process
+
+1. Read the research plan (injected above) and list each question
+2. Read the research findings (injected above)
+3. For each question, assess: answered, partially answered, or unanswered
+
+## Decision
+
+- If all questions are adequately answered: transition to **draft**
+- If significant gaps remain: transition to **research-planning** to plan additional research
+"""
+suggested_next = ["draft", "research-planning"]
 
 [[phases]]
 id = "draft"
