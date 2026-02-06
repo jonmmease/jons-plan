@@ -12,7 +12,7 @@ ColumnLayout {
     spacing: Theme.spacingTiny
 
     Repeater {
-        model: workflowModel.selectedPhaseDetails.tasks || []
+        model: workflowModel.selectedPhaseTasks || []
 
         Rectangle {
             Layout.fillWidth: true
@@ -90,6 +90,6 @@ ColumnLayout {
         text: "No tasks"
         font.pixelSize: Theme.fontSizeSmall
         color: Theme.textMuted
-        visible: (workflowModel.selectedPhaseDetails.tasks || []).length === 0
+        visible: (workflowModel.selectedPhaseTasks || []).length === 0
     }
 }

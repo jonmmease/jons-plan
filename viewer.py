@@ -287,6 +287,7 @@ class WorkflowModel(QObject):
     selectedPhaseChanged = Signal()
     selectedPhaseEntryChanged = Signal()
     selectedPhaseArtifactsChanged = Signal()
+    selectedPhaseTasksChanged = Signal()
     selectedPhaseLogsChanged = Signal()
     selectedTaskChanged = Signal()
     selectedTaskPromptChanged = Signal()
@@ -318,6 +319,7 @@ class WorkflowModel(QObject):
         self._selected_task_findings = []  # List of {name, content} dicts
         self._full_task_prompt = ""  # Full assembled task prompt from CLI
         self._task_log_watcher = None  # QFileSystemWatcher for task logs
+        self._selected_phase_tasks = []  # List of task dicts from tasks.json
         self._selected_phase_artifacts = []  # List of {name, content, rawContent, isHtml}
         self._selected_phase_logs = ""  # Phase progress logs
         self._phase_log_watcher = None  # QFileSystemWatcher for phase logs
@@ -710,17 +712,21 @@ class WorkflowModel(QObject):
             details["entered"] = entry.get("entered", "")
             details["reason"] = entry.get("reason", "")
             details["outcome"] = entry.get("outcome")
-            details["tasks"] = self._load_phase_tasks(phase_dir)
+            self._selected_phase_tasks = self._load_phase_tasks(phase_dir)
+            details["tasks"] = self._selected_phase_tasks
             logger.debug(f"_update_selected_phase_details: loaded {len(details['tasks'])} tasks")
             self._selected_phase_details = details
             self._load_phase_artifacts(phase_dir)
             self._load_phase_logs(phase_dir)
             self.selectedPhaseChanged.emit()  # Notify QML of updated details
+            self.selectedPhaseTasksChanged.emit()
         else:
             self._selected_phase_details = {}
+            self._selected_phase_tasks = []
             self._selected_phase_artifacts = []
             self._selected_phase_logs = ""
             self.selectedPhaseChanged.emit()
+            self.selectedPhaseTasksChanged.emit()
             self.selectedPhaseArtifactsChanged.emit()
             self.selectedPhaseLogsChanged.emit()
 
@@ -741,8 +747,13 @@ class WorkflowModel(QObject):
         phase_dir = entry.get("dir", "")
 
         if phase_id in self._phases:
-            # Refresh tasks in the details dict
-            self._selected_phase_details["tasks"] = self._load_phase_tasks(phase_dir)
+            # Refresh tasks (with change detection)
+            new_tasks = self._load_phase_tasks(phase_dir)
+            self._selected_phase_details["tasks"] = new_tasks
+            if self._tasks_changed(self._selected_phase_tasks, new_tasks):
+                self._selected_phase_tasks = new_tasks
+                self._refresh_selected_task()
+                self.selectedPhaseTasksChanged.emit()
             # Refresh artifacts and logs (these methods now check before emitting)
             self._load_phase_artifacts(phase_dir)
             self._load_phase_logs(phase_dir)
@@ -790,6 +801,24 @@ class WorkflowModel(QObject):
         old_by_name = {a["name"]: a["rawContent"] for a in old}
         new_by_name = {a["name"]: a["rawContent"] for a in new}
         return old_by_name != new_by_name
+
+    def _tasks_changed(self, old: list, new: list) -> bool:
+        """Check if task lists differ (by id and status)."""
+        if len(old) != len(new):
+            return True
+        old_by_id = {t.get("id"): t.get("status") for t in old}
+        new_by_id = {t.get("id"): t.get("status") for t in new}
+        return old_by_id != new_by_id
+
+    def _refresh_selected_task(self) -> None:
+        """Update the selected task from the refreshed task list."""
+        if not self._selected_task_id:
+            return
+        for task in self._selected_phase_tasks:
+            if task.get("id") == self._selected_task_id:
+                self._selected_task = task
+                self.selectedTaskChanged.emit()
+                return
 
     def _load_phase_logs(self, phase_dir: str) -> None:
         """Load phase progress logs with live watching.
@@ -937,6 +966,10 @@ class WorkflowModel(QObject):
     def selectedPhaseArtifacts(self) -> list:
         return self._selected_phase_artifacts
 
+    @Property("QVariantList", notify=selectedPhaseTasksChanged)
+    def selectedPhaseTasks(self) -> list:
+        return self._selected_phase_tasks
+
     @Property(str, notify=selectedPhaseLogsChanged)
     def selectedPhaseLogs(self) -> str:
         return self._selected_phase_logs
@@ -1076,7 +1109,7 @@ class WorkflowModel(QObject):
         if task_id != self._selected_task_id:
             self._selected_task_id = task_id
             # Find task in current phase's tasks
-            tasks = self._selected_phase_details.get("tasks", [])
+            tasks = self._selected_phase_tasks
             self._selected_task = None
             for task in tasks:
                 if task.get("id") == task_id:
@@ -1277,7 +1310,7 @@ class WorkflowModel(QObject):
                 task_id = after_tasks.split("/")[0]
                 if task_id:
                     # Check if this task exists in current phase
-                    tasks = self._selected_phase_details.get("tasks", [])
+                    tasks = self._selected_phase_tasks
                     for task in tasks:
                         if task.get("id") == task_id:
                             # Select the task and switch to Tasks tab

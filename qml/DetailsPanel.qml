@@ -236,8 +236,8 @@ Rectangle {
 
             TabButton {
                 visible: Boolean(workflowModel.selectedPhaseDetails.use_tasks)
-                text: "Tasks" + ((workflowModel.selectedPhaseDetails.tasks || []).length > 0 ?
-                      " (" + (workflowModel.selectedPhaseDetails.tasks || []).length + ")" : "")
+                text: "Tasks" + ((workflowModel.selectedPhaseTasks || []).length > 0 ?
+                      " (" + (workflowModel.selectedPhaseTasks || []).length + ")" : "")
                 width: visible ? implicitWidth : 0
                 padding: 8
                 background: Rectangle {
@@ -989,7 +989,7 @@ Rectangle {
             // Tasks tab content
             Item {
                 // Check if there are tasks
-                property var tasks: workflowModel.selectedPhaseDetails.tasks || []
+                property var tasks: workflowModel.selectedPhaseTasks || []
                 property bool hasTasks: tasks.length > 0
 
                 // Empty state when no tasks
@@ -1033,7 +1033,7 @@ Rectangle {
                                 Item { Layout.fillWidth: true }
 
                                 Text {
-                                    property var tasks: workflowModel.selectedPhaseDetails.tasks || []
+                                    property var tasks: workflowModel.selectedPhaseTasks || []
                                     property int doneCount: tasks.filter(t => t.status === "done").length
                                     text: doneCount + "/" + tasks.length + " done"
                                     font.pixelSize: Theme.fontSizeSmall
@@ -1050,7 +1050,7 @@ Rectangle {
                                 TaskTree {
                                     id: taskTree
                                     width: parent.width
-                                    tasks: workflowModel.selectedPhaseDetails.tasks || []
+                                    tasks: workflowModel.selectedPhaseTasks || []
                                     selectedTask: workflowModel.selectedTask
 
                                     onTaskSelected: function(task) {
