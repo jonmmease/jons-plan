@@ -63,6 +63,7 @@ When no `--workflow` is specified, analyze the user's request and suggest a work
 | Document, explain, write docs | `tech-docs` | "document the API", "explain how X works", "write guide" |
 | Complex, thorough, research | `deep-implementation` | "thoroughly research and implement", "complex feature with review" |
 | Design then implement | `design-and-implementation` | "design and optionally implement", "explore then build" |
+| Iterative goal, make tests pass, fix all issues | `iteration` | "make all tests pass", "fix all lint errors", "iterate until done" |
 | Ambiguous, multi-component, unclear scope | `dynamic` | "build this feature" (unclear scope), "implement X" (multi-component) |
 
 **Process:**
@@ -86,6 +87,7 @@ Built-in workflows in `~/.claude-plugins/jons-plan/workflows/`:
 - `tech-docs` - Technical documentation creation
 - `tech-docs-review` - Review RFCs, design docs, proposals
 - `dynamic` - Research-first workflow where phases are generated based on codebase exploration
+- `iteration` - Iterative execution with evaluate-generate loops for long-horizon goals
 
 ### Workflow Schema (for custom workflows)
 

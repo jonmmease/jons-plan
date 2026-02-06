@@ -37,6 +37,7 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 | `tech-docs` | Technical documentation |
 | `tech-docs-review` | Review RFCs, design docs, proposals |
 | `dynamic` | Research-first, phases generated based on exploration |
+| `iteration` | Iterative execute-evaluate-generate loops for long-horizon goals |
 
 Workflow templates are in `~/.claude-plugins/jons-plan/workflows/`.
 

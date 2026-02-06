@@ -43,6 +43,35 @@ if [[ -f "$SESSION_MODE_FILE" ]]; then
     SESSION_MODE=$(cat "$SESSION_MODE_FILE")
 fi
 
+# Helper: Read auto_iteration_counter from state.json (default 0)
+get_iteration_counter() {
+    local state_file="${ACTIVE_PLAN_DIR}/state.json"
+    if [[ -f "$state_file" ]]; then
+        jq -r '.auto_iteration_counter // 0' < "$state_file" 2>/dev/null || echo 0
+    else
+        echo 0
+    fi
+}
+
+# Helper: Read max_auto_iterations from state.json (default 50)
+get_max_iterations() {
+    local state_file="${ACTIVE_PLAN_DIR}/state.json"
+    if [[ -f "$state_file" ]]; then
+        jq -r '.max_auto_iterations // 50' < "$state_file" 2>/dev/null || echo 50
+    else
+        echo 50
+    fi
+}
+
+# Helper: Increment auto_iteration_counter in state.json
+increment_iteration_counter() {
+    local state_file="${ACTIVE_PLAN_DIR}/state.json"
+    if [[ -f "$state_file" ]]; then
+        local tmp_file=$(mktemp)
+        jq '.auto_iteration_counter = ((.auto_iteration_counter // 0) + 1)' < "$state_file" > "$tmp_file" 2>/dev/null && mv "$tmp_file" "$state_file"
+    fi
+}
+
 # Auto-continue logic: Block stop if in proceed mode with work remaining
 # Also handle awaiting-feedback mode for workflow phases requiring user input
 if [[ "$SESSION_MODE" == "proceed" ]]; then
@@ -78,18 +107,36 @@ if [[ "$SESSION_MODE" == "proceed" ]]; then
                 # Check for phase tasks
                 PHASE_TASKS=$(plan phase-next-tasks 2>/dev/null || echo "")
                 if [[ -n "$PHASE_TASKS" && "$PHASE_TASKS" != "No tasks in current phase" && "$PHASE_TASKS" != "All phase tasks complete" ]]; then
-                    TASK_COUNT=$(echo "$PHASE_TASKS" | wc -l | tr -d ' ')
-                    echo '{"decision": "block", "reason": "Phase has '"$TASK_COUNT"' available tasks. Continue working on the next task. Run: uv run ${PLUGIN_ROOT}/plan.py phase-next-tasks"}'
-                    exit 2
+                    # Check safety limit before blocking
+                    COUNTER=$(get_iteration_counter)
+                    MAX_ITER=$(get_max_iterations)
+                    if [[ "$COUNTER" -ge "$MAX_ITER" ]]; then
+                        # Safety limit reached - allow stop
+                        plan log "AUTO_ITERATION_LIMIT: counter=$COUNTER >= max=$MAX_ITER, allowing stop" 2>/dev/null || true
+                    else
+                        increment_iteration_counter
+                        TASK_COUNT=$(echo "$PHASE_TASKS" | wc -l | tr -d ' ')
+                        echo '{"decision": "block", "reason": "Phase has '"$TASK_COUNT"' available tasks. Continue working on the next task. Run: uv run ${PLUGIN_ROOT}/plan.py phase-next-tasks"}'
+                        exit 2
+                    fi
                 fi
 
                 # Check if there are suggested next phases (workflow not complete)
                 SUGGESTED_NEXT_COUNT=$(jq -r '.suggested_next | length' < "$PHASE_JSON_FILE" 2>/dev/null || echo "0")
                 if [[ "$SUGGESTED_NEXT_COUNT" -gt 0 ]]; then
-                    # Get suggested phases for the message
-                    SUGGESTED_PHASES=$(plan suggested-next 2>/dev/null | head -3 | tr '\n' ', ' | sed 's/,$//')
-                    echo '{"decision": "block", "reason": "TRANSITION REQUIRED: Phase complete but workflow continues. You MUST transition to the next phase before stopping.\n\nAvailable transitions: '"${SUGGESTED_PHASES}"'\n\nRun these commands:\n  1. uv run ~/.claude-plugins/jons-plan/plan.py suggested-next\n  2. uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <phase-id>\n\nIf scope exceeded, see proceed.md Scope Exceeded Handling section.\n\nDO NOT manually edit state.json or invent statuses."}'
-                    exit 2
+                    # Check safety limit before blocking
+                    COUNTER=$(get_iteration_counter)
+                    MAX_ITER=$(get_max_iterations)
+                    if [[ "$COUNTER" -ge "$MAX_ITER" ]]; then
+                        # Safety limit reached - allow stop
+                        plan log "AUTO_ITERATION_LIMIT: counter=$COUNTER >= max=$MAX_ITER, allowing stop" 2>/dev/null || true
+                    else
+                        increment_iteration_counter
+                        # Get suggested phases for the message
+                        SUGGESTED_PHASES=$(plan suggested-next 2>/dev/null | head -3 | tr '\n' ', ' | sed 's/,$//')
+                        echo '{"decision": "block", "reason": "TRANSITION REQUIRED: Phase complete but workflow continues. You MUST transition to the next phase before stopping.\n\nAvailable transitions: '"${SUGGESTED_PHASES}"'\n\nRun these commands:\n  1. uv run ~/.claude-plugins/jons-plan/plan.py suggested-next\n  2. uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <phase-id>\n\nIf scope exceeded, see proceed.md Scope Exceeded Handling section.\n\nDO NOT manually edit state.json or invent statuses."}'
+                        exit 2
+                    fi
                 fi
             fi
         fi

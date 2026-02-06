@@ -63,6 +63,15 @@ if [[ "$MESSAGE" == "/jons-plan:plan"* ]]; then
     echo "$ARGS" > "${JONS_PLAN_DIR}/command-args"
 elif [[ "$MESSAGE" == "/jons-plan:proceed"* ]]; then
     plan set-mode proceed 2>/dev/null || true
+    # Reset auto_iteration_counter on manual proceed
+    ACTIVE_PLAN_DIR=$(plan active-plan-dir 2>/dev/null || echo "")
+    if [[ -n "$ACTIVE_PLAN_DIR" ]]; then
+        STATE_FILE="${ACTIVE_PLAN_DIR}/state.json"
+        if [[ -f "$STATE_FILE" ]] && command -v jq &>/dev/null; then
+            TMP_FILE=$(mktemp)
+            jq '.auto_iteration_counter = 0' < "$STATE_FILE" > "$TMP_FILE" 2>/dev/null && mv "$TMP_FILE" "$STATE_FILE"
+        fi
+    fi
     # Store the args (may include task count or guidance)
     ARGS="${MESSAGE#/jons-plan:proceed}"
     ARGS="${ARGS# }"
@@ -83,8 +92,22 @@ else
     CURRENT_MODE=$(plan get-mode 2>/dev/null || echo "")
 
     if [[ "$CURRENT_MODE" == "proceed" ]]; then
-        # Clear proceed mode - require explicit /jons-plan:proceed for auto-resume
-        plan clear-mode 2>/dev/null || true
+        # Check if we're in an auto-iteration loop - preserve mode if so
+        ACTIVE_PLAN_DIR=$(plan active-plan-dir 2>/dev/null || echo "")
+        AUTO_COUNTER=0
+        if [[ -n "$ACTIVE_PLAN_DIR" ]]; then
+            STATE_FILE="${ACTIVE_PLAN_DIR}/state.json"
+            if [[ -f "$STATE_FILE" ]] && command -v jq &>/dev/null; then
+                AUTO_COUNTER=$(jq -r '.auto_iteration_counter // 0' < "$STATE_FILE" 2>/dev/null || echo 0)
+            fi
+        fi
+        if [[ "$AUTO_COUNTER" -gt 0 ]]; then
+            # In auto-iteration loop - preserve proceed mode
+            :
+        else
+            # Clear proceed mode - require explicit /jons-plan:proceed for auto-resume
+            plan clear-mode 2>/dev/null || true
+        fi
     fi
     # Planning modes (new, plan) are preserved
     # No mode set - no action needed

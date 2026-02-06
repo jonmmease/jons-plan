@@ -2823,7 +2823,38 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
                 if guidance_file.exists():
                     prompt_parts.append("\n\n" + guidance_file.read_text().strip())
 
-    # 9. CLI reference for task completion
+    # 9. Dead-end injection (prevent repeating failed approaches)
+    dead_end_mgr = DeadEndRegistry(plan_dir)
+    dead_ends = dead_end_mgr.load()
+    if dead_ends:
+        prompt_parts.append("\n\n## Failed Approaches (Do Not Repeat)")
+        prompt_parts.append("These approaches have already been tried and failed:")
+        for de in dead_ends:
+            prompt_parts.append(f"\n- **{de.get('what_failed', 'Unknown')}** ({de.get('discovery_type', 'UNKNOWN')})")
+            prompt_parts.append(f"  Why: {de.get('why_failed', 'Unknown')}")
+            if de.get("task_id"):
+                prompt_parts.append(f"  Task: {de['task_id']}")
+
+    # 10. Proposal injection (lessons learned from earlier tasks)
+    proposal_manifest = plan_dir / "proposals-manifest.json"
+    if proposal_manifest.exists():
+        try:
+            manifest = json.loads(proposal_manifest.read_text())
+            proposals = [
+                p for p in manifest.get("proposals", [])
+                if p.get("status") in ("pending", "accepted")
+            ]
+            if proposals:
+                prompt_parts.append("\n\n## Lessons Learned (from earlier tasks)")
+                prompt_parts.append("These insights were discovered during earlier work in this plan:")
+                for p in proposals:
+                    prompt_parts.append(f"\n- **{p.get('title', 'Untitled')}**")
+                    if p.get("content"):
+                        prompt_parts.append(f"  {p['content']}")
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # 11. CLI reference for task completion
     prompt_parts.append("\n\n## When Done")
     prompt_parts.append(f"Mark this task complete: `uv run {PLUGIN_ROOT}/plan.py set-status {args.task_id} done`")
 
@@ -3904,7 +3935,22 @@ def cmd_loop_to_phase(args: argparse.Namespace) -> int:
         return 11
 
     # Transition directly
-    reason = args.reason or f"Loopback: {current_phase} -> {target_phase}"
+    reason = args.reason
+    if not reason:
+        # Auto-generate informative reason for iteration loops
+        reason_parts = [f"Loopback: {current_phase} -> {target_phase}"]
+        # Include task completion summary from current phase
+        try:
+            current_tasks = get_tasks(plan_dir)
+            done = sum(1 for t in current_tasks if t.get("status") == "done")
+            blocked = sum(1 for t in current_tasks if t.get("status") == "blocked")
+            total = len(current_tasks)
+            if total > 0:
+                reason_parts.append(f"Tasks in {current_phase}: {done}/{total} done, {blocked} blocked")
+        except Exception:
+            pass
+        reason = ". ".join(reason_parts)
+
     enter_args = argparse.Namespace(
         phase_id=target_phase,
         reason=reason,
@@ -4317,6 +4363,25 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
                             "content": artifact_path.read_text().strip(),
                         }
 
+        # Dead-ends for JSON output
+        dead_end_mgr = DeadEndRegistry(plan_dir)
+        dead_ends = dead_end_mgr.load()
+
+        # Proposals for JSON output
+        proposals_for_json = None
+        proposal_manifest = plan_dir / "proposals-manifest.json"
+        if proposal_manifest.exists():
+            try:
+                manifest = json.loads(proposal_manifest.read_text())
+                active_proposals = [
+                    p for p in manifest.get("proposals", [])
+                    if p.get("status") in ("pending", "accepted")
+                ]
+                if active_proposals:
+                    proposals_for_json = active_proposals
+            except (json.JSONDecodeError, OSError):
+                pass
+
         output = {
             "phase_id": current_phase,
             "phase_dir": str(plan_dir / current_phase_dir) if current_phase_dir else None,
@@ -4329,6 +4394,8 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             "suggested_next": phase.get("suggested_next", []),
             "required_artifacts": required_artifacts if required_artifacts else None,
             "context_artifacts": context_artifacts_content if context_artifacts_content else None,
+            "dead_ends": dead_ends if dead_ends else None,
+            "proposals": proposals_for_json,
             "input_artifacts": {
                 "found": [str(p) for p in found],
                 "missing": missing,
@@ -4392,6 +4459,43 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
                             print()
                 else:
                     print(f"**Warning:** Context artifact '{artifact_name}' not found in phase history", file=sys.stderr)
+
+        # Dead-end injection (prevent repeating failed approaches)
+        dead_end_mgr = DeadEndRegistry(plan_dir)
+        dead_ends = dead_end_mgr.load()
+        if dead_ends:
+            print("## Failed Approaches (Do Not Repeat)")
+            print()
+            print("These approaches have already been tried and failed:")
+            print()
+            for de in dead_ends:
+                print(f"- **{de.get('what_failed', 'Unknown')}** ({de.get('discovery_type', 'UNKNOWN')})")
+                print(f"  Why: {de.get('why_failed', 'Unknown')}")
+                if de.get("task_id"):
+                    print(f"  Task: {de['task_id']}")
+            print()
+
+        # Proposal injection (lessons learned from earlier tasks)
+        proposal_manifest = plan_dir / "proposals-manifest.json"
+        if proposal_manifest.exists():
+            try:
+                manifest = json.loads(proposal_manifest.read_text())
+                proposals = [
+                    p for p in manifest.get("proposals", [])
+                    if p.get("status") in ("pending", "accepted")
+                ]
+                if proposals:
+                    print("## Lessons Learned (from earlier tasks)")
+                    print()
+                    print("These insights were discovered during earlier work in this plan:")
+                    print()
+                    for p in proposals:
+                        print(f"- **{p.get('title', 'Untitled')}**")
+                        if p.get("content"):
+                            print(f"  {p['content']}")
+                    print()
+            except (json.JSONDecodeError, OSError):
+                pass
 
         # Task schema (injected for phases with use_tasks=true)
         if workflow_mgr.uses_tasks(current_phase):
