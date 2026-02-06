@@ -745,7 +745,7 @@ class WorkflowManager:
         if prompt_files:
             plugin_root = Path(__file__).parent
             for pf in prompt_files:
-                prompt_path = plugin_root / "prompts" / f"{pf}.md"
+                prompt_path = plugin_root / "prompts" / "phases" / f"{pf}.md"
                 if prompt_path.exists():
                     content = prompt_path.read_text().strip()
                     if content:
@@ -2718,12 +2718,12 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
         if hypothesis:
             prompt_parts.append(f"\n**Hypothesis:** {hypothesis}")
 
-    # 1c. Plugin prompt file - inject specialized instructions from prompts/ directory
+    # 1c. Plugin prompt file - inject specialized instructions from prompts/tasks/ directory
     prompt_file = task.get("prompt_file")
     if prompt_file:
         # Plugin root is where this script lives
         plugin_root = Path(__file__).parent
-        prompt_path = plugin_root / "prompts" / f"{prompt_file}.md"
+        prompt_path = plugin_root / "prompts" / "tasks" / f"{prompt_file}.md"
         if prompt_path.exists():
             prompt_content = prompt_path.read_text().strip()
             if prompt_content:
