@@ -326,6 +326,7 @@ class WorkflowModel(QObject):
         self._current_phase = None  # Track current phase for auto-follow
         self._full_phase_prompt = ""  # Full prompt from phase-context CLI
         self._request_html = ""  # HTML-rendered request.md content
+        self._plan_artifacts = []  # List of {name, html, path} dicts
 
         # Theme mode: "system", "light", "dark"
         self._theme_mode = "system"
@@ -469,6 +470,7 @@ class WorkflowModel(QObject):
         self._build_phase_history(state)
         self._load_progress()
         self._load_request()
+        self._load_plan_artifacts(state)
 
         # Auto-follow current phase logic:
         # 1. On initial load (nothing selected), select current phase
@@ -524,6 +526,20 @@ class WorkflowModel(QObject):
             self._request_html = md_to_html(content)
         else:
             self._request_html = ""
+
+    def _load_plan_artifacts(self, state: dict) -> None:
+        """Load plan-level artifacts from state and convert to HTML."""
+        artifacts = []
+        for name, rel_path in state.get("plan_artifacts", {}).items():
+            artifact_path = self._plan_path / rel_path
+            if artifact_path.exists():
+                content = artifact_path.read_text()
+                artifacts.append({
+                    "name": name,
+                    "html": md_to_html(content),
+                    "path": str(artifact_path),
+                })
+        self._plan_artifacts = artifacts
 
     def _build_nodes(self, workflow: dict, state: dict, layout: dict) -> None:
         """Build node list with layout positions and status."""
@@ -584,6 +600,13 @@ class WorkflowModel(QObject):
                         "requires_approval": item.get("requires_approval", False),
                         "approval_prompt": item.get("approval_prompt"),
                     })
+            # Merge plan-level artifact names into context_artifacts display
+            context_arts = list(phase.get("context_artifacts", []))
+            plan_art_names = list(state.get("plan_artifacts", {}).keys())
+            for name in plan_art_names:
+                if name not in context_arts:
+                    context_arts.append(name)
+
             self._phases[phase_id] = {
                 "id": phase_id,
                 "name": phase_id.replace("-", " ").title(),
@@ -592,7 +615,8 @@ class WorkflowModel(QObject):
                 "terminal": phase.get("terminal", False),
                 "use_tasks": phase.get("use_tasks", False),
                 "required_artifacts": phase.get("required_artifacts", []),
-                "context_artifacts": phase.get("context_artifacts", []),
+                "context_artifacts": context_arts,
+                "plan_artifact_names": plan_art_names,
                 "entry_count": entry_counts.get(phase_id, 0),
                 "tasks": [],
             }
@@ -982,6 +1006,15 @@ class WorkflowModel(QObject):
     def requestPath(self) -> str:
         """Path to request.md file."""
         return str(self._plan_path / "request.md")
+
+    @Property("QVariantList", notify=dataChanged)
+    def planArtifacts(self) -> list:
+        """List of plan-level artifacts: [{name, html, path}, ...]."""
+        return self._plan_artifacts
+
+    @Property(int, notify=dataChanged)
+    def planArtifactsCount(self) -> int:
+        return len(self._plan_artifacts)
 
     @Property("QVariantList", notify=dataChanged)
     def progressEntries(self) -> list:

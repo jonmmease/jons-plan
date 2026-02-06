@@ -49,6 +49,7 @@ Workflow templates are in `~/.claude-plugins/jons-plan/workflows/`.
 ├── workflow.toml        # Phase definitions
 ├── state.json           # Current phase state
 ├── request.md           # Refined/approved request
+├── research-brief.md    # Optional: pre-research from plan creation
 ├── dead-ends.json       # Failed approaches
 ├── claude-progress.txt  # Progress log
 └── phases/
@@ -427,10 +428,11 @@ User guidance is set via `/jons-plan:proceed <number> <guidance>` and persists u
 ### Artifact Management
 | Command | Description |
 |---------|-------------|
-| `record-artifact <name> <path>` | Record phase artifact |
+| `record-artifact [--plan-level] <name> <path>` | Record phase or plan-level artifact |
 | `input-artifacts [--phase-id] [--json]` | Resolve input artifacts |
 | `validate-json-artifact <name> [--schema]` | Validate JSON artifact against schema |
 | `cache-import <path> [--plan-id] [--dry-run]` | Import cache entries from JSON file |
+| `list-plan-artifacts [--json]` | List plan-level artifacts |
 
 ### Dead-End Tracking
 | Command | Description |

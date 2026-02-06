@@ -24,11 +24,12 @@ ApplicationWindow {
     // Track which sections are expanded
     property bool flowchartExpanded: true
     property bool requestExpanded: false  // Request accordion collapsed by default
+    property bool planArtifactsExpanded: false  // Plan artifacts collapsed by default
     property bool historyExpanded: true
     property bool timelineExpanded: false
 
     // Computed: are all panels collapsed?
-    property bool allCollapsed: !flowchartExpanded && !requestExpanded && !historyExpanded && !timelineExpanded
+    property bool allCollapsed: !flowchartExpanded && !requestExpanded && !planArtifactsExpanded && !historyExpanded && !timelineExpanded
 
     // Header height for collapsed sections
     readonly property int sectionHeaderHeight: 32
@@ -144,6 +145,31 @@ ApplicationWindow {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: root.requestExpanded = true
+                    }
+                }
+
+                // Plan Artifacts button (only when artifacts exist)
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 80
+                    visible: workflowModel.planArtifactsCount > 0
+                    color: planArtifactsBtn.containsMouse ? Theme.hoverHighlight : "transparent"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Artifacts"
+                        rotation: -90
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.Medium
+                        color: Theme.textPrimary
+                    }
+
+                    MouseArea {
+                        id: planArtifactsBtn
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.planArtifactsExpanded = true
                     }
                 }
 
@@ -384,7 +410,136 @@ ApplicationWindow {
                     }
                 }
 
-                // Section 3: Phase History
+                // Section 3: Plan Artifacts (only visible when artifacts exist)
+                Rectangle {
+                    visible: workflowModel.planArtifactsCount > 0
+                    SplitView.fillHeight: root.planArtifactsExpanded && !root.flowchartExpanded && !root.requestExpanded
+                    SplitView.minimumHeight: workflowModel.planArtifactsCount > 0 ? root.sectionHeaderHeight : 0
+                    SplitView.preferredHeight: root.planArtifactsExpanded ? 200 : (workflowModel.planArtifactsCount > 0 ? root.sectionHeaderHeight : 0)
+                    color: Theme.bgPanel
+                    clip: true
+
+                    // Header
+                    Rectangle {
+                        id: planArtifactsHeader
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        height: root.sectionHeaderHeight
+                        color: planArtifactsHeaderMouse.containsMouse ? Theme.hoverHighlight : Theme.bgPanelHeader
+                        z: 1
+
+                        MouseArea {
+                            id: planArtifactsHeaderMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.planArtifactsExpanded = !root.planArtifactsExpanded
+                        }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: Theme.spacingSmall
+                            anchors.rightMargin: Theme.spacingMedium
+                            spacing: Theme.spacingSmall
+
+                            Text {
+                                text: root.planArtifactsExpanded ? "▼" : "▶"
+                                font.pixelSize: 10
+                                color: Theme.textMuted
+                            }
+
+                            Text {
+                                text: "Plan Artifacts (" + workflowModel.planArtifactsCount + ")"
+                                font.pixelSize: Theme.fontSizeNormal
+                                font.weight: Font.Medium
+                                color: Theme.textPrimary
+                            }
+
+                            Item { Layout.fillWidth: true }
+                        }
+                    }
+
+                    // Artifacts content
+                    ScrollView {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: planArtifactsHeader.bottom
+                        anchors.bottom: parent.bottom
+                        visible: root.planArtifactsExpanded
+                        clip: true
+
+                        Column {
+                            width: parent.width - Theme.spacingMedium * 2
+                            x: Theme.spacingMedium
+                            y: Theme.spacingSmall
+                            spacing: Theme.spacingSmall
+                            // Bottom padding so content isn't clipped at section boundary
+                            bottomPadding: Theme.spacingMedium * 2
+
+                            Repeater {
+                                model: workflowModel.planArtifacts
+
+                                Column {
+                                    width: parent.width
+                                    spacing: 4
+
+                                    // Artifact header with name and Open button
+                                    RowLayout {
+                                        width: parent.width
+                                        spacing: Theme.spacingSmall
+
+                                        Text {
+                                            text: modelData.name
+                                            font.pixelSize: Theme.fontSizeNormal
+                                            font.weight: Font.Bold
+                                            color: Theme.textPrimary
+                                        }
+
+                                        Item { Layout.fillWidth: true }
+
+                                        Rectangle {
+                                            width: artOpenLabel.width + 8
+                                            height: artOpenLabel.height + 4
+                                            radius: 3
+                                            color: artOpenMouse.containsMouse ? Theme.hoverHighlight : "transparent"
+                                            border.width: 1
+                                            border.color: Theme.textMuted
+
+                                            Text {
+                                                id: artOpenLabel
+                                                anchors.centerIn: parent
+                                                text: "Open"
+                                                font.pixelSize: 10
+                                                color: Theme.textSecondary
+                                            }
+                                            MouseArea {
+                                                id: artOpenMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: workflowModel.openInEditor(modelData.path)
+                                            }
+                                        }
+                                    }
+
+                                    // Artifact HTML content
+                                    Text {
+                                        width: parent.width
+                                        text: modelData.html
+                                        textFormat: Text.RichText
+                                        wrapMode: Text.Wrap
+                                        color: Theme.textPrimary
+                                        font.pixelSize: Theme.fontSizeNormal
+                                        lineHeight: 1.4
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Section 4: Phase History
                 Rectangle {
                     SplitView.fillHeight: root.historyExpanded && !root.flowchartExpanded && !root.requestExpanded
                     SplitView.minimumHeight: root.sectionHeaderHeight

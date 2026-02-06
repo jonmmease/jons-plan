@@ -364,6 +364,19 @@ class StateManager:
             current["artifacts"][filename] = path
             self.save(state)
 
+    def record_plan_artifact(self, name: str, path: str) -> None:
+        """Register a plan-level artifact (not tied to any phase)."""
+        state = self.load()
+        if "plan_artifacts" not in state:
+            state["plan_artifacts"] = {}
+        state["plan_artifacts"][name] = path
+        self.save(state)
+
+    def get_plan_artifacts(self) -> dict:
+        """Get all plan-level artifacts. Returns {name: rel_path}."""
+        state = self.load()
+        return state.get("plan_artifacts", {})
+
     def _default_state(self) -> dict:
         """Create default state structure."""
         return {
@@ -1224,16 +1237,22 @@ class ArtifactResolver:
         self.state_mgr = StateManager(plan_dir)
 
     def resolve_all(self, exclude_current: bool = True) -> dict[str, Path]:
-        """Get all artifacts from prior phases.
+        """Get all artifacts from plan-level and prior phases.
 
         Returns: {filename: Path, ...}
-        Later entries override earlier ones (last write wins).
+        Plan-level artifacts have lowest priority.
+        Later phase entries override earlier ones (last write wins).
 
         Args:
             exclude_current: If True, excludes artifacts from the current phase entry
         """
         state = self.state_mgr.load()
         artifacts: dict[str, Path] = {}
+
+        # Plan-level artifacts first (lowest priority - phase artifacts override)
+        for name, rel_path in state.get("plan_artifacts", {}).items():
+            artifacts[name] = self.plan_dir / rel_path
+
         current_entry = state.get("current_phase_entry", 0)
 
         for entry in state.get("phase_history", []):
@@ -4106,7 +4125,7 @@ def cmd_reject_transition(args: argparse.Namespace) -> int:
 
 
 def cmd_record_artifact(args: argparse.Namespace) -> int:
-    """Record an artifact produced by the current phase."""
+    """Record an artifact produced by the current phase or at plan level."""
     project_dir = get_project_dir()
     plan_dir = get_active_plan_dir(project_dir)
     if not plan_dir:
@@ -4114,6 +4133,14 @@ def cmd_record_artifact(args: argparse.Namespace) -> int:
         return 1
 
     state_mgr = StateManager(plan_dir)
+
+    if getattr(args, "plan_level", False):
+        # Plan-level artifact: path is relative to plan root
+        rel_path = args.path
+        state_mgr.record_plan_artifact(args.filename, rel_path)
+        print(f"Recorded plan artifact: {args.filename} -> {rel_path}")
+        return 0
+
     state = state_mgr.load()
 
     if not state.get("current_phase"):
@@ -4136,6 +4163,33 @@ def cmd_record_artifact(args: argparse.Namespace) -> int:
     # Record artifact with full relative path
     state_mgr.record_artifact(args.filename, rel_path)
     print(f"Recorded: {args.filename} -> {rel_path}")
+    return 0
+
+
+def cmd_list_plan_artifacts(args: argparse.Namespace) -> int:
+    """List plan-level artifacts."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    state_mgr = StateManager(plan_dir)
+    artifacts = state_mgr.get_plan_artifacts()
+
+    if not artifacts:
+        print("No plan-level artifacts")
+        return 0
+
+    if getattr(args, "json", False):
+        print(json.dumps(artifacts, indent=2))
+    else:
+        print("## Plan-Level Artifacts")
+        for name, rel_path in artifacts.items():
+            full_path = plan_dir / rel_path
+            exists = "✓" if full_path.exists() else "✗"
+            print(f"  {exists} {name} -> {rel_path}")
+
     return 0
 
 
@@ -4234,6 +4288,16 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
     if request_file.exists():
         request_content = request_file.read_text()
 
+    # Get plan-level artifacts
+    plan_artifacts_content = {}
+    for name, rel_path in state.get("plan_artifacts", {}).items():
+        artifact_path = plan_dir / rel_path
+        if artifact_path.exists():
+            plan_artifacts_content[name] = {
+                "path": str(artifact_path),
+                "content": artifact_path.read_text().strip(),
+            }
+
     if args.json:
         use_tasks = workflow_mgr.uses_tasks(current_phase)
         assembled_prompts = get_assembled_prompts(workflow_mgr, current_phase)
@@ -4271,6 +4335,7 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             },
             "reentry_context": reentry_context,
             "request": request_content,
+            "plan_artifacts": plan_artifacts_content if plan_artifacts_content else None,
             "user_guidance": state.get("user_guidance", ""),
         }
         print(json.dumps(output, indent=2))
@@ -4285,6 +4350,18 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             print("## Request")
             print(request_content)
             print()
+
+        # Plan-level artifacts
+        if plan_artifacts_content:
+            print("## Plan Artifacts")
+            print()
+            for name, info in plan_artifacts_content.items():
+                rel = Path(info["path"]).relative_to(plan_dir) if plan_dir in Path(info["path"]).parents else info["path"]
+                print(f"### {name}")
+                print(f"_Source: {rel}_")
+                print()
+                print(info["content"])
+                print()
 
         # Phase prompt
         prompt = phase.get("prompt", "")
@@ -6370,9 +6447,14 @@ def main() -> int:
     p_record_art = subparsers.add_parser("record-artifact", help="Record artifact produced by current phase")
     p_record_art.add_argument("filename", help="Logical name for artifact")
     p_record_art.add_argument("path", help="Relative path to artifact file")
+    p_record_art.add_argument("--plan-level", action="store_true", dest="plan_level",
+                              help="Record as plan-level artifact (not tied to any phase)")
 
     p_input_art = subparsers.add_parser("input-artifacts", help="List all artifacts from prior phases")
     p_input_art.add_argument("--json", action="store_true", help="Output as JSON")
+
+    p_list_plan_art = subparsers.add_parser("list-plan-artifacts", help="List plan-level artifacts")
+    p_list_plan_art.add_argument("--json", action="store_true", help="Output as JSON")
 
     # Phase display commands
     p_phase_ctx = subparsers.add_parser("phase-context", help="Display full phase context")
@@ -6534,6 +6616,7 @@ def main() -> int:
         # Artifact commands
         "record-artifact": cmd_record_artifact,
         "input-artifacts": cmd_input_artifacts,
+        "list-plan-artifacts": cmd_list_plan_artifacts,
         # Phase display commands
         "phase-context": cmd_phase_context,
         "phase-summary": cmd_phase_summary,

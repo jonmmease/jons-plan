@@ -489,19 +489,20 @@ Rectangle {
                                     Repeater {
                                         model: workflowModel.selectedPhaseDetails.context_artifacts || []
                                         delegate: Rectangle {
+                                            property bool isPlanLevel: (workflowModel.selectedPhaseDetails.plan_artifact_names || []).indexOf(modelData) >= 0
                                             width: inputArtifactText.width + Theme.spacingSmall * 2
                                             height: inputArtifactText.height + Theme.spacingTiny * 2
                                             radius: Theme.radiusSmall
-                                            color: "#E3F2FD"
+                                            color: isPlanLevel ? "#F3E5F5" : "#E3F2FD"
                                             border.width: 1
-                                            border.color: "#90CAF9"
+                                            border.color: isPlanLevel ? "#CE93D8" : "#90CAF9"
 
                                             Text {
                                                 id: inputArtifactText
                                                 anchors.centerIn: parent
                                                 text: modelData
                                                 font.pixelSize: Theme.fontSizeSmall
-                                                color: "#1565C0"
+                                                color: isPlanLevel ? "#7B1FA2" : "#1565C0"
                                             }
                                         }
                                     }
