@@ -462,15 +462,17 @@ ApplicationWindow {
 
                     // Artifacts content
                     ScrollView {
+                        id: planArtifactsScroll
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: planArtifactsHeader.bottom
                         anchors.bottom: parent.bottom
                         visible: root.planArtifactsExpanded
                         clip: true
+                        contentWidth: availableWidth
 
                         Column {
-                            width: parent.width - Theme.spacingMedium * 2
+                            width: planArtifactsScroll.availableWidth - Theme.spacingMedium * 2
                             x: Theme.spacingMedium
                             y: Theme.spacingSmall
                             spacing: Theme.spacingSmall
