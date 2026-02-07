@@ -1,6 +1,6 @@
 ---
 description: Create a new jons-plan implementation plan
-allowed-tools: WebSearch, Fetch, WebFetch, Bash(find:*), Bash(git status:*), Bash(tree:*), Bash(mkdir:*), Write(**/.claude/jons-plan/**), Edit(**/.claude/jons-plan/**), Edit(**/.git/info/exclude)
+allowed-tools: WebSearch, Fetch, WebFetch, Bash(find:*), Bash(git status:*), Bash(git branch:*), Bash(gh pr view:*), Bash(tree:*), Bash(mkdir:*), Write(**/.claude/jons-plan/**), Edit(**/.claude/jons-plan/**), Edit(**/.git/info/exclude)
 ---
 
 ultrathink
@@ -43,6 +43,13 @@ All plans use workflow-based execution. The workflow defines the phases of work.
 ### Explicit Workflow
 If args start with `--workflow <name>` (e.g., `/jons-plan:new --workflow implementation add feature`), use the specified workflow template.
 
+### PR Context Detection
+If the user references "this PR", "PR on this branch", or similar, resolve the PR URL before workflow selection:
+```bash
+gh pr view --json url --jq '.url'
+```
+Include the resolved PR URL in `request.md`. This is especially important for `review-tour` and `code-review` workflows.
+
 ### Auto-Selection
 If no `--workflow` is specified, analyze the user's request and suggest a workflow based on the heuristics below.
 
@@ -56,6 +63,7 @@ When no `--workflow` is specified, analyze the user's request and suggest a work
 | Quick fix, simple change, familiar code | `direct-implementation` | "rename this function", "add a field", "update the config" |
 | Design, architecture, RFC | `design` | "design auth system", "plan API structure", "evaluate options" |
 | Implement, add, build feature | `implementation` | "add dark mode", "implement caching", "build search" |
+| Review tour, review guide, PR walkthrough | `review-tour` | "create a review tour", "review guide for this PR", "PR walkthrough" |
 | Review code changes, create PR | `code-review` | "review my changes", "audit security", "analyze branch" |
 | Review PR description | `pr-review` | "review this PR description", "improve my PR writeup" |
 | Deslop, clean up AI patterns | `deslop-pr` | "deslop this PR", "remove AI slop", "clean up PR description" |
@@ -81,6 +89,7 @@ Built-in workflows in `~/.claude-plugins/jons-plan/workflows/`:
 - `design` - Research and produce a design document
 - `design-and-implementation` - Design first, optionally implement after approval
 - `deep-implementation` - Complex features with thorough research and review
+- `review-tour` - Generate a guided PR review tour from a GitHub PR URL
 - `code-review` - Review code changes + generate PR description
 - `pr-review` - Review existing PR description
 - `deslop-pr` - Quick slop detection and cleanup for PR descriptions
