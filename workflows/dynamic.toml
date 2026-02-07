@@ -130,6 +130,3 @@ suggested_next = [
 id = "complete"
 terminal = true
 prompt_files = ["proposals-and-challenges", "complete-implementation"]
-suggested_next = [
-    { phase = "research", instruction = "Return to research for additional investigation", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
-]

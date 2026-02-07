@@ -290,6 +290,20 @@ transitions = [...]  # Not a valid field
 prompt = "Do something"  # Missing 'id'
 ```
 
+### Loop Bounding Rules
+
+Every cycle in a workflow must be bounded to prevent unbounded automated loops. Each cycle must pass through at least one of:
+
+| Bound Type | Mechanism | Example |
+|---|---|---|
+| Retry gate | A phase in the cycle has `max_retries` | `evaluate-research` (4), `implement` (3) |
+| User gate | A phase in the cycle has `requires_user_input = true` | `plan` self-loop |
+| Approval gate | A transition in the cycle has `requires_approval = true` | implement → plan loopback |
+
+**Rule:** No cycle may exist where all phases lack `max_retries` AND no transition in the cycle requires approval or user input.
+
+**Convention:** Use evaluation/gate phases (`evaluate-research`, `evaluate-revisions`) as the bounding point for multi-phase loops. Avoid creating transitions that bypass these gates, as that creates unbounded sub-loops.
+
 ## Task Schema
 
 Tasks in `tasks.json` support these fields:

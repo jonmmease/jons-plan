@@ -288,8 +288,7 @@ If investigations were needed, write `investigation-findings.md`:
 Updated implementation-plan.md with addressed feedback and updated confidence score.
 """
 suggested_next = [
-    { phase = "evaluate-revisions", instruction = "Revisions complete — evaluate changes" },
-    { phase = "synthesize", instruction = "Revision blocked — rethink approach from synthesis" }
+    { phase = "evaluate-revisions", instruction = "Revisions complete — evaluate changes" }
 ]
 
 [[phases]]
