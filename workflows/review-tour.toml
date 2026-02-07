@@ -240,7 +240,7 @@ For each stop in stop-plan.json:
 
 #### `{filename}` ({change_summary})
 
-[View on GitHub]({blob_url}#L{start}-L{end})
+[View on GitHub]({pr_files_url}#diff-{sha256_of_filepath}R{line})
 
 ```diff
 {diff hunks — from per-file patch in pr-files.json}
@@ -286,13 +286,25 @@ For files where `has_patch` is false (binary files, very large files):
 - In the narrative, note the binary change (e.g., "Updated the application icon")
 
 ### Permalink Construction
-Use `blob_url` from pr-files.json. Append `#L{start}-L{end}` based on the diff hunk header.
 
-To extract line numbers from a hunk header `@@ -old_start,old_count +new_start,new_count @@`:
-- Use `new_start` as `{start}`
-- Use `new_start + new_count - 1` as `{end}`
+Links point to the PR Files Changed tab so the reviewer can leave comments directly.
 
-For files with multiple hunks, link to the first hunk's range.
+**URL format:**
+```
+https://github.com/{owner}/{repo}/pull/{number}/files#diff-{hash}R{line}
+```
+
+- `{hash}` = SHA-256 hex digest of the file path (UTF-8). Compute with:
+  ```bash
+  echo -n "path/to/file.ts" | shasum -a 256 | cut -d' ' -f1
+  ```
+- `R{line}` = right-side (new file) line number from the diff hunk header
+- Use `new_start` from `@@ -old_start,old_count +new_start,new_count @@`
+- Omit `R{line}` suffix to link to the file without a specific line
+
+Construct `{pr_files_url}` from pr-metadata.json: `https://github.com/{owner}/{repo}/pull/{number}/files`
+
+Pre-compute SHA-256 hashes for all files during generation to avoid repeated shell calls.
 
 ### Narrative Voice
 - Written for a developer reviewer, not a PM

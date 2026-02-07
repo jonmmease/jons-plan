@@ -41,7 +41,7 @@ Each stop = a thematic group of related changes, separated by horizontal rules.
 
 #### `{file_path}` ({change_summary})
 
-[View on GitHub]({permalink})
+[View on GitHub]({pr_files_url}#diff-{sha256_of_filepath}R{line})
 
 ```diff
 {diff hunks}
@@ -112,12 +112,14 @@ For binary files (where `has_patch` is false):
 
 ## Links
 
-GitHub permalinks at head commit with line anchors:
-`https://github.com/{owner}/{repo}/blob/{head_sha}/{file_path}#L{start}-L{end}`
+Links point to the PR Files Changed tab for direct commenting:
+```
+https://github.com/{owner}/{repo}/pull/{number}/files#diff-{hash}R{line}
+```
 
-Line numbers extracted from hunk headers: `@@ -old_start,old_count +new_start,new_count @@`
-- Use `new_start` as `{start}`
-- Use `new_start + new_count - 1` as `{end}`
+- `{hash}` = SHA-256 hex digest of the file path (UTF-8)
+- `R{line}` = right-side (new file) line number from diff hunk header
+- Use `new_start` from `@@ -old_start,old_count +new_start,new_count @@`
 
 ## Checkboxes
 
