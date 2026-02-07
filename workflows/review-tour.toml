@@ -1,0 +1,401 @@
+[workflow]
+name = "review-tour"
+description = "Generate a guided PR review tour from a GitHub PR URL"
+
+[[phases]]
+id = "gather"
+required_artifacts = ["pr-data", "pr-files", "diff"]
+prompt = """
+# Gather Phase
+
+Fetch all data needed to build the review tour.
+
+## Find the PR URL
+
+The PR URL should be in request.md. Extract it. It should be a GitHub PR URL like `https://github.com/owner/repo/pull/123`.
+
+If not found, ask the user to provide a PR URL.
+
+## Parse PR URL
+
+Extract owner, repo, and PR number from the URL:
+```bash
+PR_URL="<url from request.md>"
+# Parse: https://github.com/{owner}/{repo}/pull/{number}
+OWNER=$(echo "$PR_URL" | sed -n 's|.*/github.com/\\([^/]*\\)/.*|\\1|p')
+REPO=$(echo "$PR_URL" | sed -n 's|.*/github.com/[^/]*/\\([^/]*\\)/.*|\\1|p')
+PR_NUM=$(echo "$PR_URL" | sed -n 's|.*/pull/\\([0-9]*\\).*|\\1|p')
+```
+
+## Extract PR Metadata
+
+```bash
+gh pr view "$PR_URL" --json title,number,author,headRefName,baseRefName,headRefOid,body,additions,deletions,changedFiles,url,repository > pr-metadata.json
+```
+
+The `repository` field provides `{name, owner: {login}}` — use this for owner/repo instead of URL parsing.
+
+## Extract Per-File Details
+
+```bash
+gh api "repos/$OWNER/$REPO/pulls/$PR_NUM/files" --paginate --jq '.[]' | jq -s '.' > pr-files.json
+```
+
+**Important:** `--paginate` emits one JSON array per page. Use `--jq '.[]'` to flatten each page, then `jq -s '.'` to reassemble into a single valid JSON array.
+
+This gives per-file: filename, status, additions, deletions, previous_filename, blob_url, patch.
+
+**Note:** The `patch` field may be omitted for binary files or very large files. Handle this gracefully.
+
+## Get Full Diff
+
+```bash
+gh pr diff "$PR_URL" --patch > full.diff
+```
+
+This is a fallback for files where the API's `patch` field is truncated.
+
+## Generate File Manifest
+
+From pr-files.json, create a readable `file-manifest.md`:
+
+```markdown
+# File Manifest
+
+| Status | File | +/- | Notes |
+|--------|------|-----|-------|
+| modified | src/auth.ts | +45 -12 | |
+| added | src/types/auth.ts | +80 -0 | new file |
+| renamed | src/old.ts → src/new.ts | +5 -3 | |
+| modified | assets/logo.png | +0 -0 | binary file, no patch |
+```
+
+## Generate PR Summary
+
+Create `pr-summary.md` with:
+- PR title, number, author, branches (from repository field)
+- PR description (body)
+- Total stats (files, additions, deletions)
+- File manifest table
+
+## Outputs
+
+Record these artifacts:
+```bash
+uv run plan.py record-artifact pr-data pr-summary.md
+uv run plan.py record-artifact pr-files pr-files.json
+uv run plan.py record-artifact diff full.diff
+```
+
+Also save to phase directory: pr-metadata.json, file-manifest.md
+"""
+suggested_next = [
+    { phase = "plan-stops", instruction = "PR data gathered — plan stop groupings" }
+]
+
+[[phases]]
+id = "plan-stops"
+context_artifacts = ["pr-data", "pr-files"]
+required_artifacts = ["stop-plan"]
+prompt = """
+# Plan Stops Phase
+
+Analyze the PR changes and determine how to group them into thematic stops.
+
+## Inputs
+
+- pr-summary.md (injected above) — PR metadata and file manifest
+- pr-files.json (injected above) — per-file details including patches
+
+## Task
+
+Determine the stop grouping for this PR.
+
+### Ordering Rules
+- **Dependency first:** Changes referenced by other changes come earlier
+- **Scope first:** Broad structural changes before localized behavioral
+- **Risk first:** Complex/high-risk when attention is freshest
+- **Convention last:** Tests, docs, formatting last unless they clarify earlier stops
+
+### Chunking Rules
+**Group** files implementing same interface, function+tests, migration+model+schema, config+feature.
+**Isolate** large self-contained new modules, standalone refactors/renames/deletions.
+**Note** (v1): Assign entire files to stops. If a file has logically unrelated changes, place it where its primary change belongs and note secondary changes.
+
+### Sizing
+- <30 lines changed: 1 stop (overview still required)
+- 30-500 lines: 3-7 stops
+- 500-1000 lines: 5-10 stops
+- 1000+ lines: 7-15 stops
+
+## Process
+
+1. Read pr-files.json (injected or from gather phase directory)
+2. For each file, read its `patch` field (first ~20 lines) to understand what changed
+3. If `patch` is missing (binary file), note it and group by filename/status alone
+4. Identify thematic groups based on the chunking and ordering rules
+5. Assign every file to exactly one stop
+6. Order stops for comprehension
+
+## Output
+
+Write `stop-plan.json`:
+
+```json
+{
+  "total_files": 5,
+  "total_additions": 127,
+  "total_deletions": 14,
+  "stops": [
+    {
+      "number": 1,
+      "title": "Thematic title for this stop",
+      "rationale": "Why these files belong together and why this stop comes first",
+      "files": [
+        {
+          "filename": "src/types/auth.ts",
+          "status": "added",
+          "additions": 80,
+          "deletions": 0,
+          "previous_filename": null,
+          "has_patch": true,
+          "hunks": "all"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Each file entry includes `status`, `additions`, `deletions`, `previous_filename` (for renames), and `has_patch` (false for binary files). This avoids fragile joins to pr-files.json during generation.
+
+Validate: every file from the manifest appears in exactly one stop.
+
+Record the artifact:
+```bash
+uv run plan.py record-artifact stop-plan stop-plan.json
+```
+"""
+suggested_next = [
+    { phase = "generate-tour", instruction = "Stop plan ready — generate the tour" }
+]
+
+[[phases]]
+id = "generate-tour"
+context_artifacts = ["pr-data", "stop-plan", "pr-files"]
+required_artifacts = ["review-tour"]
+prompt = """
+# Generate Tour Phase
+
+Write the complete review tour markdown file.
+
+## Inputs
+
+- pr-summary.md (injected above) — PR metadata
+- stop-plan.json (injected above) — stop grouping plan with per-file metadata
+- pr-files.json (injected above) — per-file details with blob_urls and patches
+- pr-metadata.json — read from gather phase directory for headRefOid
+
+## Diff Source
+
+Use per-file `patch` fields from pr-files.json as the **primary** diff source. Each file's patch contains the relevant hunks.
+
+If a file's `patch` is missing or truncated in pr-files.json, read the file's section from `full.diff` (in the gather phase directory) as a fallback.
+
+## Instructions
+
+Follow the stop plan exactly. Do not reorder or regroup files.
+
+### Header
+
+```markdown
+# Review Tour: {title} (#{number})
+
+**Repository:** {owner}/{repo}
+**Author:** @{author}
+**Branch:** {headRefName} → {baseRefName}
+**Files changed:** {changedFiles} | **Additions:** +{additions} | **Deletions:** -{deletions}
+```
+
+Use owner/repo from the `repository` field in pr-metadata.json.
+
+### Overview
+
+Write 2-4 paragraphs synthesizing the PR's purpose, approach, and key decisions. Use the PR description (body) as context but do NOT copy it verbatim. If the PR description is empty or low-quality, synthesize entirely from the diff.
+
+### Stops
+
+For each stop in stop-plan.json:
+
+```markdown
+---
+
+### Stop {n}: {title}
+
+- [ ] Reviewed
+
+{Narrative preamble: 1-3 paragraphs explaining WHY, not WHAT. Use the rationale from the stop plan as a seed, but expand with specific observations from the code.}
+
+#### `{filename}` ({change_summary})
+
+[View on GitHub]({blob_url}#L{start}-L{end})
+
+```diff
+{diff hunks — from per-file patch in pr-files.json}
+```
+```
+
+### Change Summary Format
+- New file: `(new file)`
+- Deleted: `(deleted)`
+- Renamed: `(renamed from {previous_filename})`
+- Modified: `(+{additions} -{deletions})`
+- Binary: `(binary file)` — use `has_patch` field from stop-plan.json
+
+### Binary File Handling
+For files where `has_patch` is false (binary files, very large files):
+- Include the file header with change summary
+- Include the permalink
+- Omit the diff code block
+- In the narrative, note the binary change (e.g., "Updated the application icon")
+
+### Permalink Construction
+Use `blob_url` from pr-files.json. Append `#L{start}-L{end}` based on the diff hunk header.
+
+To extract line numbers from a hunk header `@@ -old_start,old_count +new_start,new_count @@`:
+- Use `new_start` as `{start}`
+- Use `new_start + new_count - 1` as `{end}`
+
+For files with multiple hunks, link to the first hunk's range.
+
+### Narrative Voice
+- Written for a developer reviewer, not a PM
+- Explain *why* the change exists, not just *what* it does
+- Call out non-obvious design decisions or tradeoffs
+- Flag potential risks or areas warranting scrutiny
+- Reference specific function names, types, or patterns
+- Concise: 1-3 short paragraphs, not a wall of text
+- Do NOT restate what the diff shows
+
+### Review Notes
+
+End with:
+```markdown
+---
+
+## Review Notes
+
+```
+
+## Output
+
+Write `review-tour.md` to the phase directory.
+
+Record the artifact:
+```bash
+uv run plan.py record-artifact review-tour review-tour.md
+```
+"""
+suggested_next = [
+    { phase = "review-tour", instruction = "Tour generated — review for quality" }
+]
+
+[[phases]]
+id = "review-tour"
+use_tasks = true
+max_retries = 2
+context_artifacts = ["review-tour", "pr-data"]
+required_tasks = [
+  { id = "slop-detection", description = "Scan tour narratives for AI-generated patterns", subagent = "general-purpose", prompt_file = "slop-detection", model = "haiku" },
+  { id = "quality-review", description = "Review tour completeness, grouping quality, and narrative usefulness", subagent = "general-purpose", prompt_file = "review-tour-spec", subagent_prompt = "Review this review tour for: (1) Completeness — does every file from the PR appear in exactly one stop? Cross-reference with the file manifest. (2) Grouping — are files grouped logically? Does the ordering follow dependency-first, scope-first, risk-first principles? (3) Narrative — do preambles explain WHY not WHAT? Are they concise? Do they add value beyond what the diff shows? (4) Format — correct markdown structure, working permalink format, proper diff fencing? (5) Binary files — are they handled without diff blocks? Tag each issue as Critical, Suggestion, or Nit.", model = "opus" },
+  { id = "synthesize-feedback", description = "Synthesize feedback into tour-feedback.md", parents = ["slop-detection", "quality-review"] },
+]
+prompt = """
+# Review Tour Phase
+
+Review the generated tour for quality before presenting to the user.
+
+## Inputs
+
+- review-tour.md (injected above) — the generated tour
+- pr-summary.md (injected above) — PR data for cross-reference
+
+## Tasks
+
+Run the required tasks:
+1. Slop detection (haiku) — scan narratives for AI patterns
+2. Quality review (opus) — completeness, grouping, narrative quality, format
+3. Synthesize — combine feedback into tour-feedback.md
+
+## Output
+
+Write `tour-feedback.md` with feedback organized by severity (Critical, Suggestion, Nit).
+"""
+suggested_next = [
+    { phase = "revise-tour", instruction = "Feedback received — revise the tour" },
+    { phase = "complete", instruction = "Tour quality is acceptable — skip revision" }
+]
+
+[[phases]]
+id = "revise-tour"
+context_artifacts = ["review-tour"]
+required_artifacts = ["review-tour"]
+prompt = """
+# Revise Tour Phase
+
+Apply accepted feedback to improve the review tour.
+
+## Inputs
+
+- review-tour.md (injected above) — current tour
+- tour-feedback.md — from review phase
+
+Read tour-feedback.md from the review-tour phase directory.
+
+## Process
+
+1. Read tour-feedback.md
+2. For each item:
+   - **Critical**: Must fix
+   - **Suggestion**: Fix if it clearly improves the tour
+   - **Nit**: Fix only if trivial; otherwise skip
+3. Edit review-tour.md in place
+4. Write brief revision notes in revision-log.md
+
+## Output
+
+Updated review-tour.md. Record the artifact:
+```bash
+uv run plan.py record-artifact review-tour review-tour.md
+```
+"""
+suggested_next = [
+    { phase = "review-tour", instruction = "Revision complete — re-verify quality" },
+    { phase = "complete", instruction = "Revisions complete — present to user" }
+]
+
+[[phases]]
+id = "complete"
+terminal = true
+context_artifacts = ["review-tour"]
+prompt = """
+# Complete Phase
+
+Present the review tour to the user.
+
+## Inputs
+
+- review-tour.md (injected above) — the final tour
+
+## Tasks
+
+1. Show the user where the review tour file is located
+2. Present a brief summary: number of stops, key themes
+3. Offer to post the tour as a PR comment:
+   ```bash
+   gh pr comment <PR_URL> --body-file review-tour.md
+   ```
+4. Note any caveats (e.g., if completeness couldn't be verified for very large PRs)
+
+This is a terminal phase. The review tour is complete.
+"""
