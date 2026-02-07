@@ -37,7 +37,9 @@ Write `context.md` with:
 - Files changed count
 - The full PR description text
 """
-suggested_next = ["detect"]
+suggested_next = [
+    { phase = "detect", instruction = "PR data gathered — scan for slop" }
+]
 
 [[phases]]
 id = "detect"
@@ -90,7 +92,9 @@ For PR descriptions, prioritize these patterns:
 Write `findings.md` with slop patterns found, grouped by severity.
 Include line references and specific examples.
 """
-suggested_next = ["fix"]
+suggested_next = [
+    { phase = "fix", instruction = "Slop patterns identified — present fixes to user" }
+]
 
 [[phases]]
 id = "fix"

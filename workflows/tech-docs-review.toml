@@ -27,7 +27,9 @@ Write `understanding.md` with:
 - Key assumptions
 - Initial questions or concerns
 """
-suggested_next = ["review"]
+suggested_next = [
+    { phase = "review", instruction = "Context gathered — begin review" }
+]
 
 [[phases]]
 id = "review"
@@ -99,7 +101,9 @@ Write `review-findings.md` with findings organized by criteria area:
 - Severity indicators: CRITICAL, IMPORTANT, MINOR, SUGGESTION
 - Specific line/section references where applicable
 """
-suggested_next = ["synthesize"]
+suggested_next = [
+    { phase = "synthesize", instruction = "Review complete — synthesize findings" }
+]
 
 [[phases]]
 id = "synthesize"
@@ -154,7 +158,9 @@ Write `review-summary.md` with:
 - Concrete actions for the author
 - Offers to help or discuss further
 """
-suggested_next = ["complete"]
+suggested_next = [
+    { phase = "complete", instruction = "Synthesis complete — finalize review" }
+]
 
 [[phases]]
 id = "complete"

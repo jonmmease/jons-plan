@@ -127,7 +127,7 @@ Each `[[phases]]` entry supports these fields:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id` | string | Yes | Unique phase identifier (kebab-case) |
-| `prompt` | string | Yes | Instructions for this phase |
+| `prompt` | string | No | Instructions for this phase (required if no `prompt_files`) |
 | `suggested_next` | array | No | Valid transitions (strings or objects) |
 | `terminal` | bool | No | If true, workflow ends at this phase |
 | `use_tasks` | bool | No | Phase uses tasks.json for work breakdown |

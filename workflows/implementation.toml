@@ -7,17 +7,10 @@ description = "Build features, fix bugs, implement changes with research and val
 
 [[phases]]
 id = "research-planning"
+prompt_files = ["research-planning"]
 context_artifacts = ["research"]
 required_artifacts = ["research-plan"]
 prompt = """
-# Research Planning Phase
-
-Plan the research before diving in.
-
-## Prior Research
-
-If prior research findings are injected above (from a previous iteration), review them to identify what's already been answered. Focus the new research plan on unanswered questions only.
-
 ## Tasks
 
 1. Identify what needs to be researched for this request
@@ -31,7 +24,9 @@ Write `research-plan.md` with:
 - Sources to consult
 - Research task assignments
 """
-suggested_next = ["research"]
+suggested_next = [
+    { phase = "research", instruction = "Research plan ready — begin research" }
+]
 
 [[phases]]
 id = "research"
@@ -63,14 +58,15 @@ Synthesize findings into `research.md` with one section per task. Include:
 
 If this is a subsequent iteration, append new findings to the existing research.md content.
 """
-suggested_next = ["evaluate-research"]
+suggested_next = [
+    { phase = "evaluate-research", instruction = "Research complete — evaluate findings" }
+]
 
 [[phases]]
 id = "evaluate-research"
 max_retries = 4
 prompt_files = ["evaluate-research"]
 context_artifacts = ["research-plan", "research"]
-prompt = ""
 suggested_next = [
     { phase = "plan", instruction = "All questions adequately answered" },
     { phase = "research-planning", instruction = "Significant gaps remain — plan additional research for unanswered questions" }
@@ -131,9 +127,9 @@ What must be true for implementation to be complete?
 Note: The implement phase will create its own tasks.json from the implementation plan.
 """
 suggested_next = [
-    "implement",
-    "plan",
-    { phase = "research", requires_approval = true, approval_prompt = "Return to research for additional investigation?" }
+    { phase = "implement", instruction = "Plan approved — begin implementation" },
+    { phase = "plan", instruction = "Revise the plan" },
+    { phase = "research", instruction = "Return to research for additional investigation", requires_approval = true, approval_prompt = "Return to research for additional investigation?" }
 ]
 
 [[phases]]
@@ -143,15 +139,8 @@ on_blocked = "self"
 max_retries = 3
 context_artifacts = ["implementation-plan"]
 required_json_artifacts = ["proposals", "challenges"]
+prompt_files = ["implement"]
 prompt = """
-# Implement Phase
-
-Execute the implementation plan (injected above).
-
-## Setup
-1. Create tasks.json in this phase directory based on the implementation plan
-2. All tasks start with `status: "todo"`
-
 ## Task Schema - context_artifacts
 
 When creating tasks, use `context_artifacts` to give tasks access to relevant documents:
@@ -175,80 +164,25 @@ Artifacts must be recorded via `record-artifact` to be available. Common artifac
 - `findings` - Exploration/research findings
 - `design` - Design document (if design phase exists)
 
-## Task Execution
-1. Work through tasks in dependency order
-2. Set each task to in-progress before starting
-3. Mark tasks done immediately after completion
-4. Log progress for each significant step
-
-## Guidelines
-- Follow existing code patterns identified in explore
-- Make minimal, focused changes
-- Don't over-engineer or add unnecessary features
-- Test changes as you go
+Follow existing code patterns identified during research.
 """
 suggested_next = [
-    "validate",
-    { phase = "plan", requires_approval = true, approval_prompt = "Return to plan phase to reassess based on implementation findings?" }
+    { phase = "validate", instruction = "All tasks complete — run verification" },
+    { phase = "plan", instruction = "Reassess plan based on implementation findings", requires_approval = true, approval_prompt = "Return to plan phase to reassess based on implementation findings?" }
 ]
 
 [[phases]]
 id = "validate"
+prompt_files = ["validate"]
 context_artifacts = ["verification-plan"]
-prompt = """
-# Validate Phase
-
-Verify the implementation meets requirements using the verification plan (injected above).
-
-## Execution
-
-### 1. Run Automated Checks
-Execute each command from the verification plan's "Automated Checks" section:
-- Run test suite
-- Run type checker
-- Run linter
-- Run build
-
-Log results for each check.
-
-### 2. Interactive Verification (if applicable)
-If the verification plan includes MCP-based checks:
-- Execute browser automation steps
-- Verify UI behavior
-- Test API endpoints
-
-### 3. Acceptance Criteria
-Verify each criterion from the verification plan is met.
-
-## Outcomes
-
-**All checks pass:** Transition to complete.
-
-**Checks fail:**
-- If fixable: Fix and re-run checks
-- If needs significant work: Transition back to implement with notes on what failed
-"""
 suggested_next = [
-    "complete",
-    "implement",
-    { phase = "plan", requires_approval = true, approval_prompt = "Return to plan phase to reassess based on validation findings?" }
+    { phase = "complete", instruction = "All checks pass" },
+    { phase = "implement", instruction = "Checks failed — fix and retry" },
+    { phase = "plan", instruction = "Reassess plan based on validation findings", requires_approval = true, approval_prompt = "Return to plan phase to reassess based on validation findings?" }
 ]
 on_blocked = "implement"
 
 [[phases]]
 id = "complete"
-prompt_files = ["proposals-and-challenges"]
-prompt = """
-# Complete Phase
-
-Finalize the implementation.
-
-## Final Tasks
-1. Review all changes made
-2. Ensure tests pass
-3. Prepare commit message summarizing changes
-4. Note any follow-up work needed
-
-This is a terminal phase. The workflow is complete.
-"""
+prompt_files = ["proposals-and-challenges", "complete-implementation"]
 terminal = true

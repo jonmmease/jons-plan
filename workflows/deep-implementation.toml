@@ -7,17 +7,10 @@ description = "Complex features requiring thorough exploration and multi-round f
 
 [[phases]]
 id = "research-planning"
+prompt_files = ["research-planning"]
 context_artifacts = ["research-findings"]
 required_artifacts = ["research-plan"]
 prompt = """
-# Research Planning Phase
-
-Plan the research before diving in.
-
-## Prior Research
-
-If prior research findings are injected above (from a previous iteration), review them to identify what's already been answered. Focus the new research plan on unanswered questions only.
-
 ## Tasks
 
 1. Identify what needs to be researched for this specific topic
@@ -54,7 +47,9 @@ Write `research-plan.md` with:
 - Expected findings
 - Research task assignments
 """
-suggested_next = ["research"]
+suggested_next = [
+    { phase = "research", instruction = "Research plan ready — begin research" }
+]
 
 [[phases]]
 id = "research"
@@ -106,14 +101,15 @@ Use prototype tasks if you need to answer questions through implementation.
 
 If this is a subsequent iteration, append new findings to the existing research-findings.md content.
 """
-suggested_next = ["evaluate-research"]
+suggested_next = [
+    { phase = "evaluate-research", instruction = "Research complete — evaluate findings" }
+]
 
 [[phases]]
 id = "evaluate-research"
 max_retries = 4
 prompt_files = ["evaluate-research"]
 context_artifacts = ["research-plan", "research-findings"]
-prompt = ""
 suggested_next = [
     { phase = "synthesize", instruction = "All questions adequately answered" },
     { phase = "research-planning", instruction = "Significant gaps remain — plan additional research focusing only on unanswered questions" }
@@ -209,7 +205,9 @@ Analyze and document:
 - <criterion from request>
 ```
 """
-suggested_next = ["review"]
+suggested_next = [
+    { phase = "review", instruction = "Plan ready — send for external review" }
+]
 
 [[phases]]
 id = "review"
@@ -251,17 +249,16 @@ Get multiple external perspectives on the plan.
 
 Write `review-feedback.md` with severity-tagged feedback organized by source (Critical/Suggestion/Nit).
 """
-suggested_next = ["revise"]
+suggested_next = [
+    { phase = "revise", instruction = "Feedback received — incorporate changes" }
+]
 
 [[phases]]
 id = "revise"
 context_artifacts = ["implementation-plan", "review-feedback"]
 required_artifacts = ["implementation-plan"]
+prompt_files = ["revise"]
 prompt = """
-# Revise Phase
-
-Categorize and act on reviewer feedback.
-
 ## Inputs
 
 - implementation-plan.md (injected above)
@@ -269,12 +266,8 @@ Categorize and act on reviewer feedback.
 
 ## Tasks
 
-1. Categorize each feedback item:
-   - **ACCEPT** — Incorporate into the plan
-   - **INVESTIGATE** — Launch exploration agents, then update plan based on findings
-   - **REJECT** — Document brief rationale
-2. Update implementation-plan.md with accepted changes
-3. Re-assess confidence
+1. Update implementation-plan.md with accepted changes
+2. Re-assess confidence
 
 ## Investigation Findings Format
 
@@ -294,7 +287,9 @@ If investigations were needed, write `investigation-findings.md`:
 
 Updated implementation-plan.md with addressed feedback and updated confidence score.
 """
-suggested_next = ["evaluate-revisions"]
+suggested_next = [
+    { phase = "evaluate-revisions", instruction = "Revisions complete — evaluate changes" }
+]
 on_blocked = "synthesize"
 
 [[phases]]
@@ -319,16 +314,8 @@ on_blocked = "self"
 max_retries = 3
 context_artifacts = ["implementation-plan"]
 required_json_artifacts = ["proposals", "challenges"]
+prompt_files = ["implement"]
 prompt = """
-# Implement Phase
-
-Execute the implementation plan (injected above).
-
-## Setup
-
-1. Create tasks.json in this phase directory based on the plan
-2. All tasks start with `status: "todo"`
-
 ## Task Schema - context_artifacts
 
 When creating tasks, use `context_artifacts` to give tasks access to relevant documents:
@@ -352,11 +339,7 @@ Common artifacts in this workflow:
 - `implementation-plan` - Synthesized plan with task breakdown
 - `categorized-feedback` - External reviewer feedback
 
-## Task Execution Guidelines
-
-- Set tasks to `in-progress` BEFORE starting work
-- Mark `done` IMMEDIATELY on completion (no batching)
-- Use dead-end tracking for failed approaches
+Use dead-end tracking for failed approaches.
 
 ## Model Selection for Tasks
 
@@ -370,70 +353,28 @@ Common artifacts in this workflow:
 | Documentation | `haiku` |
 """
 suggested_next = [
-    "validate",
-    { phase = "revise", requires_approval = true, approval_prompt = "Return to revise to reassess based on implementation findings?" }
+    { phase = "validate", instruction = "All tasks complete — run verification" },
+    { phase = "revise", instruction = "Reassess plan based on implementation findings", requires_approval = true, approval_prompt = "Return to revise to reassess based on implementation findings?" }
 ]
 
 [[phases]]
 id = "validate"
+prompt_files = ["validate"]
 context_artifacts = ["verification-plan"]
 prompt = """
-# Validate Phase
-
-Thoroughly verify the implementation using the verification plan (injected above).
-
-## Execution
-
-### 1. Run Automated Checks
-Execute each command from the verification plan:
-- Run test suite
-- Run type checker
-- Run linter
-- Run build
-
-Log results for each check.
-
-### 2. Interactive Verification (if applicable)
-If the verification plan includes MCP-based checks:
-- Execute browser automation steps
-- Verify UI behavior
-- Test API endpoints
-
-### 3. Edge Cases
-Check edge cases identified during research phase.
-
-### 4. Acceptance Criteria
-Verify each criterion from the verification plan is met.
-
-## Outcomes
-
-**All checks pass:** Transition to complete.
-
-**Checks fail:**
-- If fixable: Fix and re-run checks
-- If needs rework: Transition back to implement
-- If fundamental issue: Record in dead-ends
+Also check edge cases identified during research phase.
+If a fundamental issue is found, record it in dead-ends.
 """
 suggested_next = [
-    "complete",
-    { phase = "revise", requires_approval = true, approval_prompt = "Return to revise to reassess based on validation findings?" }
+    { phase = "complete", instruction = "All checks pass" },
+    { phase = "revise", instruction = "Reassess plan based on validation findings", requires_approval = true, approval_prompt = "Return to revise to reassess based on validation findings?" }
 ]
 on_blocked = "implement"
 
 [[phases]]
 id = "complete"
-prompt_files = ["proposals-and-challenges"]
+prompt_files = ["proposals-and-challenges", "complete-implementation"]
 prompt = """
-# Complete Phase
-
-Finalize the deep implementation.
-
-## Final Tasks
-1. Review all changes made
-2. Verify tests pass
-3. Prepare comprehensive commit message
-4. Document lessons learned
-
 ## Clean Up
 
 Remove intermediate artifacts if no longer needed:
@@ -442,7 +383,5 @@ Remove intermediate artifacts if no longer needed:
 - Investigation findings
 
 (Or keep them for audit trail)
-
-This is a terminal phase. The workflow is complete.
 """
 terminal = true

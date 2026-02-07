@@ -61,7 +61,9 @@ Write `review-scope.md` with:
 - Files changed with summary
 - Context/purpose of changes
 """
-suggested_next = ["analyze"]
+suggested_next = [
+    { phase = "analyze", instruction = "Data gathered — begin analysis" }
+]
 
 [[phases]]
 id = "analyze"
@@ -88,7 +90,9 @@ Perform multi-perspective analysis of the changes using specialized reviewer tas
 
 Write `analysis.md` with all perspectives synthesized.
 """
-suggested_next = ["generate-pr"]
+suggested_next = [
+    { phase = "generate-pr", instruction = "Analysis complete — generate PR description" }
+]
 
 [[phases]]
 id = "generate-pr"
@@ -145,7 +149,9 @@ Analyze the commit history to understand:
 
 Write `draft-pr.md` with the generated PR description.
 """
-suggested_next = ["review-draft"]
+suggested_next = [
+    { phase = "review-draft", instruction = "Draft ready — review before finalizing" }
+]
 
 [[phases]]
 id = "review-draft"
@@ -171,7 +177,9 @@ Review the generated PR description for quality before finalizing.
 
 Write `pr-review-feedback.md` with feedback from all reviewers.
 """
-suggested_next = ["synthesize"]
+suggested_next = [
+    { phase = "synthesize", instruction = "Reviews complete — synthesize findings" }
+]
 
 [[phases]]
 id = "synthesize"
@@ -226,7 +234,9 @@ Final PR description ready to submit (incorporates review feedback).
 
 Include specific file:line references where possible.
 """
-suggested_next = ["complete"]
+suggested_next = [
+    { phase = "complete", instruction = "Synthesis complete — finalize review" }
+]
 
 [[phases]]
 id = "complete"

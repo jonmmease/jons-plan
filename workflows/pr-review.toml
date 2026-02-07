@@ -60,7 +60,9 @@ Write `review-context.md` with:
 - Base branch and merge-base commit
 - Files changed summary
 """
-suggested_next = ["review"]
+suggested_next = [
+    { phase = "review", instruction = "PR data gathered — begin review" }
+]
 
 [[phases]]
 id = "review"
@@ -88,7 +90,9 @@ Review the PR description from multiple perspectives.
 
 Write `review-feedback.md` with feedback from all reviewers, organized by source.
 """
-suggested_next = ["synthesize"]
+suggested_next = [
+    { phase = "synthesize", instruction = "Reviews complete — synthesize findings" }
+]
 
 [[phases]]
 id = "synthesize"
@@ -156,7 +160,9 @@ For each recommended change:
 
 Include specific, actionable edit suggestions.
 """
-suggested_next = ["complete"]
+suggested_next = [
+    { phase = "complete", instruction = "Synthesis complete — finalize review" }
+]
 
 [[phases]]
 id = "complete"

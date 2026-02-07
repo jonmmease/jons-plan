@@ -7,17 +7,10 @@ description = "Create technical documentation with multi-source research and rev
 
 [[phases]]
 id = "research-planning"
+prompt_files = ["research-planning"]
 context_artifacts = ["research"]
 required_artifacts = ["research-plan"]
 prompt = """
-# Research Planning Phase
-
-Plan the research before diving in.
-
-## Prior Research
-
-If prior research findings are injected above (from a previous iteration), review them to identify what's already been answered. Focus the new research plan on unanswered questions only.
-
 ## Tasks
 
 1. Identify what needs to be researched for this documentation topic
@@ -43,7 +36,9 @@ Write `research-plan.md` with:
 - Sources to consult (prioritized per hierarchy above)
 - Research task assignments
 """
-suggested_next = ["research"]
+suggested_next = [
+    { phase = "research", instruction = "Research plan ready — begin research" }
+]
 
 [[phases]]
 id = "research"
@@ -98,14 +93,15 @@ Write `research.md` with:
 
 If this is a subsequent iteration, append new findings to the existing research.md content.
 """
-suggested_next = ["evaluate-research"]
+suggested_next = [
+    { phase = "evaluate-research", instruction = "Research complete — evaluate findings" }
+]
 
 [[phases]]
 id = "evaluate-research"
 max_retries = 4
 prompt_files = ["evaluate-research"]
 context_artifacts = ["research-plan", "research"]
-prompt = ""
 suggested_next = [
     { phase = "draft", instruction = "All questions adequately answered" },
     { phase = "research-planning", instruction = "Significant gaps remain — plan additional research for unanswered questions" }
@@ -219,7 +215,9 @@ Write draft documentation file (e.g., `topic.md`):
 - API reference (if applicable)
 - Troubleshooting/FAQ
 """
-suggested_next = ["review"]
+suggested_next = [
+    { phase = "review", instruction = "Draft ready — send for external review" }
+]
 
 [[phases]]
 id = "review"
@@ -286,31 +284,24 @@ Write `review-feedback.md` with severity-tagged feedback organized by source:
 - Content feedback from gemini-reviewer (Critical/Suggestion/Nit)
 - Technical accuracy issues from codex-reviewer (Critical/Suggestion/Nit)
 """
-suggested_next = ["revise"]
+suggested_next = [
+    { phase = "revise", instruction = "Feedback received — incorporate changes" }
+]
 
 [[phases]]
 id = "revise"
 context_artifacts = ["review-feedback"]
+prompt_files = ["revise"]
 prompt = """
-# Revise Phase
-
-Incorporate review feedback into the documentation.
-
 ## Inputs
 
 - Draft documentation from draft phase
 - review-feedback.md (injected above)
 
-## Tasks
-
-For each feedback item, categorize your response:
-- **ACCEPT** — Apply the change to the documentation
-- **INVESTIGATE** — Launch exploration agents to verify, then update based on findings
-- **REJECT** — Document brief rationale for why it doesn't apply
-
 Priority order: correctness > broken links > completeness > clarity > style
 
-Then:
+## Tasks
+
 1. Apply all ACCEPT feedback items
 2. Investigate uncertain items, update docs based on findings
 3. Fix any broken links
@@ -321,14 +312,15 @@ Then:
 
 Updated documentation with addressed feedback.
 """
-suggested_next = ["evaluate-revisions"]
+suggested_next = [
+    { phase = "evaluate-revisions", instruction = "Revisions complete — evaluate changes" }
+]
 
 [[phases]]
 id = "evaluate-revisions"
 max_retries = 2
 prompt_files = ["evaluate-revisions"]
 context_artifacts = ["review-feedback"]
-prompt = ""
 suggested_next = [
     { phase = "complete", instruction = "All critical items resolved" },
     { phase = "review", instruction = "Critical items remain unresolved — re-engage only reviewers/checks with unresolved Critical items" }

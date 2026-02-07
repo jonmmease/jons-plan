@@ -6110,12 +6110,12 @@ def validate_generated_phases(generated: dict) -> list[str]:
             continue
 
         pid = phase["id"]
-        if not phase.get("prompt"):
-            errors.append(f"Phase '{pid}' missing prompt")
+        if not phase.get("prompt") and not phase.get("prompt_files"):
+            errors.append(f"Phase '{pid}' missing prompt or prompt_files")
 
-        # Every phase must have suggested_next
-        if not phase.get("suggested_next"):
-            errors.append(f"Phase '{pid}' missing suggested_next (every phase needs it)")
+        # Every non-terminal phase must have suggested_next
+        if not phase.get("suggested_next") and not phase.get("terminal"):
+            errors.append(f"Phase '{pid}' missing suggested_next (every non-terminal phase needs it)")
 
         # Check suggested_next targets exist (handles both string and object format)
         suggested_ids = normalize_suggested(phase.get("suggested_next", []))

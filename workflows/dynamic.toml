@@ -7,17 +7,10 @@ description = "Research-first workflow - phases generated based on codebase expl
 
 [[phases]]
 id = "research-planning"
+prompt_files = ["research-planning"]
 context_artifacts = ["research"]
 required_artifacts = ["research-plan"]
 prompt = """
-# Research Planning Phase
-
-Plan the research before diving in.
-
-## Prior Research
-
-If prior research findings are injected above (from a previous iteration), review them to identify what's already been answered. Focus the new research plan on unanswered questions only.
-
 ## Tasks
 
 Identify what needs to be explored for this request:
@@ -34,7 +27,9 @@ Write `research-plan.md` with:
 - Sources to consult
 - Research task assignments
 """
-suggested_next = ["research"]
+suggested_next = [
+    { phase = "research", instruction = "Research plan ready — begin research" }
+]
 
 [[phases]]
 id = "research"
@@ -54,7 +49,9 @@ Explore the codebase and requirements. Document findings in `research.md` with s
 
 If this is a subsequent iteration, append new findings to the existing research.md content.
 """
-suggested_next = ["evaluate-research"]
+suggested_next = [
+    { phase = "evaluate-research", instruction = "Research complete — evaluate findings" }
+]
 
 [[phases]]
 id = "evaluate-research"
@@ -123,7 +120,6 @@ Validation phases should specify how to verify:
 
 The `complete` phase already exists - point your final phase to it.
 """
-prompt = ""
 suggested_next = [
     { phase = "complete", instruction = "All questions answered and work is simple (single component, clear changes)" },
     { phase = "__expand__", instruction = "All questions answered and work is complex (multiple components, unclear dependencies) — generate phases" },
@@ -133,20 +129,7 @@ suggested_next = [
 [[phases]]
 id = "complete"
 terminal = true
-prompt_files = ["proposals-and-challenges"]
+prompt_files = ["proposals-and-challenges", "complete-implementation"]
 suggested_next = [
-    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
+    { phase = "research", instruction = "Return to research for additional investigation", requires_approval = true, approval_prompt = "Return to research phase for additional investigation?" }
 ]
-prompt = """
-# Complete Phase
-
-Finalize the implementation.
-
-## Final Tasks
-1. Review all changes made
-2. Ensure tests pass
-3. Prepare commit message summarizing changes
-4. Note any follow-up work needed
-
-This is a terminal phase. The workflow is complete.
-"""

@@ -7,17 +7,10 @@ description = "Design a solution, get user approval, then optionally implement"
 
 [[phases]]
 id = "research-planning"
+prompt_files = ["research-planning"]
 context_artifacts = ["research"]
 required_artifacts = ["research-plan"]
 prompt = """
-# Research Planning Phase
-
-Plan the research before diving in.
-
-## Prior Research
-
-If prior research findings are injected above (from a previous iteration), review them to identify what's already been answered. Focus the new research plan on unanswered questions only.
-
 ## Tasks
 
 1. Identify what needs to be researched for this request
@@ -33,7 +26,9 @@ Write `research-plan.md` with:
 - Research task assignments
 - Verification question: "What test/lint/type-check/MCP tools are available?"
 """
-suggested_next = ["research"]
+suggested_next = [
+    { phase = "research", instruction = "Research plan ready — begin research" }
+]
 
 [[phases]]
 id = "research"
@@ -70,14 +65,15 @@ Use prototype tasks if you need to answer questions through implementation.
 
 If this is a subsequent iteration, append new findings to the existing research.md content.
 """
-suggested_next = ["evaluate-research"]
+suggested_next = [
+    { phase = "evaluate-research", instruction = "Research complete — evaluate findings" }
+]
 
 [[phases]]
 id = "evaluate-research"
 max_retries = 4
 prompt_files = ["evaluate-research"]
 context_artifacts = ["research-plan", "research"]
-prompt = ""
 suggested_next = [
     { phase = "draft", instruction = "All questions adequately answered" },
     { phase = "research-planning", instruction = "Significant gaps remain — plan additional research for unanswered questions" }
@@ -127,7 +123,9 @@ Specific criteria that must be true:
 - [ ] <criterion derived from design>
 ```
 """
-suggested_next = ["review"]
+suggested_next = [
+    { phase = "review", instruction = "Draft ready — send for external review" }
+]
 
 [[phases]]
 id = "review"
@@ -190,16 +188,17 @@ Create tasks.json with reviewer tasks. On first review, create tasks for all rev
 
 Write `review-feedback.md` with severity-tagged feedback from all reviewers (Critical/Suggestion/Nit).
 """
-suggested_next = ["revise"]
+suggested_next = [
+    { phase = "revise", instruction = "Feedback received — incorporate changes" }
+]
 
 [[phases]]
 id = "revise"
 context_artifacts = ["design", "review-feedback"]
 required_artifacts = ["design"]
+prompt_files = ["revise"]
 prompt = """
-# Revise Phase
-
-Incorporate reviewer feedback into design.md. This is a work phase - do NOT present output to the user.
+This is a work phase - do NOT present output to the user.
 
 ## Inputs
 - design.md (injected above)
@@ -220,22 +219,22 @@ uv run ~/.claude-plugins/jons-plan/plan.py clear-user-guidance
 
 ## Tasks
 1. Read user guidance if present
-2. For each feedback item, categorize: ACCEPT, INVESTIGATE, or REJECT
-3. Update design.md with accepted changes
-4. Investigate uncertain items, update design based on findings
-5. Update confidence assessment
+2. Update design.md with accepted changes
+3. Investigate uncertain items, update design based on findings
+4. Update confidence assessment
 
 ## Outputs
 Updated design.md.
 """
-suggested_next = ["evaluate-revisions"]
+suggested_next = [
+    { phase = "evaluate-revisions", instruction = "Revisions complete — evaluate changes" }
+]
 
 [[phases]]
 id = "evaluate-revisions"
 max_retries = 2
 prompt_files = ["evaluate-revisions"]
 context_artifacts = ["design", "review-feedback"]
-prompt = ""
 suggested_next = [
     { phase = "user-decision", instruction = "All critical items resolved" },
     { phase = "review", instruction = "Critical items remain unresolved — re-engage only reviewers with unresolved Critical items" }
@@ -256,10 +255,10 @@ The user should review:
 requires_user_input = true
 user_review_artifacts = ["design.md", "review-feedback.md"]
 suggested_next = [
-    "implement",
-    "complete-design-only",
-    "revise",
-    { phase = "research", requires_approval = true, approval_prompt = "Return to research phase? This will start fresh research while preserving learnings from the current design." }
+    { phase = "implement", instruction = "Design approved — begin implementation" },
+    { phase = "complete-design-only", instruction = "Design approved — skip implementation" },
+    { phase = "revise", instruction = "Design needs changes" },
+    { phase = "research", instruction = "Restart research preserving current learnings", requires_approval = true, approval_prompt = "Return to research phase? This will start fresh research while preserving learnings from the current design." }
 ]
 
 [[phases]]
@@ -269,15 +268,8 @@ on_blocked = "self"
 max_retries = 3
 context_artifacts = ["design"]
 required_json_artifacts = ["proposals", "challenges"]
+prompt_files = ["implement"]
 prompt = """
-# Implement Phase
-
-Execute the design (injected above).
-
-## Setup
-1. Create tasks.json with implementation plan based on the design
-2. All tasks start with `status: "todo"`
-
 ## Task Schema - context_artifacts
 
 When creating tasks, use `context_artifacts` to give tasks access to relevant documents:
@@ -299,76 +291,25 @@ Common artifacts in this workflow:
 - `request` - Original user request
 - `research` - Research findings
 - `design` - Approved design document
-
-## Task Execution
-1. Execute tasks following the design
-2. Set each task to in-progress before starting
-3. Mark tasks done immediately after completion
-
-## Outputs
-Working implementation of the design.
 """
 suggested_next = [
-    "validate",
-    { phase = "user-decision", requires_approval = true, approval_prompt = "Return to user-decision to reassess the design based on implementation findings?" }
+    { phase = "validate", instruction = "All tasks complete — run verification" },
+    { phase = "user-decision", instruction = "Reassess design based on implementation findings", requires_approval = true, approval_prompt = "Return to user-decision to reassess the design based on implementation findings?" }
 ]
 
 [[phases]]
 id = "validate"
+prompt_files = ["validate"]
 context_artifacts = ["verification-plan"]
-prompt = """
-# Validate Phase
-
-Verify implementation matches the design using the verification plan (injected above).
-
-## Execution
-
-### 1. Run Automated Checks
-Execute each command from the verification plan:
-- Run test suite
-- Run type checker
-- Run linter
-- Run build
-
-Log results for each check.
-
-### 2. Interactive Verification (if applicable)
-If the verification plan includes MCP-based checks:
-- Execute browser automation steps
-- Verify UI behavior matches design
-
-### 3. Acceptance Criteria
-Verify each criterion from the verification plan (derived from design.md) is met.
-
-## Outcomes
-
-**All checks pass:** Transition to complete.
-
-**Checks fail:**
-- If fixable: Fix and re-run checks
-- If needs rework: Transition back to implement
-"""
 suggested_next = [
-    "complete",
-    { phase = "user-decision", requires_approval = true, approval_prompt = "Return to user-decision to reassess the design based on validation findings?" }
+    { phase = "complete", instruction = "All checks pass" },
+    { phase = "user-decision", instruction = "Reassess design based on validation findings", requires_approval = true, approval_prompt = "Return to user-decision to reassess the design based on validation findings?" }
 ]
 on_blocked = "implement"
 
 [[phases]]
 id = "complete"
-prompt_files = ["proposals-and-challenges"]
-prompt = """
-# Complete Phase
-
-Finalize the implementation.
-
-## Final Tasks
-1. Review all changes
-2. Prepare commit message
-3. Document any follow-up work
-
-This is a terminal phase.
-"""
+prompt_files = ["proposals-and-challenges", "complete-implementation"]
 terminal = true
 
 [[phases]]

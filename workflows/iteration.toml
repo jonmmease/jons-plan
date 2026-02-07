@@ -7,17 +7,10 @@ description = "Iterative execution with evaluate-generate loops for long-horizon
 
 [[phases]]
 id = "research-planning"
+prompt_files = ["research-planning"]
 context_artifacts = ["research"]
 required_artifacts = ["research-plan"]
 prompt = """
-# Research Planning Phase
-
-Plan the research before diving in.
-
-## Prior Research
-
-If prior research findings are injected above (from a previous iteration), review them to identify what's already been answered. Focus the new research plan on unanswered questions only.
-
 ## Tasks
 
 1. Identify what needs to be researched for this goal
@@ -31,7 +24,9 @@ Write `research-plan.md` with:
 - Sources to consult
 - Research task assignments
 """
-suggested_next = ["research"]
+suggested_next = [
+    { phase = "research", instruction = "Research plan ready — begin research" }
+]
 
 [[phases]]
 id = "research"
@@ -73,14 +68,15 @@ Write `research.md` with:
 
 If this is a subsequent iteration, append new findings to the existing research.md content.
 """
-suggested_next = ["evaluate-research"]
+suggested_next = [
+    { phase = "evaluate-research", instruction = "Research complete — evaluate findings" }
+]
 
 [[phases]]
 id = "evaluate-research"
 max_retries = 4
 prompt_files = ["evaluate-research"]
 context_artifacts = ["research-plan", "research"]
-prompt = ""
 suggested_next = [
     { phase = "plan", instruction = "All questions adequately answered" },
     { phase = "research-planning", instruction = "Significant gaps remain — plan additional research for unanswered questions" }
@@ -115,9 +111,9 @@ Write the execution strategy:
 Note: The execute phase will create its own tasks.json from this plan.
 """
 suggested_next = [
-    "execute",
-    "plan",
-    { phase = "research", requires_approval = true, approval_prompt = "Return to research for additional investigation?" }
+    { phase = "execute", instruction = "Plan approved — begin execution" },
+    { phase = "plan", instruction = "Revise the plan" },
+    { phase = "research", instruction = "Return to research for additional investigation", requires_approval = true, approval_prompt = "Return to research for additional investigation?" }
 ]
 
 [[phases]]
@@ -162,7 +158,9 @@ Then transition to evaluate.
 - Each re-entry to this phase creates a new phase directory. Previous execution
   results are preserved for audit trail.
 """
-suggested_next = ["evaluate"]
+suggested_next = [
+    { phase = "evaluate", instruction = "Execution complete — evaluate progress" }
+]
 
 [[phases]]
 id = "evaluate"
@@ -202,8 +200,8 @@ Write a CUMULATIVE `evaluation.md` that includes:
 - If criteria remain unmet: transition to **generate-tasks**
 """
 suggested_next = [
-    "complete",
-    "generate-tasks"
+    { phase = "complete", instruction = "Goal achieved — all acceptance criteria met" },
+    { phase = "generate-tasks", instruction = "Progress made but goal not yet met — plan next iteration" }
 ]
 
 [[phases]]
@@ -243,7 +241,9 @@ uv run plan.py loop-to-phase execute --reason "Iteration N: <summary of unmet cr
 
 This ensures proper re-entry context is maintained.
 """
-suggested_next = ["execute"]
+suggested_next = [
+    { phase = "execute", instruction = "Tasks generated — begin next iteration" }
+]
 
 [[phases]]
 id = "complete"
