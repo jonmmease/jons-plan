@@ -428,7 +428,10 @@ Present the review tour to the user.
 
 ## Tasks
 
-1. Show the user where the review tour file is located
+1. Open the review tour in VS Code so the user can read it immediately:
+   ```bash
+   code review-tour.md
+   ```
 2. Present a brief summary: number of stops, key themes
 3. Offer to post the tour as a PR comment:
    ```bash
