@@ -182,7 +182,6 @@ description = "What it does"     # Optional
 | `requires_user_input` | bool | Stop for user approval |
 | `required_artifacts` | array | Artifact names that must be recorded before leaving this phase |
 | `context_artifacts` | array | Artifact names to inject from upstream phases into phase prompt |
-| `on_blocked` | string | Phase to go to when blocked (`"self"` or phase ID) |
 | `max_retries` | int | Max re-entries before escalation |
 | `required_json_artifacts` | array | JSON artifacts validated before leaving (e.g., `["proposals", "challenges"]`) |
 | `supports_prototypes` | bool | Enable prototype tasks |

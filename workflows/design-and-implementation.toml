@@ -264,7 +264,6 @@ suggested_next = [
 [[phases]]
 id = "implement"
 use_tasks = true
-on_blocked = "self"
 max_retries = 3
 context_artifacts = ["design"]
 required_json_artifacts = ["proposals", "challenges"]
@@ -294,6 +293,7 @@ Common artifacts in this workflow:
 """
 suggested_next = [
     { phase = "validate", instruction = "All tasks complete — run verification" },
+    { phase = "implement", instruction = "Task blocked — retry with adjusted approach" },
     { phase = "user-decision", instruction = "Reassess design based on implementation findings", requires_approval = true, approval_prompt = "Return to user-decision to reassess the design based on implementation findings?" }
 ]
 
@@ -303,9 +303,9 @@ prompt_files = ["validate"]
 context_artifacts = ["verification-plan"]
 suggested_next = [
     { phase = "complete", instruction = "All checks pass" },
+    { phase = "implement", instruction = "Checks failed — fix and retry" },
     { phase = "user-decision", instruction = "Reassess design based on validation findings", requires_approval = true, approval_prompt = "Return to user-decision to reassess the design based on validation findings?" }
 ]
-on_blocked = "implement"
 
 [[phases]]
 id = "complete"

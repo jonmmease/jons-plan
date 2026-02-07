@@ -135,7 +135,6 @@ Each `[[phases]]` entry supports these fields:
 | `requires_user_input` | bool | No | Stop and wait for user before proceeding |
 | `required_artifacts` | array | No | Artifact names that must be recorded before leaving phase |
 | `context_artifacts` | array | No | Artifact names to inject from upstream phases |
-| `on_blocked` | string | No | Phase to transition to when blocked ("self" or phase ID) |
 | `max_retries` | int | No | Max re-entries before requiring user intervention |
 | `max_iterations` | int | No | Legacy: max iterations for research loops |
 | `supports_prototypes` | bool | No | Enable prototype tasks |
@@ -243,14 +242,14 @@ suggested_next = ["implement", "plan"]
 [[phases]]
 id = "implement"
 use_tasks = true
-on_blocked = "self"
 max_retries = 3
 prompt = """
 Execute the plan...
 """
 suggested_next = [
-    "validate",
-    { phase = "plan", requires_approval = true, approval_prompt = "Return to planning?" }
+    { phase = "validate", instruction = "All tasks complete — run verification" },
+    { phase = "implement", instruction = "Task blocked — retry with adjusted approach" },
+    { phase = "plan", instruction = "Reassess plan", requires_approval = true, approval_prompt = "Return to planning?" }
 ]
 
 [[phases]]
@@ -258,8 +257,10 @@ id = "validate"
 prompt = """
 Verify implementation...
 """
-suggested_next = ["complete", "implement"]
-on_blocked = "implement"
+suggested_next = [
+    { phase = "complete", instruction = "All checks pass" },
+    { phase = "implement", instruction = "Checks failed — fix and retry" }
+]
 
 [[phases]]
 id = "complete"

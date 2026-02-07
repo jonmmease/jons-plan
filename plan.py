@@ -714,13 +714,6 @@ class WorkflowManager:
             return phase.get("use_tasks", False)
         return False
 
-    def get_on_blocked(self, phase_id: str) -> str | None:
-        """Get suggested phase to transition to when blocked."""
-        phase = self.get_phase(phase_id)
-        if phase:
-            return phase.get("on_blocked")
-        return None
-
     def get_phase_prompt(self, phase_id: str) -> str | None:
         """Get the raw inline prompt for a phase."""
         phase = self.get_phase(phase_id)
@@ -896,18 +889,8 @@ class WorkflowManager:
     def is_transition_allowed(self, from_phase: str, to_phase: str) -> bool:
         """Check if transition is allowed.
 
-        Allowed if:
-        - to_phase in from_phase.suggested_next (string or object)
-        - OR from_phase.on_blocked == to_phase
+        Allowed if to_phase in from_phase.suggested_next (string or object).
         """
-        # Check on_blocked
-        on_blocked = self.get_on_blocked(from_phase)
-        if on_blocked == to_phase:
-            return True
-        # Handle "self" as special value
-        if on_blocked == "self" and from_phase == to_phase:
-            return True
-
         # Check suggested_next (handles both string and object format)
         suggested = self.get_suggested_next(from_phase)
         if to_phase in suggested:
@@ -918,8 +901,7 @@ class WorkflowManager:
     def validate_phase_references(self) -> list[str]:
         """Validate all phase ID references in workflow config.
 
-        Returns list of errors if any phase IDs in on_blocked or
-        suggested_next don't exist.
+        Returns list of errors if any phase IDs in suggested_next don't exist.
         """
         errors = []
         if not self.exists():
@@ -929,12 +911,8 @@ class WorkflowManager:
         phases = workflow.get("phases", [])
         phase_ids = {p.get("id") for p in phases}
 
-        # Check on_blocked references
         for phase in phases:
             pid = phase.get("id")
-            on_blocked = phase.get("on_blocked")
-            if on_blocked and on_blocked != "self" and on_blocked not in phase_ids:
-                errors.append(f"Phase '{pid}' has on_blocked='{on_blocked}' but phase '{on_blocked}' doesn't exist")
 
             # Check suggested_next references (handles both string and object format)
             for item in phase.get("suggested_next", []):
@@ -996,7 +974,7 @@ class WorkflowManager:
         # Valid [[phases]] keys
         VALID_PHASE_KEYS = {
             "id", "prompt", "prompt_files", "suggested_next", "terminal", "use_tasks",
-            "requires_user_input", "on_blocked", "max_retries", "max_iterations",
+            "requires_user_input", "max_retries", "max_iterations",
             "supports_proposals",  # deprecated: kept for compat with existing plans
             "supports_prototypes", "supports_cache_reference",
             "expand_prompt", "required_artifacts", "context_artifacts",
@@ -4869,12 +4847,9 @@ def _render_vertical_diagram(phases: list[dict], phase_map: dict, current_phase:
     """Render workflow as vertical Unicode box diagram."""
     # Build transition graph (normalize to handle object format)
     transitions: dict[str, list[str]] = {}
-    on_blocked_transitions: dict[str, str] = {}
     for phase in phases:
         pid = phase["id"]
         transitions[pid] = _normalize_suggested_next(phase.get("suggested_next", []))
-        if phase.get("on_blocked"):
-            on_blocked_transitions[pid] = phase["on_blocked"]
 
     # Print each phase with unicode boxes
     for i, phase in enumerate(phases):
@@ -4908,36 +4883,17 @@ def _render_vertical_diagram(phases: list[dict], phase_map: dict, current_phase:
 
         # Show transitions (arrows)
         next_phases = transitions.get(pid, [])
-        on_blocked = on_blocked_transitions.get(pid)
 
-        # Collect all transitions to show
-        all_transitions: list[tuple[str, str]] = []  # (target, label)
-        for np in next_phases:
-            all_transitions.append((np, ""))
-
-        # Add on_blocked if it's not already in suggested_next and not "self"
-        if on_blocked and on_blocked != "self" and on_blocked not in next_phases:
-            all_transitions.append((on_blocked, "[blocked]"))
-        elif on_blocked == "self":
-            all_transitions.append((pid, "[blocked→self]"))
-
-        # ANSI color codes
-        RED = "\033[31m"  # Dark red for blocked transitions
-        RESET = "\033[0m"
-
-        if all_transitions and not is_terminal:
-            if len(all_transitions) == 1 and not all_transitions[0][1]:
+        if next_phases and not is_terminal:
+            if len(next_phases) == 1:
                 print(f"     │")
                 print(f"     ↓")
             else:
-                # Multiple transitions (branching) or labeled transitions
+                # Multiple transitions (branching)
                 print(f"     │")
-                for j, (target, label) in enumerate(all_transitions):
-                    prefix = "├" if j < len(all_transitions) - 1 else "└"
-                    if label:  # Blocked transition - render in red
-                        print(f"     {RED}{prefix}──→ {target} {label}{RESET}")
-                    else:
-                        print(f"     {prefix}──→ {target}")
+                for j, target in enumerate(next_phases):
+                    prefix = "├" if j < len(next_phases) - 1 else "└"
+                    print(f"     {prefix}──→ {target}")
         elif not is_terminal and i < len(phases) - 1:
             print(f"     │")
             print(f"     ↓")
@@ -6001,7 +5957,6 @@ Study these patterns before generating:
 | Flag | Purpose |
 |------|---------|
 | `use_tasks` | Phase uses tasks.json for work breakdown |
-| `on_blocked = "self"` | Retry phase on blocked tasks |
 | `max_retries` | Limit retries before escalating |
 | `required_json_artifacts` | JSON artifacts to validate before leaving (e.g., `["proposals", "challenges"]` for implement phases, `["cache-candidates"]` for research phases) |
 | `supports_prototypes` | Enable prototype tasks |

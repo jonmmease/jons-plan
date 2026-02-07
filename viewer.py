@@ -128,13 +128,6 @@ def compute_layout(workflow: dict) -> dict:
                 edge_types[(phase_id, next_id)] = "normal"
                 suggested_next_ids.add(next_id)
 
-        # Add on_blocked edge if not already in suggested_next
-        on_blocked = phase.get("on_blocked")
-        if on_blocked and on_blocked not in suggested_next_ids:
-            # Handle "self" as looping back to same phase
-            target = phase_id if on_blocked == "self" else on_blocked
-            g.edge(phase_id, target)
-            edge_types[(phase_id, target)] = "blocked"
 
     # Compute layout and parse JSON output
     try:

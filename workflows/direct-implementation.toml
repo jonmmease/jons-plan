@@ -49,13 +49,13 @@ suggested_next = [
 [[phases]]
 id = "implement"
 use_tasks = true
-on_blocked = "self"
 max_retries = 3
 context_artifacts = ["implementation-plan"]
 required_json_artifacts = ["proposals", "challenges"]
 prompt_files = ["implement"]
 suggested_next = [
-    { phase = "verify", instruction = "All tasks complete — run verification" }
+    { phase = "verify", instruction = "All tasks complete — run verification" },
+    { phase = "implement", instruction = "Task blocked — retry with adjusted approach" }
 ]
 
 [[phases]]
@@ -66,7 +66,6 @@ suggested_next = [
     { phase = "complete", instruction = "All checks pass" },
     { phase = "implement", instruction = "Checks failed — fix and retry" }
 ]
-on_blocked = "implement"
 
 [[phases]]
 id = "complete"

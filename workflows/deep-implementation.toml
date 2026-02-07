@@ -288,9 +288,9 @@ If investigations were needed, write `investigation-findings.md`:
 Updated implementation-plan.md with addressed feedback and updated confidence score.
 """
 suggested_next = [
-    { phase = "evaluate-revisions", instruction = "Revisions complete — evaluate changes" }
+    { phase = "evaluate-revisions", instruction = "Revisions complete — evaluate changes" },
+    { phase = "synthesize", instruction = "Revision blocked — rethink approach from synthesis" }
 ]
-on_blocked = "synthesize"
 
 [[phases]]
 id = "evaluate-revisions"
@@ -310,7 +310,6 @@ suggested_next = [
 [[phases]]
 id = "implement"
 use_tasks = true
-on_blocked = "self"
 max_retries = 3
 context_artifacts = ["implementation-plan"]
 required_json_artifacts = ["proposals", "challenges"]
@@ -354,6 +353,7 @@ Use dead-end tracking for failed approaches.
 """
 suggested_next = [
     { phase = "validate", instruction = "All tasks complete — run verification" },
+    { phase = "implement", instruction = "Task blocked — retry with adjusted approach" },
     { phase = "revise", instruction = "Reassess plan based on implementation findings", requires_approval = true, approval_prompt = "Return to revise to reassess based on implementation findings?" }
 ]
 
@@ -367,9 +367,9 @@ If a fundamental issue is found, record it in dead-ends.
 """
 suggested_next = [
     { phase = "complete", instruction = "All checks pass" },
+    { phase = "implement", instruction = "Checks failed — fix and retry" },
     { phase = "revise", instruction = "Reassess plan based on validation findings", requires_approval = true, approval_prompt = "Return to revise to reassess based on validation findings?" }
 ]
-on_blocked = "implement"
 
 [[phases]]
 id = "complete"

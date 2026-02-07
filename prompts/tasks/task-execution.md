@@ -187,7 +187,7 @@ uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> blocked
 
 ### Step 3: Consider Phase Loopback
 
-If the workflow supports loopbacks (check if `on_blocked` or `max_retries` are configured):
+If the workflow supports loopbacks (check `suggested_next` for self-referential or cross-phase transitions):
 
 **Before looping, record important artifacts:**
 ```bash

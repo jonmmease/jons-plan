@@ -67,13 +67,10 @@ When validation identifies issues requiring implementation changes:
 
 1. **Document findings** in blockers.md
 2. **Mark task as blocked**: `uv run plan.py set-status validate-auth blocked`
-3. **Check if loopback to implement is configured**:
-   - If `on_blocked = "implement"` in workflow, loop back:
-     ```bash
-     uv run plan.py loop-to-phase implement --reason "Validation failures: <summary>"
-     ```
+3. **Use suggested_next transition** to loop back to the implementation phase:
+   - Check `suggested_next` for a transition with an instruction like "Checks failed — fix and retry"
    - The implementation phase will receive validation findings via artifacts
 
-4. **If approval required**: The loop-to-phase command will set pending_approval and prompt for user confirmation.
+4. **If approval required**: Transitions with `requires_approval = true` will prompt for user confirmation.
 
 5. **If user rejects loopback**: Continue in validate phase, try alternative approaches or escalate to user.

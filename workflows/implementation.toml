@@ -135,7 +135,6 @@ suggested_next = [
 [[phases]]
 id = "implement"
 use_tasks = true
-on_blocked = "self"
 max_retries = 3
 context_artifacts = ["implementation-plan"]
 required_json_artifacts = ["proposals", "challenges"]
@@ -168,6 +167,7 @@ Follow existing code patterns identified during research.
 """
 suggested_next = [
     { phase = "validate", instruction = "All tasks complete — run verification" },
+    { phase = "implement", instruction = "Task blocked — retry with adjusted approach" },
     { phase = "plan", instruction = "Reassess plan based on implementation findings", requires_approval = true, approval_prompt = "Return to plan phase to reassess based on implementation findings?" }
 ]
 
@@ -180,7 +180,6 @@ suggested_next = [
     { phase = "implement", instruction = "Checks failed — fix and retry" },
     { phase = "plan", instruction = "Reassess plan based on validation findings", requires_approval = true, approval_prompt = "Return to plan phase to reassess based on validation findings?" }
 ]
-on_blocked = "implement"
 
 [[phases]]
 id = "complete"
