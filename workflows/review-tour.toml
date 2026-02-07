@@ -79,7 +79,7 @@ suggested_next = [
 
 [[phases]]
 id = "plan-stops"
-context_artifacts = ["pr-data", "pr-files"]
+context_artifacts = ["pr-data"]
 required_artifacts = ["stop-plan"]
 prompt = """
 # Plan Stops Phase
@@ -89,7 +89,12 @@ Analyze the PR changes and determine how to group them into thematic stops.
 ## Inputs
 
 - pr-summary.md (injected above) — PR metadata and file manifest
-- pr-files.json (injected above) — per-file details including patches
+- pr-files.json — read from the gather phase directory (too large to inject for big PRs)
+
+Resolve the path to pr-files.json:
+```bash
+uv run plan.py input-artifacts --json | jq -r '.found[]' | grep pr-files.json
+```
 
 ## Task
 
@@ -114,7 +119,7 @@ Determine the stop grouping for this PR.
 
 ## Process
 
-1. Read pr-files.json (injected or from gather phase directory)
+1. Read pr-files.json from the gather phase directory (resolved above)
 2. For each file, read its `patch` field (first ~20 lines) to understand what changed
 3. If `patch` is missing (binary file), note it and group by filename/status alone
 4. Identify thematic groups based on the chunking and ordering rules
@@ -166,7 +171,7 @@ suggested_next = [
 
 [[phases]]
 id = "generate-tour"
-context_artifacts = ["pr-data", "pr-metadata", "stop-plan", "pr-files"]
+context_artifacts = ["pr-data", "pr-metadata", "stop-plan"]
 required_artifacts = ["review-tour"]
 prompt = """
 # Generate Tour Phase
@@ -178,13 +183,20 @@ Write the complete review tour markdown file.
 - pr-summary.md (injected above) — PR metadata
 - pr-metadata.json (injected above) — raw PR metadata including headRefOid and repository
 - stop-plan.json (injected above) — stop grouping plan with per-file metadata
-- pr-files.json (injected above) — per-file details with blob_urls and patches
+- pr-files.json — read from gather phase directory (too large to inject for big PRs)
+- full.diff — read from gather phase directory (fallback for truncated patches)
+
+Resolve artifact paths:
+```bash
+uv run plan.py input-artifacts --json
+```
+Use the paths from `.found[]` to locate pr-files.json and full.diff.
 
 ## Diff Source
 
-Use per-file `patch` fields from pr-files.json as the **primary** diff source. Each file's patch contains the relevant hunks.
+Use per-file `patch` fields from pr-files.json as the **primary** diff source. For each stop, read the relevant file entries from pr-files.json to extract their patches.
 
-If a file's `patch` is missing or truncated in pr-files.json, read the file's section from `full.diff` (in the gather phase directory) as a fallback.
+If a file's `patch` is missing or truncated in pr-files.json, read the file's section from full.diff as a fallback.
 
 ## Instructions
 
