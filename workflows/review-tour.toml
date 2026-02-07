@@ -4,7 +4,7 @@ description = "Generate a guided PR review tour from a GitHub PR URL"
 
 [[phases]]
 id = "gather"
-required_artifacts = ["pr-data", "pr-files", "diff"]
+required_artifacts = ["pr-data", "pr-metadata", "pr-files", "diff"]
 prompt = """
 # Gather Phase
 
@@ -55,39 +55,23 @@ gh pr diff "$PR_URL" --patch > full.diff
 
 This is a fallback for files where the API's `patch` field is truncated.
 
-## Generate File Manifest
-
-From pr-files.json, create a readable `file-manifest.md`:
-
-```markdown
-# File Manifest
-
-| Status | File | +/- | Notes |
-|--------|------|-----|-------|
-| modified | src/auth.ts | +45 -12 | |
-| added | src/types/auth.ts | +80 -0 | new file |
-| renamed | src/old.ts → src/new.ts | +5 -3 | |
-| modified | assets/logo.png | +0 -0 | binary file, no patch |
-```
-
 ## Generate PR Summary
 
 Create `pr-summary.md` with:
 - PR title, number, author, branches (from repository field)
 - PR description (body)
 - Total stats (files, additions, deletions)
-- File manifest table
+- File manifest table (status, filename, +/-, notes for each file from pr-files.json)
 
 ## Outputs
 
 Record these artifacts:
 ```bash
 uv run plan.py record-artifact pr-data pr-summary.md
+uv run plan.py record-artifact pr-metadata pr-metadata.json
 uv run plan.py record-artifact pr-files pr-files.json
 uv run plan.py record-artifact diff full.diff
 ```
-
-Also save to phase directory: pr-metadata.json, file-manifest.md
 """
 suggested_next = [
     { phase = "plan-stops", instruction = "PR data gathered — plan stop groupings" }
@@ -182,7 +166,7 @@ suggested_next = [
 
 [[phases]]
 id = "generate-tour"
-context_artifacts = ["pr-data", "stop-plan", "pr-files"]
+context_artifacts = ["pr-data", "pr-metadata", "stop-plan", "pr-files"]
 required_artifacts = ["review-tour"]
 prompt = """
 # Generate Tour Phase
@@ -192,9 +176,9 @@ Write the complete review tour markdown file.
 ## Inputs
 
 - pr-summary.md (injected above) — PR metadata
+- pr-metadata.json (injected above) — raw PR metadata including headRefOid and repository
 - stop-plan.json (injected above) — stop grouping plan with per-file metadata
 - pr-files.json (injected above) — per-file details with blob_urls and patches
-- pr-metadata.json — read from gather phase directory for headRefOid
 
 ## Diff Source
 
