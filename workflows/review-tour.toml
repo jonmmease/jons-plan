@@ -223,6 +223,8 @@ Use owner/repo from the `repository` field in pr-metadata.json.
 
 Write 2-4 paragraphs synthesizing the PR's purpose, approach, and key decisions. Use the PR description (body) as context but do NOT copy it verbatim. If the PR description is empty or low-quality, synthesize entirely from the diff.
 
+If the PR description makes claims about what the PR does, note any discrepancies with the actual changes — features mentioned but not implemented, undocumented changes, or scope differences.
+
 ### Stops
 
 For each stop in stop-plan.json:
@@ -243,7 +245,31 @@ For each stop in stop-plan.json:
 ```diff
 {diff hunks — from per-file patch in pr-files.json}
 ```
+
+**Candidate comments:**
+
+> **suggestion** `{filename}:{line}` — {Self-contained review comment text
+> that can be copied directly to the PR.}
+
+> **question** `{filename}:{line}` — {Question about the implementation
+> that the reviewer might want to ask.}
 ```
+
+### Candidate Comment Format
+
+After each stop's diff blocks, include a **Candidate comments** section with actionable review observations. Each comment is a blockquote with:
+
+- **Type tag** (one of: `nit`, `suggestion`, `question`, `concern`):
+  - `nit` — style, naming, minor cleanup
+  - `suggestion` — concrete improvement with a specific alternative
+  - `question` — something unclear that needs author explanation
+  - `concern` — potential bug, edge case, or correctness issue
+- **File and line number** (`filename:line`) — the exact line to comment on in the PR
+- **Self-contained text** — ready to copy-paste as a PR comment without editing
+
+Extract line numbers from the diff hunk context. Use the new-file line number (the `+` side).
+
+Only include comments where there is something genuinely worth raising. Do not force comments on clean code. Zero comments on a stop is fine.
 
 ### Change Summary Format
 - New file: `(new file)`
@@ -272,7 +298,8 @@ For files with multiple hunks, link to the first hunk's range.
 - Written for a developer reviewer, not a PM
 - Explain *why* the change exists, not just *what* it does
 - Call out non-obvious design decisions or tradeoffs
-- Flag potential risks or areas warranting scrutiny
+- **Critique**: Flag potential bugs, edge cases, error handling gaps, or questionable patterns. Be specific — name the function, the missing check, or the risk.
+- **Description vs. implementation**: Compare what the PR description claims with what the code actually does. Note any discrepancies, missing features, or undocumented changes.
 - Reference specific function names, types, or patterns
 - Concise: 1-3 short paragraphs, not a wall of text
 - Do NOT restate what the diff shows

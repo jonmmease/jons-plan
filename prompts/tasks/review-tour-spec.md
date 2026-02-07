@@ -24,6 +24,8 @@ Use this specification to evaluate review tour quality. A review tour is a markd
 
 2-4 paragraphs synthesized from PR title, description, and actual code changes. Not a verbatim copy of the PR description. If PR description is empty/low-quality, generate entirely from the diff.
 
+If the PR description makes claims about what the PR does, note any discrepancies with the actual changes — features mentioned but not implemented, undocumented changes, or scope differences.
+
 ## Stop Format
 
 Each stop = a thematic group of related changes, separated by horizontal rules.
@@ -44,7 +46,23 @@ Each stop = a thematic group of related changes, separated by horizontal rules.
 ```diff
 {diff hunks}
 ```
+
+**Candidate comments:**
+
+> **suggestion** `{file_path}:{line}` — {Self-contained review comment.}
+
+> **concern** `{file_path}:{line}` — {Potential issue to raise.}
 ```
+
+## Candidate Comments
+
+After each stop's diff blocks, include actionable review comments as blockquotes. Each comment has:
+
+- **Type tag**: `nit` (style/naming), `suggestion` (concrete improvement), `question` (needs clarification), `concern` (potential bug/edge case)
+- **File and line number** (`filename:line`) — exact line for the PR comment
+- **Self-contained text** — ready to copy-paste as a PR review comment without editing
+
+Only include comments where genuinely warranted. Zero comments on a clean stop is fine.
 
 ## Completeness
 
@@ -110,6 +128,8 @@ Line numbers extracted from hunk headers: `@@ -old_start,old_count +new_start,ne
 - Developer reviewer audience, not PM
 - Explain *why*, not *what* (the diff shows what)
 - Call out non-obvious decisions, tradeoffs, risks
+- **Critique**: Flag potential bugs, edge cases, error handling gaps, or questionable patterns. Be specific — name the function, the missing check, or the risk.
+- **Description vs. implementation**: Compare what the PR description claims with what the code actually does. Note any discrepancies, missing features, or undocumented changes.
 - Reference specific function names, types, or patterns
 - Concise: 1-3 short paragraphs, not a wall of text
 - Do NOT restate what the diff shows
