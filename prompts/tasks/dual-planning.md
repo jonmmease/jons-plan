@@ -1,8 +1,8 @@
 # Plan Generation
 
 You are generating a complete plan document. Your output will be compared against
-an independently generated plan from another agent, and the best elements of both
-will be synthesized.
+independently generated plans from two other agents, and a senior synthesis agent
+will review all three to produce the definitive plan.
 
 ## Output Rules
 
