@@ -182,6 +182,27 @@ EXIT_CODE=$?
 
 Do NOT use the Task tool for gemini-cli tasks. The gemini CLI is invoked directly via Bash.
 
+## Planning Panel: Parallel Execution
+
+When a phase has `planning_panel = true`, it will have three independent planning tasks (opus-planning, codex-planning, gemini-planning) that feed into a synthesis task. **All three planning tasks MUST be launched simultaneously in a single message.**
+
+Each task uses a different execution mechanism, but they can all be dispatched in one response:
+- **opus-planning** (executor: `task-tool`) — launch via Task tool
+- **codex-planning** (executor: `codex-cli`) — launch via Bash with `run_in_background: true`
+- **gemini-planning** (executor: `gemini-cli`) — launch via Bash with `run_in_background: true`
+
+### Example: Single message with 3 parallel tool calls
+
+```
+1. Task tool → opus-planning subagent (model: opus)
+2. Bash tool (background) → eval codex-cli command (timeout: 900000)
+3. Bash tool (background) → eval gemini-cli command (timeout: 900000)
+```
+
+**Set all three to `in-progress` before launching.** After all three complete, launch the synthesis task.
+
+**Do NOT run these sequentially.** The entire point of the planning panel is to get independent perspectives generated in parallel.
+
 ## When to Mark a Task as Blocked
 
 Mark a task as `blocked` when you encounter issues that **cannot be resolved by the coding agent**:
