@@ -141,7 +141,7 @@ Each `[[phases]]` entry supports these fields:
 | `supports_prototypes` | bool | No | Enable prototype tasks |
 | `supports_cache_reference` | bool | No | Enable research cache lookups |
 | `expand_prompt` | string | No | Instructions for dynamic phase expansion |
-| `dual_planning` | bool | No | Enable dual-agent planning (Opus + Codex). Requires `use_tasks` and a `codex-cli` executor task. |
+| `planning_panel` | bool | No | Enable 3-agent planning panel (Opus + Codex + Gemini). Requires `use_tasks` and both `codex-cli` and `gemini-cli` executor tasks. |
 | `required_json_artifacts` | array | No | JSON artifacts validated against schemas before leaving phase |
 
 ### Required JSON Artifacts
@@ -340,7 +340,7 @@ Tasks in `tasks.json` support these fields:
 | `question` | For prototype tasks: the question being answered |
 | `hypothesis` | For prototype tasks: expected outcome |
 | `inject_project_context` | Include project CLAUDE.md in task prompt (default: false) |
-| `executor` | Execution method: `task-tool` (default) or `codex-cli` (via codex exec CLI) |
+| `executor` | Execution method: `task-tool` (default), `codex-cli` (via codex exec CLI), or `gemini-cli` (via gemini CLI) |
 | `inject_phase_prompt` | When true, inject current phase's prompt into task prompt (default: false) |
 | `locks` | Lock names for exclusive access - files, tools, or resources (e.g., `"cargo"`, `"browser"`) |
 
@@ -405,7 +405,7 @@ User guidance is set via `/jons-plan:proceed <number> <guidance>` and persists u
 | `task-log <task-id> <message>` | Log to task progress |
 | `task-progress <task-id> [-n N]` | Show task progress |
 | `build-task-prompt <task-id>` | Build subagent prompt with context |
-| `get-execution-cmd <task-id>` | Build shell command for codex-cli task |
+| `get-execution-cmd <task-id>` | Build shell command for codex-cli or gemini-cli task |
 
 ### Task Outputs
 | Command | Description |

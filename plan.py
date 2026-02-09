@@ -979,7 +979,7 @@ class WorkflowManager:
             "supports_prototypes", "supports_cache_reference",
             "expand_prompt", "required_artifacts", "context_artifacts",
             "required_tasks", "required_json_artifacts",
-            "dual_planning",
+            "planning_panel",
         }
         # Valid keys in suggested_next objects
         VALID_TRANSITION_KEYS = {"phase", "instruction", "requires_approval", "approval_prompt"}
@@ -1064,16 +1064,21 @@ class WorkflowManager:
                         if model is not None and model not in ("sonnet", "haiku", "opus"):
                             errors.append(f"Phase '{phase_id}' required_tasks[{j}] (id={task_id}) has invalid model: '{model}' (valid: sonnet, haiku, opus)")
 
-            # Validate dual_planning constraints
-            if phase.get("dual_planning"):
+            # Validate planning_panel constraints
+            if phase.get("planning_panel"):
                 if not phase.get("use_tasks"):
-                    errors.append(f"Phase '{phase_id}' has dual_planning=true but use_tasks is not true")
+                    errors.append(f"Phase '{phase_id}' has planning_panel=true but use_tasks is not true")
                 if required_tasks:
                     has_codex_executor = any(
                         t.get("executor") == "codex-cli" for t in required_tasks if isinstance(t, dict)
                     )
                     if not has_codex_executor:
-                        errors.append(f"Phase '{phase_id}' has dual_planning=true but no required_task with executor='codex-cli'")
+                        errors.append(f"Phase '{phase_id}' has planning_panel=true but no required_task with executor='codex-cli'")
+                    has_gemini_executor = any(
+                        t.get("executor") == "gemini-cli" for t in required_tasks if isinstance(t, dict)
+                    )
+                    if not has_gemini_executor:
+                        errors.append(f"Phase '{phase_id}' has planning_panel=true but no required_task with executor='gemini-cli'")
 
             # Validate required_json_artifacts
             json_artifacts = phase.get("required_json_artifacts", [])
@@ -2453,7 +2458,7 @@ def validate_task_schema(task: dict) -> list[str]:
     if "model" in task and task["model"] not in valid_models:
         errors.append(f"Invalid model: {task['model']}")
 
-    valid_executors = ("task-tool", "codex-cli")
+    valid_executors = ("task-tool", "codex-cli", "gemini-cli")
     if "executor" in task and task["executor"] not in valid_executors:
         errors.append(f"Invalid executor: {task['executor']}")
 
@@ -2914,7 +2919,7 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
 
 
 def cmd_get_execution_cmd(args: argparse.Namespace) -> int:
-    """Build and print the shell command to execute a codex-cli task."""
+    """Build and print the shell command to execute a codex-cli or gemini-cli task."""
     project_dir = get_project_dir()
     plan_dir = get_active_plan_dir(project_dir)
     if not plan_dir:
@@ -2928,8 +2933,8 @@ def cmd_get_execution_cmd(args: argparse.Namespace) -> int:
         return 1
 
     executor = task.get("executor", "task-tool")
-    if executor != "codex-cli":
-        print(f"Task '{args.task_id}' has executor '{executor}', not 'codex-cli'", file=sys.stderr)
+    if executor not in ("codex-cli", "gemini-cli"):
+        print(f"Task '{args.task_id}' has executor '{executor}', expected 'codex-cli' or 'gemini-cli'", file=sys.stderr)
         return 1
 
     # Resolve task directory (create if needed)
@@ -2939,33 +2944,46 @@ def cmd_get_execution_cmd(args: argparse.Namespace) -> int:
         return 1
     task_dir.mkdir(parents=True, exist_ok=True)
 
-    # Check if we're in a git repo
-    import subprocess as _sp
-    try:
-        result = _sp.run(["git", "rev-parse", "--show-toplevel"],
-                         capture_output=True, text=True, cwd=Path.cwd())
-        in_git = result.returncode == 0
-    except Exception:
-        in_git = False
-
     # Build the command
     plugin_path = PLUGIN_ROOT / "plan.py"
     output_file = task_dir / "output.md"
     stderr_file = task_dir / "stderr.log"
 
-    cmd_parts = [
-        f"uv run {plugin_path} build-task-prompt {args.task_id}",
-        "|",
-        "codex exec -",
-        "--sandbox read-only",
-        f"-C \"{project_dir}\"",
-        f"-o \"{output_file}\"",
-    ]
+    if executor == "codex-cli":
+        # Check if we're in a git repo
+        import subprocess as _sp
+        try:
+            result = _sp.run(["git", "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, cwd=Path.cwd())
+            in_git = result.returncode == 0
+        except Exception:
+            in_git = False
 
-    if not in_git:
-        cmd_parts.append("--skip-git-repo-check")
+        cmd_parts = [
+            f"uv run {plugin_path} build-task-prompt {args.task_id}",
+            "|",
+            "codex exec -",
+            "--sandbox read-only",
+            f"-C \"{project_dir}\"",
+            f"-o \"{output_file}\"",
+        ]
 
-    cmd_parts.append(f"2>\"{stderr_file}\"")
+        if not in_git:
+            cmd_parts.append("--skip-git-repo-check")
+
+        cmd_parts.append(f"2>\"{stderr_file}\"")
+
+    elif executor == "gemini-cli":
+        cmd_parts = [
+            f"uv run {plugin_path} build-task-prompt {args.task_id}",
+            "|",
+            "gemini",
+            "--sandbox",
+            "--output-format text",
+            "-m gemini-3-pro-preview",
+            f">\"{output_file}\"",
+            f"2>\"{stderr_file}\"",
+        ]
 
     print(" ".join(cmd_parts))
     return 0

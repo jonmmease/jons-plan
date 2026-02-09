@@ -83,9 +83,9 @@
       },
       "executor": {
         "type": "string",
-        "enum": ["task-tool", "codex-cli"],
+        "enum": ["task-tool", "codex-cli", "gemini-cli"],
         "default": "task-tool",
-        "description": "Execution method: task-tool (Claude Code Task) or codex-cli (via codex exec CLI)"
+        "description": "Execution method: task-tool (Claude Code Task), codex-cli (via codex exec CLI), or gemini-cli (via gemini CLI)"
       },
       "inject_phase_prompt": {
         "type": "boolean",

@@ -98,13 +98,14 @@ suggested_next = [
 [[phases]]
 id = "draft"
 use_tasks = true
-dual_planning = true
+planning_panel = true
 context_artifacts = ["research"]
 required_artifacts = ["design"]
 required_tasks = [
   { id = "opus-planning", description = "Generate design document via Opus", prompt_file = "dual-planning", model = "opus", inject_phase_prompt = true, context_artifacts = ["research"] },
   { id = "codex-planning", description = "Generate design document via Codex CLI", prompt_file = "dual-planning", executor = "codex-cli", inject_phase_prompt = true, inject_project_context = true, context_artifacts = ["research"] },
-  { id = "synthesize-plans", description = "Judge and merge both designs", prompt_file = "plan-synthesis", parents = ["opus-planning", "codex-planning"], model = "opus" },
+  { id = "gemini-planning", description = "Generate design document via Gemini CLI", prompt_file = "dual-planning", executor = "gemini-cli", inject_phase_prompt = true, inject_project_context = true, context_artifacts = ["research"] },
+  { id = "synthesize-plans", description = "Judge and merge all designs", prompt_file = "plan-synthesis", parents = ["opus-planning", "codex-planning", "gemini-planning"], model = "opus" },
 ]
 prompt = """
 # Draft Phase
