@@ -1110,8 +1110,10 @@ class WorkflowModel(QObject):
             self._selected_phase = phase_id
             self._selected_phase_entry = None
             self._selected_phase_details = dict(self._phases.get(phase_id, {}))
-            # Clear task selection when phase changes
+            # Clear tasks and task selection when phase changes
+            self._selected_phase_tasks = []
             self._clear_task_selection()
+            self.selectedPhaseTasksChanged.emit()
             self.selectedPhaseChanged.emit()
             self.selectedPhaseEntryChanged.emit()
 
