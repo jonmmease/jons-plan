@@ -132,6 +132,31 @@ Task(
 )
 ```
 
+## Codex CLI Execution
+
+When a task has `"executor": "codex-cli"`, execute it via the codex CLI instead of the Task tool.
+
+### Pre-flight Check (once per phase)
+```bash
+codex --version >/dev/null 2>&1 || echo "ERROR: codex CLI not found in PATH"
+```
+
+### Execution
+Run the command with a **15-minute timeout** (Bash tool `timeout: 900000`):
+```bash
+CMD=$(uv run ~/.claude-plugins/jons-plan/plan.py get-execution-cmd <task-id>)
+eval "$CMD"
+EXIT_CODE=$?
+```
+
+### Post-execution
+- If exit code is non-zero or output file is empty:
+  1. Create `blockers.md` in the task directory with the command, exit code, and stderr excerpt
+  2. Mark the task as blocked
+- If successful: log completion and mark the task done
+
+Do NOT use the Task tool for codex-cli tasks. The codex CLI is invoked directly via Bash.
+
 ## When to Mark a Task as Blocked
 
 Mark a task as `blocked` when you encounter issues that **cannot be resolved by the coding agent**:

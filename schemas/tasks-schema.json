@@ -80,6 +80,17 @@
       "prompt_file": {
         "type": "string",
         "description": "Plugin prompt file to inject (e.g., 'slop-detection' loads prompts/slop-detection.md)"
+      },
+      "executor": {
+        "type": "string",
+        "enum": ["task-tool", "codex-cli"],
+        "default": "task-tool",
+        "description": "Execution method: task-tool (Claude Code Task) or codex-cli (via codex exec CLI)"
+      },
+      "inject_phase_prompt": {
+        "type": "boolean",
+        "default": false,
+        "description": "When true, inject the current phase's prompt into the task prompt"
       }
     }
   }

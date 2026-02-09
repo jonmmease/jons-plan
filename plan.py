@@ -979,6 +979,7 @@ class WorkflowManager:
             "supports_prototypes", "supports_cache_reference",
             "expand_prompt", "required_artifacts", "context_artifacts",
             "required_tasks", "required_json_artifacts",
+            "dual_planning",
         }
         # Valid keys in suggested_next objects
         VALID_TRANSITION_KEYS = {"phase", "instruction", "requires_approval", "approval_prompt"}
@@ -988,6 +989,7 @@ class WorkflowManager:
             "id", "description", "prompt_file", "subagent", "subagent_prompt",
             "model", "parents", "steps", "context_artifacts", "type",
             "question", "hypothesis", "inject_project_context", "locks",
+            "executor", "inject_phase_prompt",
         }
 
         phases = workflow.get("phases", [])
@@ -1061,6 +1063,17 @@ class WorkflowManager:
                         model = task.get("model")
                         if model is not None and model not in ("sonnet", "haiku", "opus"):
                             errors.append(f"Phase '{phase_id}' required_tasks[{j}] (id={task_id}) has invalid model: '{model}' (valid: sonnet, haiku, opus)")
+
+            # Validate dual_planning constraints
+            if phase.get("dual_planning"):
+                if not phase.get("use_tasks"):
+                    errors.append(f"Phase '{phase_id}' has dual_planning=true but use_tasks is not true")
+                if required_tasks:
+                    has_codex_executor = any(
+                        t.get("executor") == "codex-cli" for t in required_tasks if isinstance(t, dict)
+                    )
+                    if not has_codex_executor:
+                        errors.append(f"Phase '{phase_id}' has dual_planning=true but no required_task with executor='codex-cli'")
 
             # Validate required_json_artifacts
             json_artifacts = phase.get("required_json_artifacts", [])
@@ -2440,6 +2453,10 @@ def validate_task_schema(task: dict) -> list[str]:
     if "model" in task and task["model"] not in valid_models:
         errors.append(f"Invalid model: {task['model']}")
 
+    valid_executors = ("task-tool", "codex-cli")
+    if "executor" in task and task["executor"] not in valid_executors:
+        errors.append(f"Invalid executor: {task['executor']}")
+
     return errors
 
 
@@ -2710,6 +2727,23 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
             # Warn but don't fail - the prompt file might be optional
             print(f"Warning: prompt_file '{prompt_file}' not found at {prompt_path}", file=sys.stderr)
 
+    # 1d. Phase prompt injection - when inject_phase_prompt=true, inject the current
+    # phase's prompt into the task prompt under a demarcated heading
+    if task.get("inject_phase_prompt"):
+        try:
+            project_dir_for_phase = get_project_dir()
+            plan_dir_for_phase = get_active_plan_dir(project_dir_for_phase)
+            if plan_dir_for_phase:
+                wm = WorkflowManager(plan_dir_for_phase)
+                state = json.loads((plan_dir_for_phase / "state.json").read_text())
+                current_phase_id = state.get("current_phase")
+                if current_phase_id:
+                    phase_prompt = wm.get_phase_prompt(current_phase_id)
+                    if phase_prompt:
+                        prompt_parts.append(f"\n\n## Phase Requirements\n\n{phase_prompt}")
+        except Exception as e:
+            print(f"Warning: Could not inject phase prompt: {e}", file=sys.stderr)
+
     # 2. Steps list
     steps = task.get("steps", [])
     if steps:
@@ -2876,6 +2910,64 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
 
     # Output the complete prompt
     print("\n".join(prompt_parts))
+    return 0
+
+
+def cmd_get_execution_cmd(args: argparse.Namespace) -> int:
+    """Build and print the shell command to execute a codex-cli task."""
+    project_dir = get_project_dir()
+    plan_dir = get_active_plan_dir(project_dir)
+    if not plan_dir:
+        print("No active plan", file=sys.stderr)
+        return 1
+
+    tasks = get_tasks(plan_dir)
+    task = next((t for t in tasks if t.get("id") == args.task_id), None)
+    if not task:
+        print(f"Task not found: {args.task_id}", file=sys.stderr)
+        return 1
+
+    executor = task.get("executor", "task-tool")
+    if executor != "codex-cli":
+        print(f"Task '{args.task_id}' has executor '{executor}', not 'codex-cli'", file=sys.stderr)
+        return 1
+
+    # Resolve task directory (create if needed)
+    task_dir = get_task_output_dir(plan_dir, args.task_id)
+    if not task_dir:
+        print("No current phase", file=sys.stderr)
+        return 1
+    task_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check if we're in a git repo
+    import subprocess as _sp
+    try:
+        result = _sp.run(["git", "rev-parse", "--show-toplevel"],
+                         capture_output=True, text=True, cwd=Path.cwd())
+        in_git = result.returncode == 0
+    except Exception:
+        in_git = False
+
+    # Build the command
+    plugin_path = PLUGIN_ROOT / "plan.py"
+    output_file = task_dir / "output.md"
+    stderr_file = task_dir / "stderr.log"
+
+    cmd_parts = [
+        f"uv run {plugin_path} build-task-prompt {args.task_id}",
+        "|",
+        "codex exec -",
+        "--sandbox read-only",
+        f"-C \"{project_dir}\"",
+        f"-o \"{output_file}\"",
+    ]
+
+    if not in_git:
+        cmd_parts.append("--skip-git-repo-check")
+
+    cmd_parts.append(f"2>\"{stderr_file}\"")
+
+    print(" ".join(cmd_parts))
     return 0
 
 
@@ -3516,7 +3608,7 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                 else:
                     # Check protected fields match
                     existing_task = next(t for t in existing_tasks if t.get("id") == req_id)
-                    protected_fields = ["prompt_file", "subagent", "model"]
+                    protected_fields = ["prompt_file", "subagent", "model", "executor", "inject_phase_prompt"]
                     for field in protected_fields:
                         req_val = req_task.get(field)
                         existing_val = existing_task.get(field)
@@ -6335,7 +6427,7 @@ def cmd_validate_required_tasks(args: argparse.Namespace) -> int:
 
     errors = []
     warnings = []
-    protected_fields = ["prompt_file", "subagent", "model"]
+    protected_fields = ["prompt_file", "subagent", "model", "executor", "inject_phase_prompt"]
 
     for req_task in required_tasks:
         req_id = req_task.get("id")
@@ -6453,6 +6545,10 @@ def main() -> int:
     # build-task-prompt
     p_build_prompt = subparsers.add_parser("build-task-prompt", help="Build complete prompt for task")
     p_build_prompt.add_argument("task_id", help="Task ID")
+
+    # get-execution-cmd
+    p_exec_cmd = subparsers.add_parser("get-execution-cmd", help="Build shell command for codex-cli task")
+    p_exec_cmd.add_argument("task_id", help="Task ID")
 
     # record-confidence
     p_record_conf = subparsers.add_parser("record-confidence", help="Record confidence score for task")
@@ -6700,6 +6796,7 @@ def main() -> int:
         "phase-log": cmd_phase_log,
         "task-progress": cmd_task_progress,
         "build-task-prompt": cmd_build_task_prompt,
+        "get-execution-cmd": cmd_get_execution_cmd,
         "record-confidence": cmd_record_confidence,
         "check-confidence": cmd_check_confidence,
         "low-confidence-tasks": cmd_low_confidence_tasks,

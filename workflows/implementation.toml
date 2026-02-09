@@ -75,20 +75,24 @@ suggested_next = [
 [[phases]]
 id = "plan"
 use_tasks = true
+dual_planning = true
 requires_user_input = true
 context_artifacts = ["research"]
 required_artifacts = ["implementation-plan", "verification-plan"]
+required_tasks = [
+  { id = "opus-planning", description = "Generate implementation plan via Opus", prompt_file = "dual-planning", model = "opus", inject_phase_prompt = true },
+  { id = "codex-planning", description = "Generate implementation plan via Codex CLI", prompt_file = "dual-planning", executor = "codex-cli", inject_phase_prompt = true, inject_project_context = true },
+  { id = "synthesize-plans", description = "Judge and merge both plans", prompt_file = "plan-synthesis", parents = ["opus-planning", "codex-planning"], model = "opus" },
+]
 prompt = """
 # Plan Phase
 
 Create a detailed implementation plan based on the research findings (injected above).
 
 ## Planning Tasks
-Create tasks in this phase to:
-1. Analyze findings and identify implementation approach
-2. Break down the work into atomic, testable tasks
-3. Identify which tasks can be parallelized
-4. Consider test-first tasks if acceptance criteria are clear
+Analyze findings and identify implementation approach. Break down the work into atomic,
+testable tasks. Identify which tasks can be parallelized. Consider test-first tasks if
+acceptance criteria are clear.
 
 ## Outputs
 
@@ -125,6 +129,8 @@ What must be true for implementation to be complete?
 ```
 
 Note: The implement phase will create its own tasks.json from the implementation plan.
+
+Output filename: implementation-plan.md
 """
 suggested_next = [
     { phase = "implement", instruction = "Plan approved — begin implementation" },

@@ -144,7 +144,11 @@ For each available task:
    uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> in-progress
    ```
 
-2. **Execute the task steps**: Work through each step in the task's `steps` array.
+2. **Check executor field**: Before executing, check the task's `executor` field:
+   - If `executor` is `"codex-cli"`: follow the "Codex CLI Execution" instructions in task-execution.md
+   - Otherwise (default): use the standard Task tool dispatch or execute directly
+
+3. **Execute the task steps**: Work through each step in the task's `steps` array.
 
 3. **Log progress** as you work:
    ```bash

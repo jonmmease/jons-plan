@@ -97,14 +97,21 @@ suggested_next = [
 
 [[phases]]
 id = "draft"
+use_tasks = true
+dual_planning = true
 context_artifacts = ["research"]
 required_artifacts = ["design"]
+required_tasks = [
+  { id = "opus-planning", description = "Generate design document via Opus", prompt_file = "dual-planning", model = "opus", inject_phase_prompt = true },
+  { id = "codex-planning", description = "Generate design document via Codex CLI", prompt_file = "dual-planning", executor = "codex-cli", inject_phase_prompt = true, inject_project_context = true },
+  { id = "synthesize-plans", description = "Judge and merge both designs", prompt_file = "plan-synthesis", parents = ["opus-planning", "codex-planning"], model = "opus" },
+]
 prompt = """
 # Draft Phase
 
 Create the initial design document with confidence assessment based on the research findings (injected above).
 
-## Tasks
+## Planning Tasks
 
 1. Synthesize research findings into a coherent design
 2. Choose an approach and justify the decision
@@ -150,6 +157,8 @@ Write `design.md` with:
 - Implementation considerations
 - Risk assessment
 - Confidence assessment
+
+Output filename: design.md
 """
 suggested_next = [
     { phase = "review", instruction = "Draft ready — send for external review" }
