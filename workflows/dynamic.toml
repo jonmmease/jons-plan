@@ -8,7 +8,7 @@ description = "Research-first workflow - phases generated based on codebase expl
 [[phases]]
 id = "research-planning"
 prompt_files = ["research-planning"]
-context_artifacts = ["research"]
+context_artifacts = ["research-brief", "research"]
 required_artifacts = ["research-plan"]
 prompt = """
 ## Tasks

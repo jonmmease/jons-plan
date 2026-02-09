@@ -8,7 +8,7 @@ description = "Design a solution, get user approval, then optionally implement"
 [[phases]]
 id = "research-planning"
 prompt_files = ["research-planning"]
-context_artifacts = ["research"]
+context_artifacts = ["research-brief", "research"]
 required_artifacts = ["research-plan"]
 prompt = """
 ## Tasks
@@ -86,8 +86,8 @@ dual_planning = true
 context_artifacts = ["research"]
 required_artifacts = ["design", "verification-plan"]
 required_tasks = [
-  { id = "opus-planning", description = "Generate design document via Opus", prompt_file = "dual-planning", model = "opus", inject_phase_prompt = true },
-  { id = "codex-planning", description = "Generate design document via Codex CLI", prompt_file = "dual-planning", executor = "codex-cli", inject_phase_prompt = true, inject_project_context = true },
+  { id = "opus-planning", description = "Generate design document via Opus", prompt_file = "dual-planning", model = "opus", inject_phase_prompt = true, context_artifacts = ["research"] },
+  { id = "codex-planning", description = "Generate design document via Codex CLI", prompt_file = "dual-planning", executor = "codex-cli", inject_phase_prompt = true, inject_project_context = true, context_artifacts = ["research"] },
   { id = "synthesize-plans", description = "Judge and merge both designs", prompt_file = "plan-synthesis", parents = ["opus-planning", "codex-planning"], model = "opus" },
 ]
 prompt = """
@@ -133,77 +133,12 @@ Specific criteria that must be true:
 Output filename: design.md
 """
 suggested_next = [
-    { phase = "review", instruction = "Draft ready — send for external review" }
-]
-
-[[phases]]
-id = "review"
-use_tasks = true
-prompt_files = ["selective-re-review"]
-context_artifacts = ["design", "verification-plan", "review-feedback"]
-required_artifacts = ["review-feedback"]
-prompt = """
-# Review Phase
-
-Get external feedback on the design using reviewer agents.
-
-## Setup
-
-Create tasks.json with reviewer tasks. On first review, create tasks for all reviewers. On re-review, only create tasks for reviewers with unresolved Critical items.
-
-### Example tasks.json
-
-```json
-[
-  {
-    "id": "gemini-review",
-    "description": "Get design feedback from Gemini",
-    "subagent": "gemini-reviewer",
-    "subagent_prompt": "Review the design for architectural concerns, completeness, and clarity. Tag each item as Critical, Suggestion, or Nit.",
-    "context_artifacts": ["design", "verification-plan"],
-    "parents": [],
-    "status": "todo"
-  },
-  {
-    "id": "codex-review",
-    "description": "Get design feedback from Codex",
-    "subagent": "codex-reviewer",
-    "subagent_prompt": "Review the design for technical accuracy and implementation feasibility. Tag each item as Critical, Suggestion, or Nit.",
-    "context_artifacts": ["design", "verification-plan"],
-    "parents": [],
-    "status": "todo"
-  },
-  {
-    "id": "synthesize-feedback",
-    "description": "Synthesize feedback into review-feedback.md",
-    "parents": ["gemini-review", "codex-review"],
-    "steps": [
-      "Read output from parent tasks",
-      "Organize by source, then by severity: Critical, Suggestion, Nit",
-      "Write review-feedback.md"
-    ],
-    "status": "todo"
-  }
-]
-```
-
-## Task Execution
-
-1. Run reviewer tasks in parallel (they have no parents)
-2. After both complete, run synthesize task
-3. Mark each task done as it completes
-
-## Outputs
-
-Write `review-feedback.md` with severity-tagged feedback from all reviewers (Critical/Suggestion/Nit).
-"""
-suggested_next = [
-    { phase = "revise", instruction = "Feedback received — incorporate changes" }
+    { phase = "user-decision", instruction = "Design synthesized — present to user" }
 ]
 
 [[phases]]
 id = "revise"
-context_artifacts = ["design", "review-feedback"]
+context_artifacts = ["design"]
 required_artifacts = ["design"]
 prompt_files = ["revise"]
 prompt = """
@@ -211,7 +146,6 @@ This is a work phase - do NOT present output to the user.
 
 ## Inputs
 - design.md (injected above)
-- review-feedback.md (injected above)
 - User guidance (if re-entering from user-decision)
 
 ## Check for User Guidance
@@ -228,25 +162,14 @@ uv run ~/.claude-plugins/jons-plan/plan.py clear-user-guidance
 
 ## Tasks
 1. Read user guidance if present
-2. Update design.md with accepted changes
+2. Update design.md with requested changes
 3. Investigate uncertain items, update design based on findings
-4. Update confidence assessment
 
 ## Outputs
 Updated design.md.
 """
 suggested_next = [
-    { phase = "evaluate-revisions", instruction = "Revisions complete — evaluate changes" }
-]
-
-[[phases]]
-id = "evaluate-revisions"
-max_retries = 2
-prompt_files = ["evaluate-revisions"]
-context_artifacts = ["design", "review-feedback"]
-suggested_next = [
-    { phase = "user-decision", instruction = "All critical items resolved" },
-    { phase = "review", instruction = "Critical items remain unresolved — re-engage only reviewers with unresolved Critical items" }
+    { phase = "user-decision", instruction = "Revisions complete — present to user" }
 ]
 
 [[phases]]
@@ -259,10 +182,9 @@ Present the design to the user for approval.
 ## User Review
 The user should review:
 - design.md - The proposed solution
-- review-feedback.md - External feedback received
 """
 requires_user_input = true
-user_review_artifacts = ["design.md", "review-feedback.md"]
+user_review_artifacts = ["design.md"]
 suggested_next = [
     { phase = "implement", instruction = "Design approved — begin implementation" },
     { phase = "complete-design-only", instruction = "Design approved — skip implementation" },

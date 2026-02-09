@@ -8,7 +8,7 @@ description = "Research, explore, and produce a design document"
 [[phases]]
 id = "research-planning"
 prompt_files = ["research-planning"]
-context_artifacts = ["research"]
+context_artifacts = ["research-brief", "research"]
 required_artifacts = ["research-plan"]
 prompt = """
 ## Tasks
@@ -102,8 +102,8 @@ dual_planning = true
 context_artifacts = ["research"]
 required_artifacts = ["design"]
 required_tasks = [
-  { id = "opus-planning", description = "Generate design document via Opus", prompt_file = "dual-planning", model = "opus", inject_phase_prompt = true },
-  { id = "codex-planning", description = "Generate design document via Codex CLI", prompt_file = "dual-planning", executor = "codex-cli", inject_phase_prompt = true, inject_project_context = true },
+  { id = "opus-planning", description = "Generate design document via Opus", prompt_file = "dual-planning", model = "opus", inject_phase_prompt = true, context_artifacts = ["research"] },
+  { id = "codex-planning", description = "Generate design document via Codex CLI", prompt_file = "dual-planning", executor = "codex-cli", inject_phase_prompt = true, inject_project_context = true, context_artifacts = ["research"] },
   { id = "synthesize-plans", description = "Judge and merge both designs", prompt_file = "plan-synthesis", parents = ["opus-planning", "codex-planning"], model = "opus" },
 ]
 prompt = """
@@ -161,100 +161,7 @@ Write `design.md` with:
 Output filename: design.md
 """
 suggested_next = [
-    { phase = "review", instruction = "Draft ready — send for external review" }
-]
-
-[[phases]]
-id = "review"
-prompt_files = ["selective-re-review"]
-context_artifacts = ["design", "review-feedback"]
-required_artifacts = ["review-feedback"]
-prompt = """
-# Review Phase
-
-Get external feedback on the design.
-
-## Tasks
-
-1. Launch gemini-reviewer agent to review design.md (skip on re-review if no unresolved Critical items from gemini)
-2. Launch codex-reviewer agent for second opinion (skip on re-review if no unresolved Critical items from codex)
-3. Collect and organize feedback with severity levels
-
-**Important for reviewer tasks:**
-- Do NOT include `model` field (reviewers use their own external models)
-- Do NOT include `subagent_prompt` field (not used for reviewers)
-
-## Outputs
-
-Write `review-feedback.md` with severity-tagged items:
-
-```markdown
-# Review Feedback
-
-## Source: gemini-reviewer
-
-### Critical
-- [Issue that must be addressed before proceeding]
-
-### Suggestion
-- [Would improve the design but not blocking]
-
-### Nit
-- [Minor style or preference issue]
-
-## Source: codex-reviewer
-
-### Critical
-- [...]
-
-### Suggestion
-- [...]
-
-### Nit
-- [...]
-```
-"""
-suggested_next = [
-    { phase = "revise", instruction = "Feedback received — incorporate changes" }
-]
-
-[[phases]]
-id = "revise"
-context_artifacts = ["design", "review-feedback"]
-required_artifacts = ["design"]
-prompt_files = ["revise"]
-prompt = """
-## Inputs
-
-- design.md (injected above)
-- review-feedback.md (injected above)
-
-## Tasks
-
-1. Update design.md with all accepted changes
-2. Write investigation findings if any INVESTIGATE items existed
-3. Update confidence assessment
-
-## Outputs
-
-Updated design.md with:
-- Addressed feedback
-- Investigation findings (if any)
-- Updated confidence score (1-5) with rationale
-"""
-suggested_next = [
-    { phase = "evaluate-revisions", instruction = "Revisions complete — evaluate changes" }
-]
-
-[[phases]]
-id = "evaluate-revisions"
-max_retries = 2
-prompt_files = ["evaluate-revisions"]
-context_artifacts = ["design", "review-feedback"]
-suggested_next = [
-    { phase = "complete", instruction = "All critical items resolved" },
-    { phase = "review", instruction = "Critical items remain unresolved — re-engage only reviewers with unresolved Critical items" },
-    { phase = "research", instruction = "Fundamental issues require rethinking the approach", requires_approval = true, approval_prompt = "Return to research for fundamental rethinking of the approach?" }
+    { phase = "complete", instruction = "Design synthesized — finalize" }
 ]
 
 [[phases]]

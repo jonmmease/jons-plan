@@ -8,7 +8,7 @@ description = "Create technical documentation with multi-source research and rev
 [[phases]]
 id = "research-planning"
 prompt_files = ["research-planning"]
-context_artifacts = ["research"]
+context_artifacts = ["research-brief", "research"]
 required_artifacts = ["research-plan"]
 prompt = """
 ## Tasks
@@ -222,7 +222,7 @@ suggested_next = [
 [[phases]]
 id = "review"
 prompt_files = ["selective-re-review"]
-context_artifacts = ["review-feedback"]
+context_artifacts = ["research", "review-feedback"]
 required_artifacts = ["review-feedback"]
 prompt = """
 # Review Phase

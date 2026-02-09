@@ -8,7 +8,7 @@ description = "Complex features requiring thorough exploration and multi-round f
 [[phases]]
 id = "research-planning"
 prompt_files = ["research-planning"]
-context_artifacts = ["research-findings"]
+context_artifacts = ["research-brief", "research-findings"]
 required_artifacts = ["research-plan"]
 prompt = """
 ## Tasks
@@ -212,7 +212,7 @@ suggested_next = [
 [[phases]]
 id = "review"
 prompt_files = ["selective-re-review"]
-context_artifacts = ["implementation-plan", "verification-plan", "review-feedback"]
+context_artifacts = ["research-findings", "implementation-plan", "verification-plan", "review-feedback"]
 required_artifacts = ["review-feedback"]
 prompt = """
 # Review Phase
