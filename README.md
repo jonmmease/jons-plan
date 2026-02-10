@@ -7,6 +7,8 @@ A Claude Code plugin inspired by Anthropic's [Effective Harnesses for Long-Runni
 - **Claude Code** v2.1.3+ (the Anthropic CLI tool)
 - **uv** - Python package runner (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - **graphviz** (optional) - For workflow viewer (`brew install graphviz`)
+- **Codex CLI** (optional) - For planning panel (`npm install -g @openai/codex`)
+- **Gemini CLI** (optional) - For planning panel (`npm install -g @anthropic/gemini-cli`)
 
 ## Installation
 
@@ -32,6 +34,9 @@ When AI agents work on complex projects that span multiple context windows, each
 - **PreCompact hook** to preserve state during context compaction
 - **Parallel task execution** via subagents for independent work
 - **Workflow-based execution** with phase transitions and state machine
+- **Planning panel** — 3-agent parallel planning (Opus + Codex CLI + Gemini CLI) with senior-architect synthesis
+- **Artifact system** with phase-level and plan-level artifact tracking
+- **Dead-end tracking** to prevent repeating failed approaches
 
 For detailed architecture documentation, see [docs/architecture.md](docs/architecture.md).
 
@@ -43,6 +48,7 @@ The plugin uses a two-agent architecture:
 
 Creates the infrastructure for a new plan:
 - Analyzes your request and suggests an appropriate workflow
+- Conducts pre-research and records a research brief
 - Sets up the plan structure and initial phase
 - Creates `request.md` with the refined/approved request
 
@@ -54,6 +60,17 @@ Works incrementally on tasks across sessions:
 - Handles phase transitions automatically
 - Updates task status and logs progress for the next session
 
+### Planning Panel
+
+Workflows with `planning_panel = true` use three independent agents to generate plans in parallel, then a senior synthesis agent reviews all three and produces the definitive plan:
+
+1. **Opus** — via Claude Code Task tool
+2. **Codex** — via Codex CLI (background)
+3. **Gemini** — via Gemini CLI (background)
+4. **Synthesis** — Opus reviews all three, investigates disagreements, dismisses weak ideas, and produces the final plan
+
+The synthesis agent has full authority to investigate the codebase, dismiss incorrect concerns, add missing elements, and restructure the plan. It is not a mechanical merger — it is the decision-maker.
+
 ## Slash Commands
 
 | Command | Purpose |
@@ -63,6 +80,7 @@ Works incrementally on tasks across sessions:
 | `/jons-plan:proceed` | Start/continue implementing tasks |
 | `/jons-plan:switch [name]` | Switch to a different plan |
 | `/jons-plan:status` | Show all plans and task progress |
+| `/jons-plan:viewer` | Open the workflow viewer |
 
 Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 
@@ -75,8 +93,12 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 | `design` | Research, explore, produce design.md |
 | `design-and-implementation` | Design first, optionally implement after approval |
 | `deep-implementation` | Thorough research + external review before implementation |
+| `dynamic` | Research-first, phases generated based on codebase exploration |
+| `iteration` | Iterative execute-evaluate-generate loops for long-horizon goals |
+| `review-tour` | Generate guided PR review tour from a GitHub PR URL |
 | `code-review` | Review code changes + generate PR description |
 | `pr-review` | Review existing PR description for quality |
+| `deslop-pr` | Detect and remove AI-generated patterns from PR descriptions |
 | `tech-docs` | Technical documentation with multi-source research |
 | `tech-docs-review` | Review RFCs, design docs, proposals with structured criteria |
 
@@ -93,6 +115,7 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
         ├── workflow.toml        # Phase definitions
         ├── state.json           # Current phase state
         ├── request.md           # Refined/approved request
+        ├── research-brief.md    # Pre-research from plan creation
         ├── dead-ends.json       # Failed approaches (for learning)
         ├── claude-progress.txt  # Plan-level progress log
         └── phases/
@@ -111,14 +134,22 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
   "steps": ["Create auth middleware", "Add login endpoint"],
   "status": "todo",
   "subagent": "general-purpose",
-  "model": "sonnet"
+  "model": "sonnet",
+  "context_artifacts": ["research"],
+  "executor": "task-tool",
+  "locks": ["src/auth.rs"]
 }
 ```
 
-Tasks can optionally specify:
+Key optional fields:
 - `subagent`: Agent type (`general-purpose`, `gemini-reviewer`, `codex-reviewer`)
-- `subagent_prompt`: Additional context (e.g., "very thorough analysis")
-- `model`: Model to use (`sonnet`, `haiku`, `opus`)
+- `model`: Model override (`sonnet`, `haiku`, `opus`)
+- `executor`: Execution method (`task-tool`, `codex-cli`, `gemini-cli`)
+- `context_artifacts`: Artifact names to inject from phase history
+- `prompt_file`: Plugin prompt to inject (e.g., `"slop-detection"`)
+- `inject_phase_prompt`: Include phase prompt in task context
+- `inject_project_context`: Include project CLAUDE.md in task prompt
+- `locks`: Resource names for exclusive access (parallel tasks sharing locks are serialized)
 
 ## Hooks
 
