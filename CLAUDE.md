@@ -386,6 +386,7 @@ User guidance is set via `/jons-plan:proceed <number> <guidance>` and persists u
 | `active-plan-dir` | Print active plan directory |
 | `set-active <plan>` | Switch active plan |
 | `deactivate` | Deactivate current plan |
+| `reflog [--limit N]` | Show plan activation history |
 
 ### Task Management
 | Command | Description |

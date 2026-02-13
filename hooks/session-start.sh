@@ -83,6 +83,17 @@ Example: \`/jons-plan:new add user authentication\`"
             echo "- \`${p}\`"
         done
         echo ""
+
+        # Show recent reflog entries so agent can suggest reactivating a recent plan
+        REFLOG=$(plan reflog --limit 5 2>/dev/null || echo "")
+        if [[ -n "$REFLOG" ]]; then
+            echo "**Recently active plans:**"
+            echo "\`\`\`"
+            echo "$REFLOG"
+            echo "\`\`\`"
+            echo ""
+        fi
+
         echo "Use \`/jons-plan:switch [name]\` to select a plan, or \`/jons-plan:new [topic]\` to create a new one."
         exit 0
     fi

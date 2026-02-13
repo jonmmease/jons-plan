@@ -1913,6 +1913,19 @@ def cmd_list_plans(args: argparse.Namespace) -> int:
     return 0
 
 
+def _append_reflog_entry(project_dir: Path, plan_name: str, previous_plan: str | None) -> None:
+    """Append an entry to the plan activation reflog."""
+    reflog_file = project_dir / ".claude" / "jons-plan" / "reflog.jsonl"
+    reflog_file.parent.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "plan": plan_name,
+        "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "previous": previous_plan,
+    }
+    with open(reflog_file, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
 def cmd_set_active(args: argparse.Namespace) -> int:
     """Set the active plan."""
     project_dir = get_project_dir()
@@ -1929,10 +1942,14 @@ def cmd_set_active(args: argparse.Namespace) -> int:
         return 1
 
     # Clear pending approval from old plan if switching
+    old_plan = get_active_plan(project_dir)
     old_plan_dir = get_active_plan_dir(project_dir)
     if old_plan_dir and old_plan_dir != plan_dir:
         state_mgr = StateManager(old_plan_dir)
         state_mgr.clear_pending_approval()
+
+    # Record activation in reflog
+    _append_reflog_entry(project_dir, args.plan_name, old_plan if old_plan != args.plan_name else None)
 
     active_plan_file = project_dir / ".claude" / "jons-plan" / "active-plan"
     active_plan_file.parent.mkdir(parents=True, exist_ok=True)
@@ -1959,6 +1976,47 @@ def cmd_deactivate(args: argparse.Namespace) -> int:
     plan_name = active_plan_file.read_text().strip()
     active_plan_file.unlink()
     print(f"Deactivated plan: {plan_name}")
+    return 0
+
+
+def cmd_reflog(args: argparse.Namespace) -> int:
+    """Show plan activation history (most recent first)."""
+    project_dir = get_project_dir()
+    reflog_file = project_dir / ".claude" / "jons-plan" / "reflog.jsonl"
+
+    if not reflog_file.exists():
+        print("No reflog entries yet.")
+        return 0
+
+    entries = []
+    for line in reflog_file.read_text().splitlines():
+        line = line.strip()
+        if line:
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    if not entries:
+        print("No reflog entries yet.")
+        return 0
+
+    # Most recent first
+    entries.reverse()
+    limit = args.limit
+    for entry in entries[:limit]:
+        ts = entry.get("timestamp", "?")
+        plan = entry.get("plan", "?")
+        prev = entry.get("previous")
+        if prev:
+            print(f"{ts}  {plan}  (from {prev})")
+        else:
+            print(f"{ts}  {plan}")
+
+    total = len(entries)
+    if total > limit:
+        print(f"  ... {total - limit} older entries (use --limit to see more)")
+
     return 0
 
 
@@ -6502,6 +6560,10 @@ def main() -> int:
     # deactivate
     subparsers.add_parser("deactivate", help="Deactivate current plan without switching")
 
+    # reflog
+    p_reflog = subparsers.add_parser("reflog", help="Show plan activation history")
+    p_reflog.add_argument("--limit", type=int, default=20, help="Max entries to show (default: 20)")
+
     # log
     p_log = subparsers.add_parser("log", help="Append message to progress log")
     p_log.add_argument("message", help="Message to log")
@@ -6798,6 +6860,7 @@ def main() -> int:
         "list-plans": cmd_list_plans,
         "set-active": cmd_set_active,
         "deactivate": cmd_deactivate,
+        "reflog": cmd_reflog,
         "log": cmd_log,
         "task-stats": cmd_task_stats,
         "in-progress": cmd_in_progress,
