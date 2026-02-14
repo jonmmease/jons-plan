@@ -178,17 +178,59 @@ id = "user-decision"
 prompt = """
 # User Decision Phase
 
-Present the design to the user for approval.
+Evaluate the design and decide whether to proceed with implementation.
 
-## User Review
-The user should review:
-- design.md - The proposed solution
+## Design Evaluation
+
+Review the design.md document and assess:
+
+1. **Completeness**: Does the design answer all key questions from research?
+2. **Clarity**: Is the approach well-defined and actionable?
+3. **Feasibility**: Are the proposed changes realistic given the codebase?
+4. **Verification**: Is there a concrete plan to validate the implementation?
+
+## Decision Criteria
+
+**Proceed to implementation if:**
+- Design addresses the core requirements
+- Approach is technically sound (no obvious blockers)
+- Implementation steps are clear enough to begin work
+- Verification plan exists and is executable
+
+**Request revision if:**
+- Critical gaps in the design (missing components, unclear decisions)
+- Significant technical concerns not addressed
+- Implementation steps too vague to execute
+
+**Skip implementation if:**
+- User explicitly requested design-only
+- Implementation would require external dependencies not available
+
+## Default Behavior
+
+Unless there are significant concerns, **proceed to implementation**. Minor imperfections can be addressed during implementation through the proposal/challenge system.
+
+## Output
+
+State your decision and reasoning:
+```markdown
+## Design Evaluation
+
+**Completeness**: [assessment]
+**Clarity**: [assessment]
+**Feasibility**: [assessment]
+**Verification**: [assessment]
+
+**Decision**: [Proceed to implement / Request revision / Complete design-only]
+**Reasoning**: [1-2 sentences]
+```
+
+Then transition to the appropriate phase.
 """
-requires_user_input = true
 user_review_artifacts = ["design.md"]
 suggested_next = [
-    { phase = "implement", instruction = "Design approved — begin implementation" },
-    { phase = "complete-design-only", instruction = "Design approved — skip implementation" },
+    { phase = "implement", instruction = "Design is solid — begin implementation" },
+    { phase = "complete-design-only", instruction = "Design complete — skip implementation" },
     { phase = "revise", instruction = "Design needs changes" },
     { phase = "research", instruction = "Restart research preserving current learnings", requires_approval = true, approval_prompt = "Return to research phase? This will start fresh research while preserving learnings from the current design." }
 ]
