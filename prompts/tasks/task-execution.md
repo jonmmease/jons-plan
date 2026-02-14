@@ -199,7 +199,21 @@ Each task uses a different execution mechanism, but they can all be dispatched i
 3. Bash tool (background) → eval gemini-cli command (timeout: 900000)
 ```
 
-**Set all three to `in-progress` before launching.** After all three complete, launch the synthesis task.
+**Set all three to `in-progress` before launching.**
+
+### Waiting for Completion
+
+After launching all three tasks:
+1. The Task tool call (opus) will block until complete
+2. The background Bash calls (codex, gemini) return task IDs immediately
+3. **You MUST use TaskOutput to wait for the background tasks before proceeding:**
+
+```
+TaskOutput(task_id: <codex-task-id>, block: true, timeout: 900000)
+TaskOutput(task_id: <gemini-task-id>, block: true, timeout: 900000)
+```
+
+Only after **all three tasks complete** should you proceed to the synthesis task.
 
 **Do NOT run these sequentially.** The entire point of the planning panel is to get independent perspectives generated in parallel.
 
