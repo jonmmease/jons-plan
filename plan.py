@@ -3017,14 +3017,14 @@ def cmd_get_execution_cmd(args: argparse.Namespace) -> int:
         except Exception:
             in_git = False
 
-        # Save prompt to temp file and pass as --prompt argument
+        # Save prompt to temp file and pass as positional argument
         prompt_file = task_dir / "prompt.txt"
         cmd_parts = [
             f"uv run {plugin_path} build-task-prompt {args.task_id}",
             f">\"{prompt_file}\"",
             "&&",
             "codex exec",
-            f"--prompt \"$(cat \"{prompt_file}\")\"",
+            f"\"$(cat \"{prompt_file}\")\"",
             "--sandbox read-only",
             f"-C \"{project_dir}\"",
             f"-o \"{output_file}\"",
@@ -3036,7 +3036,7 @@ def cmd_get_execution_cmd(args: argparse.Namespace) -> int:
         cmd_parts.append(f"2>\"{stderr_file}\"")
 
     elif executor == "gemini-cli":
-        # Save prompt to temp file and pass as --prompt argument
+        # Save prompt to temp file and pass via --prompt flag
         prompt_file = task_dir / "prompt.txt"
         cmd_parts = [
             f"uv run {plugin_path} build-task-prompt {args.task_id}",
