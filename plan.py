@@ -11,6 +11,7 @@ Usage: uv run $PLUGIN_ROOT/plan.py <subcommand> [args]
 
 import argparse
 import json
+import re
 import sqlite3
 import sys
 from dataclasses import dataclass
@@ -2736,6 +2737,27 @@ def get_cache_suggestions_for_task(project_dir: Path, task: dict, limit: int = 3
         return []
 
 
+def _resolve_relative_markdown_links(content: str, base_dir: Path) -> str:
+    """Resolve relative markdown links to absolute paths.
+
+    Converts [text](relative/path) to [text](/absolute/path) so that
+    agents receiving injected artifact content can locate referenced files.
+    Only resolves links that point to existing files on disk.
+    """
+    def _resolve(match: re.Match) -> str:
+        text = match.group(1)
+        target = match.group(2)
+        # Skip URLs and already-absolute paths
+        if target.startswith(("http://", "https://", "/")):
+            return match.group(0)
+        resolved = (base_dir / target).resolve()
+        if resolved.exists():
+            return f"[{text}]({resolved})"
+        return match.group(0)
+
+    return re.sub(r'\[([^\]]+)\]\(([^)]+)\)', _resolve, content)
+
+
 def cmd_build_task_prompt(args: argparse.Namespace) -> int:
     """Build a complete prompt for a task with all context."""
     project_dir = get_project_dir()
@@ -2858,6 +2880,7 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
                 if artifact_path.exists():
                     content = artifact_path.read_text().strip()
                     if content:
+                        content = _resolve_relative_markdown_links(content, artifact_path.parent)
                         artifact_contents.append((artifact_name, artifact_path, content))
 
         if artifact_contents:
