@@ -8,7 +8,7 @@ description = "Research, explore, and produce a design document"
 [[phases]]
 id = "research-planning"
 prompt_files = ["research-planning"]
-context_artifacts = ["research-brief", "research"]
+context_artifacts = ["request", "research-brief", "research"]
 required_artifacts = ["research-plan"]
 prompt = """
 ## Tasks
@@ -41,7 +41,7 @@ id = "research"
 use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
-context_artifacts = ["research-plan", "research"]
+context_artifacts = ["request", "research-plan", "research"]
 required_artifacts = ["research"]
 prompt = """
 # Research Phase
@@ -89,7 +89,7 @@ suggested_next = [
 id = "evaluate-research"
 max_retries = 4
 prompt_files = ["evaluate-research"]
-context_artifacts = ["research-plan", "research"]
+context_artifacts = ["request", "research-plan", "research"]
 suggested_next = [
     { phase = "draft", instruction = "All questions adequately answered" },
     { phase = "research-planning", instruction = "Significant gaps remain — plan additional research for unanswered questions" }
@@ -99,12 +99,12 @@ suggested_next = [
 id = "draft"
 use_tasks = true
 planning_panel = true
-context_artifacts = ["research"]
+context_artifacts = ["request", "research"]
 required_artifacts = ["design"]
 required_tasks = [
-  { id = "opus-planning", description = "Generate design document via Opus", prompt_file = "dual-planning", model = "opus", inject_phase_prompt = true, context_artifacts = ["research"] },
-  { id = "codex-planning", description = "Generate design document via Codex CLI", prompt_file = "dual-planning", executor = "codex-cli", inject_phase_prompt = true, inject_project_context = true, context_artifacts = ["research"] },
-  { id = "gemini-planning", description = "Generate design document via Gemini CLI", prompt_file = "dual-planning", executor = "gemini-cli", inject_phase_prompt = true, inject_project_context = true, context_artifacts = ["research"] },
+  { id = "opus-planning", description = "Generate design document via Opus", prompt_file = "dual-planning", model = "opus", inject_phase_prompt = true, context_artifacts = ["request", "research"] },
+  { id = "codex-planning", description = "Generate design document via Codex CLI", prompt_file = "dual-planning", executor = "codex-cli", inject_phase_prompt = true, inject_project_context = true, context_artifacts = ["request", "research"] },
+  { id = "gemini-planning", description = "Generate design document via Gemini CLI", prompt_file = "dual-planning", executor = "gemini-cli", inject_phase_prompt = true, inject_project_context = true, context_artifacts = ["request", "research"] },
   { id = "synthesize-plans", description = "Judge and merge all designs", prompt_file = "plan-synthesis", parents = ["opus-planning", "codex-planning", "gemini-planning"], model = "opus" },
 ]
 prompt = """

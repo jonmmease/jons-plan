@@ -231,7 +231,11 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
    cp ~/.claude-plugins/jons-plan/workflows/<name>.toml "$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>/workflow.toml"
    ```
 6. Create `request.md` with the user's request (use absolute path: `$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>/request.md`)
-7. **Create plan-level artifacts** (optional, when pre-research was done):
+7. Record the request as a plan-level artifact so downstream phases can reference it:
+   ```bash
+   uv run ~/.claude-plugins/jons-plan/plan.py record-artifact --plan-level request request.md
+   ```
+8. **Create plan-level artifacts** (optional, when pre-research was done):
    If you performed any pre-research during plan creation (web searches, subagent exploration, terminology clarification), save findings as a plan-level artifact:
 
    Write `research-brief.md` to the plan directory with these sections:
@@ -257,7 +261,7 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
    ```
 
    **Skip this step** if no pre-research was needed (e.g., simple bug fixes, explicit workflow requests with no ambiguity).
-8. Create `claude-progress.txt` with initial entry (use absolute path)
+9. Create `claude-progress.txt` with initial entry (use absolute path)
 
 ### Step 4: Initialize State Machine
 1. Initialize state.json with first phase

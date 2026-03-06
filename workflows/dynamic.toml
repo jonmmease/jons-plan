@@ -8,7 +8,7 @@ description = "Research-first workflow - phases generated based on codebase expl
 [[phases]]
 id = "research-planning"
 prompt_files = ["research-planning"]
-context_artifacts = ["research-brief", "research"]
+context_artifacts = ["request", "research-brief", "research"]
 required_artifacts = ["research-plan"]
 prompt = """
 ## Tasks
@@ -36,7 +36,7 @@ id = "research"
 use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
-context_artifacts = ["research-plan", "research"]
+context_artifacts = ["request", "research-plan", "research"]
 required_artifacts = ["research"]
 prompt = """
 # Research Phase
@@ -57,7 +57,7 @@ suggested_next = [
 id = "evaluate-research"
 max_retries = 4
 prompt_files = ["evaluate-research"]
-context_artifacts = ["research-plan", "research"]
+context_artifacts = ["request", "research-plan", "research"]
 expand_prompt = """
 Generate the workflow phases based on your research findings.
 

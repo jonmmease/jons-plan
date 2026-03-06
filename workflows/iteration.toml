@@ -8,7 +8,7 @@ description = "Iterative execution with evaluate-generate loops for long-horizon
 [[phases]]
 id = "research-planning"
 prompt_files = ["research-planning"]
-context_artifacts = ["research-brief", "research"]
+context_artifacts = ["request", "research-brief", "research"]
 required_artifacts = ["research-plan"]
 prompt = """
 ## Tasks
@@ -33,7 +33,7 @@ id = "research"
 use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
-context_artifacts = ["research-plan", "research"]
+context_artifacts = ["request", "research-plan", "research"]
 required_artifacts = ["research"]
 prompt = """
 # Research Phase
@@ -76,7 +76,7 @@ suggested_next = [
 id = "evaluate-research"
 max_retries = 4
 prompt_files = ["evaluate-research"]
-context_artifacts = ["research-plan", "research"]
+context_artifacts = ["request", "research-plan", "research"]
 suggested_next = [
     { phase = "plan", instruction = "All questions adequately answered" },
     { phase = "research-planning", instruction = "Significant gaps remain — plan additional research for unanswered questions" }
@@ -85,7 +85,7 @@ suggested_next = [
 [[phases]]
 id = "plan"
 requires_user_input = true
-context_artifacts = ["research"]
+context_artifacts = ["request", "research"]
 required_artifacts = ["implementation-plan"]
 prompt = """
 # Plan Phase

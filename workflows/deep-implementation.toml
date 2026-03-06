@@ -8,7 +8,7 @@ description = "Complex features requiring thorough exploration and multi-round f
 [[phases]]
 id = "research-planning"
 prompt_files = ["research-planning"]
-context_artifacts = ["research-brief", "research-findings"]
+context_artifacts = ["request", "research-brief", "research-findings"]
 required_artifacts = ["research-plan"]
 prompt = """
 ## Tasks
@@ -56,7 +56,7 @@ id = "research"
 use_tasks = true
 supports_prototypes = true
 supports_cache_reference = true
-context_artifacts = ["research-plan", "research-findings"]
+context_artifacts = ["request", "research-plan", "research-findings"]
 required_artifacts = ["research-findings"]
 required_json_artifacts = ["cache-candidates"]
 prompt = """
@@ -109,7 +109,7 @@ suggested_next = [
 id = "evaluate-research"
 max_retries = 4
 prompt_files = ["evaluate-research"]
-context_artifacts = ["research-plan", "research-findings"]
+context_artifacts = ["request", "research-plan", "research-findings"]
 suggested_next = [
     { phase = "synthesize", instruction = "All questions adequately answered" },
     { phase = "research-planning", instruction = "Significant gaps remain — plan additional research focusing only on unanswered questions" }
@@ -117,7 +117,7 @@ suggested_next = [
 
 [[phases]]
 id = "synthesize"
-context_artifacts = ["research-findings"]
+context_artifacts = ["request", "research-findings"]
 required_artifacts = ["implementation-plan", "verification-plan"]
 prompt = """
 # Synthesize Phase
