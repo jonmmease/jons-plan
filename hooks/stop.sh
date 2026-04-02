@@ -106,7 +106,7 @@ if [[ "$SESSION_MODE" == "proceed" ]]; then
             else
                 # Check for phase tasks
                 PHASE_TASKS=$(plan phase-next-tasks 2>/dev/null || echo "")
-                if [[ -n "$PHASE_TASKS" && "$PHASE_TASKS" != "No tasks in current phase" && "$PHASE_TASKS" != "All phase tasks complete" ]]; then
+                if [[ -n "$PHASE_TASKS" && "$PHASE_TASKS" != "No tasks in current phase" && "$PHASE_TASKS" != "All phase tasks complete" && "$PHASE_TASKS" != *"No tasks available"* ]]; then
                     # Check safety limit before blocking
                     COUNTER=$(get_iteration_counter)
                     MAX_ITER=$(get_max_iterations)

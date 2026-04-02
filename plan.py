@@ -1708,6 +1708,25 @@ def validate_json_artifact(
         )
         errors.append(f"Validation error at {path}: {e.message}")
 
+        # Show the expected schema fragment so the user knows what's required
+        failing_schema = e.schema
+        if failing_schema and isinstance(failing_schema, dict):
+            required = failing_schema.get("required", [])
+            properties = failing_schema.get("properties", {})
+            if required or properties:
+                hint_parts = []
+                if required:
+                    hint_parts.append(f"  Required fields: {required}")
+                if properties:
+                    for prop_name, prop_def in properties.items():
+                        prop_type = prop_def.get("type", "any")
+                        prop_desc = prop_def.get("description", "")
+                        desc_suffix = f" — {prop_desc}" if prop_desc else ""
+                        hint_parts.append(
+                            f"  - {prop_name} ({prop_type}){desc_suffix}"
+                        )
+                errors.append("Expected schema:\n" + "\n".join(hint_parts))
+
     return errors
 
 
@@ -1951,6 +1970,20 @@ class ResearchCache:
         now = int(datetime.now().timestamp())
 
         with self._connect() as conn:
+            # Escape FTS5 special characters by wrapping each token in double quotes.
+            # Characters like . : ( ) * - break FTS5 query syntax.
+            import re as _re
+
+            fts_tokens = query.split()
+            escaped_tokens = []
+            for token in fts_tokens:
+                # If token contains FTS5 special chars, wrap in double quotes
+                if _re.search(r'[.:()\-*{}"\[\]]', token):
+                    # Escape any internal double quotes
+                    token = '"' + token.replace('"', '""') + '"'
+                escaped_tokens.append(token)
+            fts_query = " ".join(escaped_tokens)
+
             # Build query with optional expiry filter
             sql = """
                 SELECT
@@ -1962,7 +1995,7 @@ class ResearchCache:
                 JOIN research_entries e ON f.rowid = e.id
                 WHERE research_fts MATCH ?
             """
-            params: list = [query]
+            params: list = [fts_query]
 
             if not include_expired:
                 sql += " AND e.expires_at > ?"
