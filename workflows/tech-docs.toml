@@ -230,7 +230,7 @@ prompt = """
 Get comprehensive feedback on documentation quality.
 
 Link validation and slop detection are cheap — always re-run these on re-review.
-Only skip codex-reviewer if its Critical items are all resolved.
+Only skip Codex if its Critical items are all resolved.
 
 ## Tasks
 
@@ -268,7 +268,7 @@ Launch an Opus subagent for content review:
 - Tag each item as **Critical**, **Suggestion**, or **Nit**
 
 ### 4. Codex Accuracy Review
-Launch codex-reviewer for technical accuracy:
+Launch a Codex task (executor: codex-rescue) for technical accuracy:
 - Verify code examples compile/parse
 - Check function signatures match code
 - Verify claimed behavior matches implementation
@@ -282,7 +282,7 @@ Write `review-feedback.md` with severity-tagged feedback organized by source:
 - Link validation results (Critical for broken links)
 - Slop detection findings (Critical for high-severity slop)
 - Content feedback from Opus editorial review (Critical/Suggestion/Nit)
-- Technical accuracy issues from codex-reviewer (Critical/Suggestion/Nit)
+- Technical accuracy issues from Codex (Critical/Suggestion/Nit)
 """
 suggested_next = [
     { phase = "revise", instruction = "Feedback received — incorporate changes" }

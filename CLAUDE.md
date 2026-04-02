@@ -340,7 +340,7 @@ Tasks in `tasks.json` support these fields:
 | `question` | For prototype tasks: the question being answered |
 | `hypothesis` | For prototype tasks: expected outcome |
 | `inject_project_context` | Include project CLAUDE.md in task prompt (default: false) |
-| `executor` | Execution method: `task-tool` (default) or `codex-cli` (via codex exec CLI) |
+| `executor` | Execution method: `task-tool` (default), `codex-cli` (via codex exec CLI), or `codex-rescue` (via /codex:rescue skill) |
 | `inject_phase_prompt` | When true, inject current phase's prompt into task prompt (default: false) |
 | `locks` | Lock names for exclusive access - files, tools, or resources (e.g., `"cargo"`, `"browser"`) |
 

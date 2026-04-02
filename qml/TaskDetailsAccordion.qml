@@ -116,7 +116,6 @@ Rectangle {
                                 switch(root.task.subagent) {
                                     case "Explore": return "#7986CB"
                                     case "general-purpose": return "#81C784"
-                                    case "codex-reviewer": return "#FFB74D"
                                     default: return Theme.textMuted
                                 }
                             }
@@ -131,7 +130,6 @@ Rectangle {
                                     switch(root.task.subagent) {
                                         case "Explore": return "#5C6BC0"
                                         case "general-purpose": return "#4CAF50"
-                                        case "codex-reviewer": return "#F57C00"
                                         default: return Theme.textSecondary
                                     }
                                 }

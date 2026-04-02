@@ -157,6 +157,31 @@ EXIT_CODE=$?
 
 Do NOT use the Task tool for codex-cli tasks. The codex CLI is invoked directly via Bash.
 
+## Codex Rescue Execution
+
+When a task has `"executor": "codex-rescue"`, execute it via the `/codex:rescue` skill instead of the Task tool. This passes the full task prompt to Codex for review/analysis work.
+
+### Execution
+1. Build the task prompt:
+   ```bash
+   PROMPT=$(uv run ~/.claude-plugins/jons-plan/plan.py build-task-prompt <task-id>)
+   ```
+2. Ensure the task output directory exists:
+   ```bash
+   TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
+   ```
+3. Invoke the skill:
+   ```
+   Skill(skill: "codex:rescue", args: "--wait <prompt>")
+   ```
+4. Save Codex's response to `output.md` in the task directory.
+
+### Post-execution
+- If Codex fails or returns empty output: mark the task as blocked with `blockers.md`
+- If successful: write the output, log completion, and mark the task done
+
+Do NOT use the Task tool for codex-rescue tasks.
+
 ## Planning Panel: Parallel Execution
 
 When a phase has `planning_panel = true`, it will have two independent planning tasks (opus-planning, codex-planning) that feed into a synthesis task. **Both planning tasks MUST be launched simultaneously in a single message.**

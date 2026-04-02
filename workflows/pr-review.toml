@@ -70,7 +70,7 @@ use_tasks = true
 required_tasks = [
   { id = "pr-slop-detection", description = "Scan PR for AI-generated writing patterns", subagent = "general-purpose", prompt_file = "slop-detection", model = "haiku" },
   { id = "opus-editorial-review", description = "Opus review for clarity and comprehension", subagent = "general-purpose", subagent_prompt = "Check: clarity, completeness, logical organization, appropriate detail level, missing context, whether motivation is clear, reader comprehension (would an unfamiliar reviewer understand?), review tour quality, unanswered questions, whether PR is self-contained", model = "opus" },
-  { id = "codex-technical-review", description = "Codex review for technical accuracy", subagent = "codex-reviewer", subagent_prompt = "Check: technical accuracy, correct terminology, verify PR claims against actual diff (are all major changes mentioned? any misleading claims?), missing implementation details, testing section adequacy, consistency between summary and changes, file reference correctness" },
+  { id = "codex-technical-review", description = "Codex review for technical accuracy. Check: technical accuracy, correct terminology, verify PR claims against actual diff (are all major changes mentioned? any misleading claims?), missing implementation details, testing section adequacy, consistency between summary and changes, file reference correctness.", executor = "codex-rescue" },
   { id = "synthesize-feedback", description = "Synthesize all feedback into review-feedback.md", parents = ["pr-slop-detection", "opus-editorial-review", "codex-technical-review"] },
 ]
 prompt = """

@@ -221,13 +221,9 @@ Get multiple external perspectives on the plan.
 
 ## Tasks
 
-1. Launch an Opus subagent for plan review (skip on re-review if no unresolved Critical items from Opus)
-2. Launch codex-reviewer for second opinion (skip on re-review if no unresolved Critical items from codex)
+1. Launch an Opus subagent (subagent: general-purpose, model: opus) for plan review (skip on re-review if no unresolved Critical items from Opus)
+2. Launch a Codex task (executor: codex-rescue) for second opinion (skip on re-review if no unresolved Critical items from Codex)
 3. Collect all feedback with severity levels
-
-**Important for reviewer tasks:**
-- Do NOT include `model` field (reviewers use their own external models)
-- Do NOT include `subagent_prompt` field (not used for reviewers)
 
 **Reviewer prompts should focus on:**
 
@@ -238,7 +234,7 @@ Get multiple external perspectives on the plan.
 - Are dependencies correctly identified?
 - Tag each item as **Critical**, **Suggestion**, or **Nit**
 
-**codex-reviewer:**
+**Codex reviewer (executor: codex-rescue):**
 - Is the technical approach sound?
 - Are there better architectural choices?
 - Any potential implementation pitfalls?

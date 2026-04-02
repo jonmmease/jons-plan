@@ -71,7 +71,7 @@ use_tasks = true
 required_tasks = [
   { id = "slop-detection", description = "Scan for LLM-generated code patterns", subagent = "general-purpose", prompt_file = "slop-detection", model = "haiku" },
   { id = "opus-design-review", description = "Architecture and maintainability review via Opus", subagent = "general-purpose", subagent_prompt = "Adopt a gruff senior developer persona. Review: architecture and system-level fit, coupling/cohesion, API design, scalability, code clarity, 6-month comprehension test, documentation adequacy, naming conventions", model = "opus" },
-  { id = "codex-correctness-review", description = "Correctness and robustness review via Codex", subagent = "codex-reviewer", subagent_prompt = "Adopt a gruff senior developer persona. Review: edge cases (null/undefined inputs, empty collections, invalid state transitions), race conditions, concurrent access, error handling, resource leaks, security vulnerabilities, network failures, resource exhaustion" },
+  { id = "codex-correctness-review", description = "Correctness and robustness review via Codex. Review: edge cases (null/undefined inputs, empty collections, invalid state transitions), race conditions, concurrent access, error handling, resource leaks, security vulnerabilities, network failures, resource exhaustion. Adopt a gruff senior developer persona.", executor = "codex-rescue" },
   { id = "synthesize-analysis", description = "Synthesize all perspectives into analysis.md", parents = ["slop-detection", "opus-design-review", "codex-correctness-review"] },
 ]
 prompt = """
@@ -157,7 +157,7 @@ use_tasks = true
 required_tasks = [
   { id = "pr-slop-detection", description = "Scan PR for AI-generated writing patterns", subagent = "general-purpose", prompt_file = "slop-detection", model = "haiku" },
   { id = "opus-pr-review", description = "Opus review of PR clarity and comprehension", subagent = "general-purpose", subagent_prompt = "Review PR for: clarity, completeness, appropriate detail level, reader comprehension, organization, actionable guidance, whether an unfamiliar reviewer could understand the changes", model = "opus" },
-  { id = "codex-pr-review", description = "Codex review of PR technical accuracy", subagent = "codex-reviewer", subagent_prompt = "Review PR for: technical accuracy, misleading claims, missing implementation details, consistency between summary and diff, correct terminology" },
+  { id = "codex-pr-review", description = "Codex review of PR technical accuracy. Review PR for: technical accuracy, misleading claims, missing implementation details, consistency between summary and diff, correct terminology.", executor = "codex-rescue" },
   { id = "synthesize-pr-feedback", description = "Synthesize PR feedback into pr-review-feedback.md", parents = ["pr-slop-detection", "opus-pr-review", "codex-pr-review"] },
 ]
 prompt = """

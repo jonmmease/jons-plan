@@ -140,9 +140,9 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 ```
 
 Key optional fields:
-- `subagent`: Agent type (`general-purpose`, `codex-reviewer`)
+- `subagent`: Agent type (`general-purpose`)
 - `model`: Model override (`sonnet`, `haiku`, `opus`)
-- `executor`: Execution method (`task-tool`, `codex-cli`)
+- `executor`: Execution method (`task-tool`, `codex-cli`, `codex-rescue`)
 - `context_artifacts`: Artifact names to inject from phase history
 - `prompt_file`: Plugin prompt to inject (e.g., `"slop-detection"`)
 - `inject_phase_prompt`: Include phase prompt in task context

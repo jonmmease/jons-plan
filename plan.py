@@ -37,7 +37,7 @@ Create `tasks.json` as a JSON array of task objects:
 | `steps` | No | Array of concrete steps |
 | `parents` | No | Task IDs that must complete first (empty `[]` if none) |
 | `context_artifacts` | No | Artifact names to include (e.g., `["request", "design"]`) |
-| `subagent` | No | Agent type: `general-purpose` (default), `codex-reviewer` |
+| `subagent` | No | Agent type: `general-purpose` (default) |
 | `subagent_prompt` | No | Additional context (e.g., `"very thorough analysis"`) |
 | `model` | No | `sonnet` (default), `haiku`, `opus` |
 | `question` | No | For prototype tasks: the question being answered |
@@ -2504,7 +2504,7 @@ def validate_task_schema(task: dict) -> list[str]:
     if "status" in task and task["status"] not in ("todo", "in-progress", "done", "blocked"):
         errors.append(f"Invalid status: {task['status']}")
 
-    valid_subagents = ("general-purpose", "Explore", "Plan", "claude-code-guide", "codex-reviewer")  # Explore/Plan kept for backwards compat
+    valid_subagents = ("general-purpose", "Explore", "Plan", "claude-code-guide")  # Explore/Plan kept for backwards compat
     if "subagent" in task and task["subagent"] not in valid_subagents:
         errors.append(f"Invalid subagent: {task['subagent']}")
 
@@ -2512,7 +2512,7 @@ def validate_task_schema(task: dict) -> list[str]:
     if "model" in task and task["model"] not in valid_models:
         errors.append(f"Invalid model: {task['model']}")
 
-    valid_executors = ("task-tool", "codex-cli")
+    valid_executors = ("task-tool", "codex-cli", "codex-rescue")
     if "executor" in task and task["executor"] not in valid_executors:
         errors.append(f"Invalid executor: {task['executor']}")
 
