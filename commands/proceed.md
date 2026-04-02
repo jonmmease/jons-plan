@@ -148,21 +148,51 @@ For each available task:
    - If `executor` is `"codex-rescue"`: follow the "Codex Rescue Execution" instructions in task-execution.md
    - If `executor` is `"codex-review"`: follow the "Codex Review Execution" instructions in task-execution.md
    - If `executor` is `"codex-adversarial-review"`: follow the "Codex Adversarial Review Execution" instructions in task-execution.md
-   - Otherwise (default): use the standard Task tool dispatch or execute directly
+   - Otherwise (default): decide between subagent dispatch or direct execution per the rules below
 
-3. **Execute the task steps**: Work through each step in the task's `steps` array.
+3. **Decide: subagent or direct execution**
 
-3. **Log progress** as you work:
+   **Execute directly** when the task is simple (1-3 steps), requires interactive decisions, or its output affects what you do next.
+
+   **Use subagents (Agent tool)** when:
+   - Task is self-contained with clear inputs/outputs
+   - Multiple independent tasks can run in parallel
+   - Task is complex enough to benefit from isolated context
+   - Task has `subagent` or `model` specified in its config
+
+   Default: execute directly unless parallelization benefits are clear or the task config specifies subagent settings.
+
+   **Parallelization:** Tasks without shared parents can run in parallel via subagents, but ONLY if they won't edit files in the same directories. If ANY task becomes blocked, stop all parallel execution.
+
+   **To launch a subagent**, build the prompt and dispatch:
+   ```bash
+   PROMPT=$(uv run ~/.claude-plugins/jons-plan/plan.py build-task-prompt <task-id>)
+   ```
+   Then call the Agent tool:
+   ```
+   Agent(
+     subagent_type: task.subagent or "general-purpose",
+     model: task.model (if specified),
+     prompt: $PROMPT
+   )
+   ```
+   Always use `general-purpose` as the subagent type — do not use `Explore` or `Plan` as they cannot write output files. Honor the task's `model` field if set.
+
+   **Stateful MCP servers** (browser automation, database connections) cannot be safely used by parallel subagents — only one agent should interact with them at a time.
+
+4. **Execute the task steps**: Work through each step in the task's `steps` array.
+
+5. **Log progress** as you work:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "Completed step: ..."
    ```
 
-4. **On successful completion**:
+6. **On successful completion**:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py set-status <task-id> done
    ```
 
-5. **If task cannot be completed** (see When to Block below):
+7. **If task cannot be completed** (see When to Block below):
    - Create blockers.md explaining the issue
    - Mark as blocked and transition to planning
 
