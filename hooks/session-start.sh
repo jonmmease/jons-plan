@@ -35,6 +35,12 @@ while [[ "$PROJECT_DIR" != "/" ]]; do
 done
 echo "PROJECT_DIR: ${PROJECT_DIR}" >> "$DEBUG_LOG"
 
+# Migrate from old .claude/jons-plan/ to .jons-plan/ if needed
+if [[ -d "${PROJECT_DIR}/.claude/jons-plan" ]] && [[ ! -d "${PROJECT_DIR}/.jons-plan" ]]; then
+    mv "${PROJECT_DIR}/.claude/jons-plan" "${PROJECT_DIR}/.jons-plan"
+    echo "Migrated plan data: .claude/jons-plan/ -> .jons-plan/" >&2
+fi
+
 PLANS_DIR="${PROJECT_DIR}/.jons-plan/plans"
 
 # Get active plan

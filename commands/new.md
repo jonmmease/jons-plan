@@ -217,8 +217,12 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 ```
 
 1. If in a git repo, ensure `.jons-plan/` is in `.git/info/exclude` (do NOT modify `.gitignore`)
-2. Create directory:
+2. Migrate old data if needed, then create directory:
    ```bash
+   # Migrate from old location if needed
+   if [ -d "$PROJECT_ROOT/.claude/jons-plan" ] && [ ! -d "$PROJECT_ROOT/.jons-plan" ]; then
+     mv "$PROJECT_ROOT/.claude/jons-plan" "$PROJECT_ROOT/.jons-plan"
+   fi
    mkdir -p "$PROJECT_ROOT/.jons-plan/plans/<plan-name>"
    ```
 3. **Immediately after creating the directory**, set active and mode (this ensures plan context is preserved if compaction occurs):
