@@ -148,7 +148,12 @@ When a task has `"executor": "codex-rescue"`, execute it via the `/codex:rescue`
 3. Invoke the skill:
    - **Foreground** (standalone tasks): `Skill(skill: "codex:rescue", args: "--fresh --wait <prompt>")`
    - **Background** (parallel tasks, e.g. planning panel): `Skill(skill: "codex:rescue", args: "--fresh --background <prompt>")`
-4. Save Codex's response to `output.md` in the task directory.
+4. **Symlink the Codex log** so the viewer shows live progress:
+   ```bash
+   CODEX_LOG=$(ls -t "${CLAUDE_PLUGIN_DATA}/state"/*/jobs/*.log 2>/dev/null | head -1)
+   if [[ -n "$CODEX_LOG" ]]; then ln -sf "$CODEX_LOG" "$TASK_DIR/progress.txt"; fi
+   ```
+5. Save Codex's response to `output.md` in the task directory.
 
 ### Post-execution
 - If Codex fails or returns empty output: mark the task as blocked with `blockers.md`
@@ -169,7 +174,12 @@ When a task has `"executor": "codex-review"`, run a general Codex code review ag
    - Branch review: `Skill(skill: "codex:review", args: "--wait --scope branch")`
    - With explicit base: `Skill(skill: "codex:review", args: "--wait --base <ref>")`
    - Use `--base` if you know the merge-base from the gather phase or earlier context
-3. Save Codex's response to `output.md` in the task directory.
+3. **Symlink the Codex log** so the viewer shows live progress:
+   ```bash
+   CODEX_LOG=$(ls -t "${CLAUDE_PLUGIN_DATA}/state"/*/jobs/*.log 2>/dev/null | head -1)
+   if [[ -n "$CODEX_LOG" ]]; then ln -sf "$CODEX_LOG" "$TASK_DIR/progress.txt"; fi
+   ```
+4. Save Codex's response to `output.md` in the task directory.
 
 ### Post-execution
 - If Codex fails or returns empty output: mark the task as blocked with `blockers.md`
@@ -189,7 +199,12 @@ When a task has `"executor": "codex-adversarial-review"`, run a Codex adversaria
    - With explicit base: `Skill(skill: "codex:adversarial-review", args: "--wait --base <ref> <focus-text>")`
    - The focus text should come from the task's `description` field
    - Use `--base` if you know the merge-base from the gather phase or earlier context
-3. Save Codex's response to `output.md` in the task directory.
+3. **Symlink the Codex log** so the viewer shows live progress:
+   ```bash
+   CODEX_LOG=$(ls -t "${CLAUDE_PLUGIN_DATA}/state"/*/jobs/*.log 2>/dev/null | head -1)
+   if [[ -n "$CODEX_LOG" ]]; then ln -sf "$CODEX_LOG" "$TASK_DIR/progress.txt"; fi
+   ```
+4. Save Codex's response to `output.md` in the task directory.
 
 ### Post-execution
 - If Codex fails or returns empty output: mark the task as blocked with `blockers.md`
