@@ -150,7 +150,8 @@ When a task has `"executor": "codex-rescue"`, execute it via the `/codex:rescue`
    - **Background** (parallel tasks, e.g. planning panel): `Skill(skill: "codex:rescue", args: "--fresh --background <prompt>")`
 4. **Symlink the Codex log** so the viewer shows live progress:
    ```bash
-   CODEX_LOG=$(ls -t "${CLAUDE_PLUGIN_DATA}/state"/*/jobs/*.log 2>/dev/null | head -1)
+   WS=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+   CODEX_LOG=$(ls -t "${CLAUDE_PLUGIN_DATA}/state/${WS}-"*/jobs/*.log 2>/dev/null | head -1)
    if [[ -n "$CODEX_LOG" ]]; then ln -sf "$CODEX_LOG" "$TASK_DIR/progress.txt"; fi
    ```
 5. Save Codex's response to `output.md` in the task directory.
@@ -176,7 +177,8 @@ When a task has `"executor": "codex-review"`, run a general Codex code review ag
    - Use `--base` if you know the merge-base from the gather phase or earlier context
 3. **Symlink the Codex log** so the viewer shows live progress:
    ```bash
-   CODEX_LOG=$(ls -t "${CLAUDE_PLUGIN_DATA}/state"/*/jobs/*.log 2>/dev/null | head -1)
+   WS=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+   CODEX_LOG=$(ls -t "${CLAUDE_PLUGIN_DATA}/state/${WS}-"*/jobs/*.log 2>/dev/null | head -1)
    if [[ -n "$CODEX_LOG" ]]; then ln -sf "$CODEX_LOG" "$TASK_DIR/progress.txt"; fi
    ```
 4. Save Codex's response to `output.md` in the task directory.
@@ -201,7 +203,8 @@ When a task has `"executor": "codex-adversarial-review"`, run a Codex adversaria
    - Use `--base` if you know the merge-base from the gather phase or earlier context
 3. **Symlink the Codex log** so the viewer shows live progress:
    ```bash
-   CODEX_LOG=$(ls -t "${CLAUDE_PLUGIN_DATA}/state"/*/jobs/*.log 2>/dev/null | head -1)
+   WS=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+   CODEX_LOG=$(ls -t "${CLAUDE_PLUGIN_DATA}/state/${WS}-"*/jobs/*.log 2>/dev/null | head -1)
    if [[ -n "$CODEX_LOG" ]]; then ln -sf "$CODEX_LOG" "$TASK_DIR/progress.txt"; fi
    ```
 4. Save Codex's response to `output.md` in the task directory.
