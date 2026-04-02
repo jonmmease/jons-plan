@@ -312,7 +312,7 @@ Each task should follow this schema:
 | `parents` | Yes | Array of task IDs that must complete first (empty `[]` if none) |
 | `steps` | Yes | Array of steps to complete the task |
 | `status` | Yes | Always `"todo"` when creating (execution changes to `in-progress`, `done`) |
-| `subagent` | No | `general-purpose` (default), `gemini-reviewer`, `codex-reviewer`. See **Subagent Types** below. |
+| `subagent` | No | `general-purpose` (default), `codex-reviewer`. See **Subagent Types** below. |
 | `subagent_prompt` | No | Additional context (e.g., "very thorough analysis") |
 | `model` | No | `sonnet` (default), `haiku`, `opus` |
 | `resources` | No | Array of resource identifiers requiring exclusive access |
@@ -392,7 +392,6 @@ Tasks sharing resources are serialized even without parent dependencies. Use for
 | Subagent | Use For |
 |----------|---------|
 | `general-purpose` | Default for all tasks — research, implementation, analysis. Can read and write files. |
-| `gemini-reviewer` | External review via Gemini |
 | `codex-reviewer` | External review via Codex |
 
 **Always use `general-purpose`** (the default) for research and implementation tasks. Research tasks that shouldn't modify project code are constrained via prompt instructions, not by using read-only agent types.

@@ -70,11 +70,9 @@ id = "analyze"
 use_tasks = true
 required_tasks = [
   { id = "slop-detection", description = "Scan for LLM-generated code patterns", subagent = "general-purpose", prompt_file = "slop-detection", model = "haiku" },
-  { id = "edge-case-adversary", description = "Identify assumptions that could be violated", subagent = "general-purpose", subagent_prompt = "Adopt a gruff senior developer persona. Find edge cases: null/undefined inputs, empty collections, concurrent access, network failures, resource exhaustion, invalid state transitions", model = "opus" },
-  { id = "architect-review", description = "Architectural review via Gemini", subagent = "gemini-reviewer", subagent_prompt = "Adopt a gruff senior developer persona. Review architecture: system-level fit, architectural drift, coupling/cohesion, API design, scalability" },
-  { id = "bug-hunter-review", description = "Bug hunting review via Codex", subagent = "codex-reviewer", subagent_prompt = "Adopt a gruff senior developer persona. Hunt bugs: edge cases, race conditions, error handling, resource leaks, security vulnerabilities" },
-  { id = "maintainer-review", description = "Maintainability review", subagent = "general-purpose", subagent_prompt = "Adopt a gruff senior developer persona. Review maintainability: code clarity, 6-month comprehension test, documentation adequacy, test coverage, naming", model = "opus" },
-  { id = "synthesize-analysis", description = "Synthesize all perspectives into analysis.md", parents = ["slop-detection", "edge-case-adversary", "architect-review", "bug-hunter-review", "maintainer-review"] },
+  { id = "opus-design-review", description = "Architecture and maintainability review via Opus", subagent = "general-purpose", subagent_prompt = "Adopt a gruff senior developer persona. Review: architecture and system-level fit, coupling/cohesion, API design, scalability, code clarity, 6-month comprehension test, documentation adequacy, naming conventions", model = "opus" },
+  { id = "codex-correctness-review", description = "Correctness and robustness review via Codex", subagent = "codex-reviewer", subagent_prompt = "Adopt a gruff senior developer persona. Review: edge cases (null/undefined inputs, empty collections, invalid state transitions), race conditions, concurrent access, error handling, resource leaks, security vulnerabilities, network failures, resource exhaustion" },
+  { id = "synthesize-analysis", description = "Synthesize all perspectives into analysis.md", parents = ["slop-detection", "opus-design-review", "codex-correctness-review"] },
 ]
 prompt = """
 # Analyze Phase
@@ -158,10 +156,9 @@ id = "review-draft"
 use_tasks = true
 required_tasks = [
   { id = "pr-slop-detection", description = "Scan PR for AI-generated writing patterns", subagent = "general-purpose", prompt_file = "slop-detection", model = "haiku" },
-  { id = "gemini-pr-review", description = "Gemini review of PR description", subagent = "gemini-reviewer", subagent_prompt = "Review PR for clarity, completeness, accurate summary, appropriate detail level, missing context" },
-  { id = "codex-pr-review", description = "Codex review of PR description", subagent = "codex-reviewer", subagent_prompt = "Review PR for technical accuracy, misleading claims, missing details, consistency with diff" },
-  { id = "opus-pr-review", description = "Opus review of PR description", subagent = "general-purpose", subagent_prompt = "Review PR for reader comprehension, reviewer understanding, organization, actionable guidance", model = "opus" },
-  { id = "synthesize-pr-feedback", description = "Synthesize PR feedback into pr-review-feedback.md", parents = ["pr-slop-detection", "gemini-pr-review", "codex-pr-review", "opus-pr-review"] },
+  { id = "opus-pr-review", description = "Opus review of PR clarity and comprehension", subagent = "general-purpose", subagent_prompt = "Review PR for: clarity, completeness, appropriate detail level, reader comprehension, organization, actionable guidance, whether an unfamiliar reviewer could understand the changes", model = "opus" },
+  { id = "codex-pr-review", description = "Codex review of PR technical accuracy", subagent = "codex-reviewer", subagent_prompt = "Review PR for: technical accuracy, misleading claims, missing implementation details, consistency between summary and diff, correct terminology" },
+  { id = "synthesize-pr-feedback", description = "Synthesize PR feedback into pr-review-feedback.md", parents = ["pr-slop-detection", "opus-pr-review", "codex-pr-review"] },
 ]
 prompt = """
 # Review Draft Phase

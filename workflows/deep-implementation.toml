@@ -221,7 +221,7 @@ Get multiple external perspectives on the plan.
 
 ## Tasks
 
-1. Launch gemini-reviewer for plan review (skip on re-review if no unresolved Critical items from gemini)
+1. Launch an Opus subagent for plan review (skip on re-review if no unresolved Critical items from Opus)
 2. Launch codex-reviewer for second opinion (skip on re-review if no unresolved Critical items from codex)
 3. Collect all feedback with severity levels
 
@@ -231,7 +231,7 @@ Get multiple external perspectives on the plan.
 
 **Reviewer prompts should focus on:**
 
-**gemini-reviewer:**
+**Opus reviewer (subagent: general-purpose, model: opus):**
 - Is the plan complete? Any missing steps?
 - Are there blind spots or unconsidered edge cases?
 - Is the task breakdown logical and well-sequenced?

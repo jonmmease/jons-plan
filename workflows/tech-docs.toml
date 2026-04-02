@@ -230,7 +230,7 @@ prompt = """
 Get comprehensive feedback on documentation quality.
 
 Link validation and slop detection are cheap — always re-run these on re-review.
-Only skip gemini-reviewer or codex-reviewer if their Critical items are all resolved.
+Only skip codex-reviewer if its Critical items are all resolved.
 
 ## Tasks
 
@@ -259,8 +259,8 @@ Key patterns for documentation:
 - Short sentences
 - Plain words: "use" not "utilize"
 
-### 3. Gemini Editorial Review
-Launch gemini-reviewer for content review:
+### 3. Opus Editorial Review
+Launch an Opus subagent for content review:
 - Evaluate document structure and navigation
 - Check logical flow between sections
 - Identify gaps (unanswered reader questions)
@@ -281,7 +281,7 @@ Launch codex-reviewer for technical accuracy:
 Write `review-feedback.md` with severity-tagged feedback organized by source:
 - Link validation results (Critical for broken links)
 - Slop detection findings (Critical for high-severity slop)
-- Content feedback from gemini-reviewer (Critical/Suggestion/Nit)
+- Content feedback from Opus editorial review (Critical/Suggestion/Nit)
 - Technical accuracy issues from codex-reviewer (Critical/Suggestion/Nit)
 """
 suggested_next = [

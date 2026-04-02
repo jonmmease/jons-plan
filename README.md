@@ -8,7 +8,6 @@ A Claude Code plugin inspired by Anthropic's [Effective Harnesses for Long-Runni
 - **uv** - Python package runner (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - **graphviz** (optional) - For workflow viewer (`brew install graphviz`)
 - **Codex CLI** (optional) - For planning panel (`npm install -g @openai/codex`)
-- **Gemini CLI** (optional) - For planning panel (`npm install -g @anthropic/gemini-cli`)
 
 ## Installation
 
@@ -34,7 +33,7 @@ When AI agents work on complex projects that span multiple context windows, each
 - **PreCompact hook** to preserve state during context compaction
 - **Parallel task execution** via subagents for independent work
 - **Workflow-based execution** with phase transitions and state machine
-- **Planning panel** — 3-agent parallel planning (Opus + Codex CLI + Gemini CLI) with senior-architect synthesis
+- **Planning panel** — 2-agent parallel planning (Opus + Codex CLI) with senior-architect synthesis
 - **Artifact system** with phase-level and plan-level artifact tracking
 - **Dead-end tracking** to prevent repeating failed approaches
 
@@ -62,12 +61,11 @@ Works incrementally on tasks across sessions:
 
 ### Planning Panel
 
-Workflows with `planning_panel = true` use three independent agents to generate plans in parallel, then a senior synthesis agent reviews all three and produces the definitive plan:
+Workflows with `planning_panel = true` use two independent agents to generate plans in parallel, then a senior synthesis agent reviews both and produces the definitive plan:
 
 1. **Opus** — via Claude Code Task tool
 2. **Codex** — via Codex CLI (background)
-3. **Gemini** — via Gemini CLI (background)
-4. **Synthesis** — Opus reviews all three, investigates disagreements, dismisses weak ideas, and produces the final plan
+3. **Synthesis** — Opus reviews both, investigates disagreements, dismisses weak ideas, and produces the final plan
 
 The synthesis agent has full authority to investigate the codebase, dismiss incorrect concerns, add missing elements, and restructure the plan. It is not a mechanical merger — it is the decision-maker.
 
@@ -142,9 +140,9 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 ```
 
 Key optional fields:
-- `subagent`: Agent type (`general-purpose`, `gemini-reviewer`, `codex-reviewer`)
+- `subagent`: Agent type (`general-purpose`, `codex-reviewer`)
 - `model`: Model override (`sonnet`, `haiku`, `opus`)
-- `executor`: Execution method (`task-tool`, `codex-cli`, `gemini-cli`)
+- `executor`: Execution method (`task-tool`, `codex-cli`)
 - `context_artifacts`: Artifact names to inject from phase history
 - `prompt_file`: Plugin prompt to inject (e.g., `"slop-detection"`)
 - `inject_phase_prompt`: Include phase prompt in task context

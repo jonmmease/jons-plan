@@ -37,7 +37,7 @@ Create `tasks.json` as a JSON array of task objects:
 | `steps` | No | Array of concrete steps |
 | `parents` | No | Task IDs that must complete first (empty `[]` if none) |
 | `context_artifacts` | No | Artifact names to include (e.g., `["request", "design"]`) |
-| `subagent` | No | Agent type: `general-purpose` (default), `gemini-reviewer`, `codex-reviewer` |
+| `subagent` | No | Agent type: `general-purpose` (default), `codex-reviewer` |
 | `subagent_prompt` | No | Additional context (e.g., `"very thorough analysis"`) |
 | `model` | No | `sonnet` (default), `haiku`, `opus` |
 | `question` | No | For prototype tasks: the question being answered |
@@ -1075,11 +1075,6 @@ class WorkflowManager:
                     )
                     if not has_codex_executor:
                         errors.append(f"Phase '{phase_id}' has planning_panel=true but no required_task with executor='codex-cli'")
-                    has_gemini_executor = any(
-                        t.get("executor") == "gemini-cli" for t in required_tasks if isinstance(t, dict)
-                    )
-                    if not has_gemini_executor:
-                        errors.append(f"Phase '{phase_id}' has planning_panel=true but no required_task with executor='gemini-cli'")
 
             # Validate required_json_artifacts
             json_artifacts = phase.get("required_json_artifacts", [])
@@ -2509,7 +2504,7 @@ def validate_task_schema(task: dict) -> list[str]:
     if "status" in task and task["status"] not in ("todo", "in-progress", "done", "blocked"):
         errors.append(f"Invalid status: {task['status']}")
 
-    valid_subagents = ("general-purpose", "Explore", "Plan", "claude-code-guide", "gemini-reviewer", "codex-reviewer")  # Explore/Plan kept for backwards compat
+    valid_subagents = ("general-purpose", "Explore", "Plan", "claude-code-guide", "codex-reviewer")  # Explore/Plan kept for backwards compat
     if "subagent" in task and task["subagent"] not in valid_subagents:
         errors.append(f"Invalid subagent: {task['subagent']}")
 
@@ -2517,7 +2512,7 @@ def validate_task_schema(task: dict) -> list[str]:
     if "model" in task and task["model"] not in valid_models:
         errors.append(f"Invalid model: {task['model']}")
 
-    valid_executors = ("task-tool", "codex-cli", "gemini-cli")
+    valid_executors = ("task-tool", "codex-cli")
     if "executor" in task and task["executor"] not in valid_executors:
         errors.append(f"Invalid executor: {task['executor']}")
 
@@ -3000,7 +2995,7 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
 
 
 def cmd_get_execution_cmd(args: argparse.Namespace) -> int:
-    """Build and print the shell command to execute a codex-cli or gemini-cli task."""
+    """Build and print the shell command to execute a codex-cli task."""
     project_dir = get_project_dir()
     plan_dir = get_active_plan_dir(project_dir)
     if not plan_dir:
@@ -3014,8 +3009,8 @@ def cmd_get_execution_cmd(args: argparse.Namespace) -> int:
         return 1
 
     executor = task.get("executor", "task-tool")
-    if executor not in ("codex-cli", "gemini-cli"):
-        print(f"Task '{args.task_id}' has executor '{executor}', expected 'codex-cli' or 'gemini-cli'", file=sys.stderr)
+    if executor != "codex-cli":
+        print(f"Task '{args.task_id}' has executor '{executor}', expected 'codex-cli'", file=sys.stderr)
         return 1
 
     # Resolve task directory (create if needed)
@@ -3057,22 +3052,6 @@ def cmd_get_execution_cmd(args: argparse.Namespace) -> int:
             cmd_parts.append("--skip-git-repo-check")
 
         cmd_parts.append(f"2>\"{stderr_file}\"")
-
-    elif executor == "gemini-cli":
-        # Save prompt to temp file and pass via --prompt flag
-        prompt_file = task_dir / "prompt.txt"
-        cmd_parts = [
-            f"uv run {plugin_path} build-task-prompt {args.task_id}",
-            f">\"{prompt_file}\"",
-            "&&",
-            "gemini",
-            "--sandbox",
-            "--output-format text",
-            "-m gemini-3-pro-preview",
-            f"--prompt \"$(cat \"{prompt_file}\")\"",
-            f">\"{output_file}\"",
-            f"2>\"{stderr_file}\"",
-        ]
 
     print(" ".join(cmd_parts))
     return 0

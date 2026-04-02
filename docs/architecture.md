@@ -251,7 +251,6 @@ uv run ~/.claude-plugins/jons-plan/plan.py task-log <task-id> "message"
 | Type | Use Case |
 |------|----------|
 | `general-purpose` | Default. Research, implementation, any task that reads or writes files |
-| `gemini-reviewer` | External review via Gemini 3 Pro |
 | `codex-reviewer` | External review via GPT-5-codex |
 
 ### Model Selection

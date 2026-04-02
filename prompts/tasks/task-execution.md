@@ -157,63 +157,35 @@ EXIT_CODE=$?
 
 Do NOT use the Task tool for codex-cli tasks. The codex CLI is invoked directly via Bash.
 
-## Gemini CLI Execution
-
-When a task has `"executor": "gemini-cli"`, execute it via the Gemini CLI instead of the Task tool.
-
-### Pre-flight Check (once per phase)
-```bash
-gemini --version >/dev/null 2>&1 || echo "ERROR: gemini CLI not found in PATH"
-```
-
-### Execution
-Run the command with a **15-minute timeout** (Bash tool `timeout: 900000`):
-```bash
-CMD=$(uv run ~/.claude-plugins/jons-plan/plan.py get-execution-cmd <task-id>)
-eval "$CMD"
-EXIT_CODE=$?
-```
-
-### Post-execution
-- If exit code is non-zero or output file is empty:
-  1. Create `blockers.md` in the task directory with the command, exit code, and stderr excerpt
-  2. Mark the task as blocked
-- If successful: log completion and mark the task done
-
-Do NOT use the Task tool for gemini-cli tasks. The gemini CLI is invoked directly via Bash.
-
 ## Planning Panel: Parallel Execution
 
-When a phase has `planning_panel = true`, it will have three independent planning tasks (opus-planning, codex-planning, gemini-planning) that feed into a synthesis task. **All three planning tasks MUST be launched simultaneously in a single message.**
+When a phase has `planning_panel = true`, it will have two independent planning tasks (opus-planning, codex-planning) that feed into a synthesis task. **Both planning tasks MUST be launched simultaneously in a single message.**
 
-Each task uses a different execution mechanism, but they can all be dispatched in one response:
+Each task uses a different execution mechanism, but they can both be dispatched in one response:
 - **opus-planning** (executor: `task-tool`) — launch via Task tool
 - **codex-planning** (executor: `codex-cli`) — launch via Bash with `run_in_background: true`
-- **gemini-planning** (executor: `gemini-cli`) — launch via Bash with `run_in_background: true`
 
-### Example: Single message with 3 parallel tool calls
+### Example: Single message with 2 parallel tool calls
 
 ```
 1. Task tool → opus-planning subagent (model: opus)
 2. Bash tool (background) → eval codex-cli command (timeout: 900000)
-3. Bash tool (background) → eval gemini-cli command (timeout: 900000)
 ```
 
-**Set all three to `in-progress` before launching.**
+**Set both to `in-progress` before launching.**
 
 ### Waiting for Completion
 
-After launching all three tasks:
+After launching both tasks:
 1. The Task tool call (opus) will block until complete
-2. The background Bash calls (codex, gemini) return task IDs immediately
-3. **You MUST use TaskOutput to wait for the background tasks before proceeding:**
+2. The background Bash call (codex) returns a task ID immediately
+3. **You MUST use TaskOutput to wait for the background task before proceeding:**
 
 ```
 TaskOutput(task_id: <codex-task-id>, block: true, timeout: 900000)
-TaskOutput(task_id: <gemini-task-id>, block: true, timeout: 900000)
 ```
 
-Only after **all three tasks complete** should you proceed to the synthesis task.
+Only after **both tasks complete** should you proceed to the synthesis task.
 
 **Do NOT run these sequentially.** The entire point of the planning panel is to get independent perspectives generated in parallel.
 
