@@ -83,9 +83,9 @@
       },
       "executor": {
         "type": "string",
-        "enum": ["task-tool", "codex-rescue"],
+        "enum": ["task-tool", "codex-rescue", "codex-review", "codex-adversarial-review"],
         "default": "task-tool",
-        "description": "Execution method: task-tool (Claude Code Task) or codex-rescue (via /codex:rescue skill)"
+        "description": "Execution method: task-tool (Claude Code Task), codex-rescue (custom prompt via /codex:rescue), codex-review (general diff review via /codex:review), or codex-adversarial-review (focused diff review via /codex:adversarial-review)"
       },
       "inject_phase_prompt": {
         "type": "boolean",

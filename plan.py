@@ -2512,7 +2512,7 @@ def validate_task_schema(task: dict) -> list[str]:
     if "model" in task and task["model"] not in valid_models:
         errors.append(f"Invalid model: {task['model']}")
 
-    valid_executors = ("task-tool", "codex-rescue")
+    valid_executors = ("task-tool", "codex-rescue", "codex-review", "codex-adversarial-review")
     if "executor" in task and task["executor"] not in valid_executors:
         errors.append(f"Invalid executor: {task['executor']}")
 

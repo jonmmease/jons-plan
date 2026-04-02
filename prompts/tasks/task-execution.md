@@ -156,6 +156,45 @@ When a task has `"executor": "codex-rescue"`, execute it via the `/codex:rescue`
 
 Do NOT use the Task tool for codex-rescue tasks.
 
+## Codex Review Execution
+
+When a task has `"executor": "codex-review"`, run a general Codex code review against the git diff via the `/codex:review` skill. This does not accept custom instructions — it's a general-purpose diff review.
+
+### Execution
+1. Ensure the task output directory exists:
+   ```bash
+   TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
+   ```
+2. Invoke the skill with appropriate scope:
+   - Branch review: `Skill(skill: "codex:review", args: "--wait --scope branch")`
+   - With explicit base: `Skill(skill: "codex:review", args: "--wait --base <ref>")`
+   - Use `--base` if you know the merge-base from the gather phase or earlier context
+3. Save Codex's response to `output.md` in the task directory.
+
+### Post-execution
+- If Codex fails or returns empty output: mark the task as blocked with `blockers.md`
+- If successful: write the output, log completion, and mark the task done
+
+## Codex Adversarial Review Execution
+
+When a task has `"executor": "codex-adversarial-review"`, run a Codex adversarial review against the git diff via the `/codex:adversarial-review` skill. This reviews the diff while challenging design choices and implementation approach, with custom focus text from the task description.
+
+### Execution
+1. Ensure the task output directory exists:
+   ```bash
+   TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
+   ```
+2. Invoke the skill with focus text from the task description:
+   - Branch review: `Skill(skill: "codex:adversarial-review", args: "--wait --scope branch <focus-text>")`
+   - With explicit base: `Skill(skill: "codex:adversarial-review", args: "--wait --base <ref> <focus-text>")`
+   - The focus text should come from the task's `description` field
+   - Use `--base` if you know the merge-base from the gather phase or earlier context
+3. Save Codex's response to `output.md` in the task directory.
+
+### Post-execution
+- If Codex fails or returns empty output: mark the task as blocked with `blockers.md`
+- If successful: write the output, log completion, and mark the task done
+
 ## Planning Panel: Parallel Execution
 
 When a phase has `planning_panel = true`, it will have two independent planning tasks (opus-planning, codex-planning) that feed into a synthesis task. **Both planning tasks MUST be launched simultaneously in a single message.**

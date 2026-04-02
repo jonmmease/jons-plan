@@ -146,6 +146,8 @@ For each available task:
 
 2. **Check executor field**: Before executing, check the task's `executor` field:
    - If `executor` is `"codex-rescue"`: follow the "Codex Rescue Execution" instructions in task-execution.md
+   - If `executor` is `"codex-review"`: follow the "Codex Review Execution" instructions in task-execution.md
+   - If `executor` is `"codex-adversarial-review"`: follow the "Codex Adversarial Review Execution" instructions in task-execution.md
    - Otherwise (default): use the standard Task tool dispatch or execute directly
 
 3. **Execute the task steps**: Work through each step in the task's `steps` array.

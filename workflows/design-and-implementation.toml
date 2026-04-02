@@ -230,8 +230,12 @@ suggested_next = [
 
 [[phases]]
 id = "validate"
+use_tasks = true
 prompt_files = ["validate"]
 context_artifacts = ["verification-plan"]
+required_tasks = [
+  { id = "codex-review", description = "General Codex review of all branch changes", executor = "codex-review" },
+]
 suggested_next = [
     { phase = "complete", instruction = "All checks pass" },
     { phase = "implement", instruction = "Checks failed — fix and retry" },

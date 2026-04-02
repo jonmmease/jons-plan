@@ -354,8 +354,12 @@ suggested_next = [
 
 [[phases]]
 id = "validate"
+use_tasks = true
 prompt_files = ["validate"]
 context_artifacts = ["verification-plan"]
+required_tasks = [
+  { id = "codex-review", description = "General Codex review of all branch changes", executor = "codex-review" },
+]
 prompt = """
 Also check edge cases identified during research phase.
 If a fundamental issue is found, record it in dead-ends.

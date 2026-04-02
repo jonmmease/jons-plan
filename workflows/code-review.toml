@@ -71,7 +71,7 @@ use_tasks = true
 required_tasks = [
   { id = "slop-detection", description = "Scan for LLM-generated code patterns", subagent = "general-purpose", prompt_file = "slop-detection", model = "haiku" },
   { id = "opus-design-review", description = "Architecture and maintainability review via Opus", subagent = "general-purpose", subagent_prompt = "Adopt a gruff senior developer persona. Review: architecture and system-level fit, coupling/cohesion, API design, scalability, code clarity, 6-month comprehension test, documentation adequacy, naming conventions", model = "opus" },
-  { id = "codex-correctness-review", description = "Correctness and robustness review via Codex. Review: edge cases (null/undefined inputs, empty collections, invalid state transitions), race conditions, concurrent access, error handling, resource leaks, security vulnerabilities, network failures, resource exhaustion. Adopt a gruff senior developer persona.", executor = "codex-rescue" },
+  { id = "codex-correctness-review", description = "Focus on correctness and robustness: edge cases (null/undefined inputs, empty collections, invalid state transitions), race conditions, concurrent access, error handling, resource leaks, security vulnerabilities, network failures, resource exhaustion.", executor = "codex-adversarial-review" },
   { id = "synthesize-analysis", description = "Synthesize all perspectives into analysis.md", parents = ["slop-detection", "opus-design-review", "codex-correctness-review"] },
 ]
 prompt = """
