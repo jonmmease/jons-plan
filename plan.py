@@ -687,11 +687,18 @@ class WorkflowManager:
                 result.append(entry)
         return result
 
-    def get_approval_prompt(self, from_phase: str, to_phase: str) -> str | None:
-        """Get approval prompt for a transition, if any."""
+    def get_transition(self, from_phase: str, to_phase: str) -> dict | None:
+        """Get full transition metadata from from_phase to to_phase."""
         for item in self.get_suggested_next_full(from_phase):
             if item.get("phase") == to_phase:
-                return item.get("approval_prompt")
+                return item
+        return None
+
+    def get_approval_prompt(self, from_phase: str, to_phase: str) -> str | None:
+        """Get approval prompt for a transition, if any."""
+        transition = self.get_transition(from_phase, to_phase)
+        if transition:
+            return transition.get("approval_prompt")
         return None
 
     def is_terminal(self, phase_id: str) -> bool:
@@ -3024,6 +3031,20 @@ def get_session_mode_file(project_dir: Path) -> Path:
     return project_dir / ".claude" / "jons-plan" / "session-mode"
 
 
+def set_session_mode(project_dir: Path, mode: str) -> None:
+    """Set session mode via the file-based store (single source of truth)."""
+    mode_file = get_session_mode_file(project_dir)
+    mode_file.parent.mkdir(parents=True, exist_ok=True)
+    mode_file.write_text(mode)
+
+
+def clear_session_mode(project_dir: Path) -> None:
+    """Clear session mode via the file-based store."""
+    mode_file = get_session_mode_file(project_dir)
+    if mode_file.exists():
+        mode_file.unlink()
+
+
 def cmd_set_mode(args: argparse.Namespace) -> int:
     """Set the current session mode."""
     if args.mode not in VALID_MODES:
@@ -3924,9 +3945,8 @@ def cmd_loop_phase(args: argparse.Namespace) -> int:
     max_retries = workflow_mgr.get_max_retries(current_phase)
     current_retries = state_mgr.get_phase_retries(current_phase)
     if max_retries is not None and current_retries >= max_retries:
-        # Set mode to awaiting-feedback
-        state["session_mode"] = "awaiting-feedback"
-        state_mgr.save(state)
+        # Set mode to awaiting-feedback via file-based store
+        set_session_mode(project_dir, "awaiting-feedback")
         print(f"Max retries ({max_retries}) exceeded for {current_phase}. User intervention required.", file=sys.stderr)
         if args.json:
             result = {
@@ -4017,8 +4037,7 @@ def cmd_loop_to_phase(args: argparse.Namespace) -> int:
         max_retries = workflow_mgr.get_max_retries(target_phase)
         current_retries = state_mgr.get_phase_retries(target_phase)
         if max_retries is not None and current_retries >= max_retries:
-            state["session_mode"] = "awaiting-feedback"
-            state_mgr.save(state)
+            set_session_mode(project_dir, "awaiting-feedback")
             print(f"Max retries ({max_retries}) exceeded for target phase '{target_phase}'.", file=sys.stderr)
             if args.json:
                 result = {
@@ -4040,10 +4059,8 @@ def cmd_loop_to_phase(args: argparse.Namespace) -> int:
         reason = args.reason or f"Loopback: {current_phase} -> {target_phase}"
         state_mgr.set_pending_approval(current_phase, target_phase, reason, current_entry)
 
-        # Set mode to awaiting-feedback
-        state = state_mgr.load()
-        state["session_mode"] = "awaiting-feedback"
-        state_mgr.save(state)
+        # Set mode to awaiting-feedback via file-based store
+        set_session_mode(project_dir, "awaiting-feedback")
 
         log_progress(plan_dir, f"TRANSITION_PROPOSED: {current_phase} -> {target_phase}")
 
@@ -4149,10 +4166,8 @@ def cmd_propose_transition(args: argparse.Namespace) -> int:
     reason = args.reason or f"Transition requested: {current_phase} -> {target_phase}"
     state_mgr.set_pending_approval(current_phase, target_phase, reason, current_entry)
 
-    # Set mode to awaiting-feedback
-    state = state_mgr.load()
-    state["session_mode"] = "awaiting-feedback"
-    state_mgr.save(state)
+    # Set mode to awaiting-feedback via file-based store
+    set_session_mode(project_dir, "awaiting-feedback")
 
     log_progress(plan_dir, f"TRANSITION_PROPOSED: {current_phase} -> {target_phase}")
 
@@ -4234,11 +4249,8 @@ def cmd_approve_transition(args: argparse.Namespace) -> int:
     # Only clear pending after successful transition
     if result == 0:
         state_mgr.clear_pending_approval()
-        # Clear session mode
-        state = state_mgr.load()
-        if state.get("session_mode") == "awaiting-feedback":
-            del state["session_mode"]
-            state_mgr.save(state)
+        # Clear session mode via file-based store
+        clear_session_mode(project_dir)
         log_progress(plan_dir, f"TRANSITION_APPROVED: {from_phase} -> {target_phase}")
 
         if args.json:
@@ -4281,11 +4293,8 @@ def cmd_reject_transition(args: argparse.Namespace) -> int:
     # Clear pending approval
     state_mgr.clear_pending_approval()
 
-    # Clear session mode
-    state = state_mgr.load()
-    if state.get("session_mode") == "awaiting-feedback":
-        del state["session_mode"]
-        state_mgr.save(state)
+    # Clear session mode via file-based store
+    clear_session_mode(project_dir)
 
     log_progress(plan_dir, f"TRANSITION_REJECTED: {from_phase} -> {to_phase}")
 

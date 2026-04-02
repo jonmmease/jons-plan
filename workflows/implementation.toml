@@ -35,6 +35,7 @@ supports_prototypes = true
 supports_cache_reference = true
 context_artifacts = ["request", "research-plan", "research"]
 required_artifacts = ["research"]
+required_json_artifacts = ["cache-candidates"]
 prompt = """
 # Research Phase
 
