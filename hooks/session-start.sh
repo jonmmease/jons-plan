@@ -38,6 +38,13 @@ echo "PROJECT_DIR: ${PROJECT_DIR}" >> "$DEBUG_LOG"
 # Migrate from old .claude/jons-plan/ to .jons-plan/ if needed
 if [[ -d "${PROJECT_DIR}/.claude/jons-plan" ]] && [[ ! -d "${PROJECT_DIR}/.jons-plan" ]]; then
     mv "${PROJECT_DIR}/.claude/jons-plan" "${PROJECT_DIR}/.jons-plan"
+    # Update .git/info/exclude
+    EXCLUDE_FILE="${PROJECT_DIR}/.git/info/exclude"
+    if [[ -f "$EXCLUDE_FILE" ]]; then
+        sed -i '' 's|\.claude/jons-plan/|.jons-plan/|g' "$EXCLUDE_FILE"
+    elif [[ -d "${PROJECT_DIR}/.git/info" ]]; then
+        echo ".jons-plan/" >> "$EXCLUDE_FILE"
+    fi
     echo "Migrated plan data: .claude/jons-plan/ -> .jons-plan/" >&2
 fi
 

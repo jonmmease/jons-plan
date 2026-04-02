@@ -222,6 +222,10 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
    # Migrate from old location if needed
    if [ -d "$PROJECT_ROOT/.claude/jons-plan" ] && [ ! -d "$PROJECT_ROOT/.jons-plan" ]; then
      mv "$PROJECT_ROOT/.claude/jons-plan" "$PROJECT_ROOT/.jons-plan"
+     # Update .git/info/exclude
+     if [ -f "$PROJECT_ROOT/.git/info/exclude" ]; then
+       sed -i '' 's|\.claude/jons-plan/|.jons-plan/|g' "$PROJECT_ROOT/.git/info/exclude"
+     fi
    fi
    mkdir -p "$PROJECT_ROOT/.jons-plan/plans/<plan-name>"
    ```

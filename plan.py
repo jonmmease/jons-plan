@@ -131,6 +131,27 @@ def _migrate_plan_dir(project_dir: Path) -> None:
         import shutil
         shutil.move(str(old_dir), str(new_dir))
         print(f"Migrated plan data: .claude/jons-plan/ -> .jons-plan/", file=sys.stderr)
+        # Update .git/info/exclude
+        _update_git_exclude(project_dir)
+
+
+def _update_git_exclude(project_dir: Path) -> None:
+    """Ensure .jons-plan/ is in .git/info/exclude (and remove old entry)."""
+    exclude_file = project_dir / ".git" / "info" / "exclude"
+    if not exclude_file.parent.exists():
+        return
+    content = exclude_file.read_text() if exclude_file.exists() else ""
+    changed = False
+    # Remove old entry
+    if ".claude/jons-plan/" in content:
+        content = content.replace(".claude/jons-plan/", "")
+        changed = True
+    # Add new entry if missing
+    if ".jons-plan/" not in content:
+        content = content.rstrip("\n") + "\n.jons-plan/\n"
+        changed = True
+    if changed:
+        exclude_file.write_text(content)
 
 
 def get_active_plan(project_dir: Path) -> str | None:
