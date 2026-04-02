@@ -21,6 +21,22 @@ from pathlib import Path
 # Plugin root directory (for generating portable paths in prompts)
 PLUGIN_ROOT = Path(__file__).parent
 
+# Codex executor types that require the Codex plugin
+CODEX_EXECUTORS = {"codex-rescue", "codex-review", "codex-adversarial-review"}
+
+
+def check_codex_available() -> bool:
+    """Check if the Codex plugin is installed."""
+    plugins_file = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
+    if not plugins_file.exists():
+        return False
+    try:
+        data = json.loads(plugins_file.read_text())
+        plugins = data.get("plugins", {})
+        return any("codex" in key.lower() for key in plugins)
+    except (json.JSONDecodeError, OSError):
+        return False
+
 # Task schema documentation injected into phases with use_tasks=true
 # Keep in sync with schemas/tasks-schema.json
 TASK_SCHEMA = """
@@ -1162,6 +1178,135 @@ class WorkflowManager:
                     )
 
         return errors
+
+    def validate_cycle_bounds(self) -> list[str]:
+        """Validate that every cycle passes through at least one bounding mechanism.
+
+        A cycle is bounded if it passes through at least one of:
+        - A phase with max_retries set
+        - A phase with requires_user_input = true
+        - A transition (edge) with requires_approval = true
+
+        Algorithm: Build the graph, remove all bounding phases and edges,
+        then check for remaining cycles (SCCs with >1 node or self-loops).
+        """
+        errors = []
+        if not self.exists():
+            return errors
+
+        phases = self.get_all_phases()
+        phase_ids = {p.get("id") for p in phases}
+
+        # Identify bounding phases (phases that break cycles)
+        bounding_phases = set()
+        for phase in phases:
+            pid = phase.get("id")
+            if phase.get("max_retries") is not None:
+                bounding_phases.add(pid)
+            if phase.get("requires_user_input"):
+                bounding_phases.add(pid)
+
+        # Build reduced adjacency list: remove bounding phases and approval-gated edges
+        reduced_adj: dict[str, list[str]] = {}
+        for phase in phases:
+            pid = phase.get("id")
+            if pid in bounding_phases:
+                continue
+            reduced_adj[pid] = []
+            for item in phase.get("suggested_next", []):
+                if isinstance(item, str):
+                    target = item
+                    has_approval = False
+                elif isinstance(item, dict):
+                    target = item.get("phase", "")
+                    has_approval = item.get("requires_approval", False)
+                else:
+                    continue
+                if has_approval:
+                    continue
+                if target in phase_ids and target not in bounding_phases and target != "__expand__":
+                    reduced_adj[pid].append(target)
+
+        # Find SCCs in reduced graph
+        sccs = self._find_sccs(reduced_adj)
+
+        for scc in sccs:
+            if len(scc) > 1:
+                errors.append(
+                    f"Unbounded cycle detected: {' -> '.join(sorted(scc))} "
+                    f"(no max_retries, requires_user_input, or requires_approval in cycle)"
+                )
+            elif len(scc) == 1:
+                node = scc[0]
+                if node in reduced_adj.get(node, []):
+                    errors.append(
+                        f"Unbounded self-loop detected: {node} -> {node} "
+                        f"(no max_retries, requires_user_input, or requires_approval)"
+                    )
+
+        return errors
+
+    @staticmethod
+    def _find_sccs(adj: dict[str, list[str]]) -> list[list[str]]:
+        """Find strongly connected components using Tarjan's algorithm."""
+        index_counter = [0]
+        stack: list[str] = []
+        lowlink: dict[str, int] = {}
+        index: dict[str, int] = {}
+        on_stack: dict[str, bool] = {}
+        result: list[list[str]] = []
+
+        def strongconnect(v: str) -> None:
+            index[v] = index_counter[0]
+            lowlink[v] = index_counter[0]
+            index_counter[0] += 1
+            stack.append(v)
+            on_stack[v] = True
+
+            for w in adj.get(v, []):
+                if w not in index:
+                    strongconnect(w)
+                    lowlink[v] = min(lowlink[v], lowlink[w])
+                elif on_stack.get(w, False):
+                    lowlink[v] = min(lowlink[v], index[w])
+
+            if lowlink[v] == index[v]:
+                scc: list[str] = []
+                while True:
+                    w = stack.pop()
+                    on_stack[w] = False
+                    scc.append(w)
+                    if w == v:
+                        break
+                result.append(scc)
+
+        for v in adj:
+            if v not in index:
+                strongconnect(v)
+
+        return result
+
+    def requires_codex(self) -> bool:
+        """Check if any phase in the workflow requires the Codex plugin."""
+        for phase in self.get_all_phases():
+            if phase.get("planning_panel"):
+                return True
+            for task in phase.get("required_tasks", []):
+                if isinstance(task, dict) and task.get("executor") in CODEX_EXECUTORS:
+                    return True
+        return False
+
+    def phase_requires_codex(self, phase_id: str) -> bool:
+        """Check if a specific phase requires the Codex plugin."""
+        phase = self.get_phase(phase_id)
+        if not phase:
+            return False
+        if phase.get("planning_panel"):
+            return True
+        for task in phase.get("required_tasks", []):
+            if isinstance(task, dict) and task.get("executor") in CODEX_EXECUTORS:
+                return True
+        return False
 
 
 def get_assembled_prompts(workflow_mgr: "WorkflowManager", phase_id: str) -> str:
@@ -2838,7 +2983,27 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
         for step in steps:
             prompt_parts.append(f"- {step}")
 
-    # 2a. Cache suggestions for research tasks
+    # 2a. Current directives (user guidance + re-entry context)
+    _state_mgr = StateManager(plan_dir)
+    _state = _state_mgr.load()
+    _user_guidance = _state.get("user_guidance", "")
+    _current_phase_dir = _state.get("current_phase_dir")
+    _directives = []
+    if _user_guidance:
+        _directives.append(f"**User Guidance:** {_user_guidance}")
+    if _current_phase_dir:
+        _reentry_file = plan_dir / _current_phase_dir / "reentry-context.md"
+        if _reentry_file.exists():
+            _reentry = _reentry_file.read_text().strip()
+            if len(_reentry) > 2000:
+                _reentry = _reentry[:2000] + "\n\n[... truncated]"
+            _directives.append(f"**Re-entry Context:**\n{_reentry}")
+    if _directives:
+        prompt_parts.append("\n\n## Current Directives")
+        for d in _directives:
+            prompt_parts.append(d)
+
+    # 2b. Cache suggestions for research tasks
     if is_research_task(task):
         suggestions = get_cache_suggestions_for_task(project_dir, task, limit=3)
         if suggestions:
@@ -2949,9 +3114,7 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
 
     # 8. Task guidance for required JSON artifacts
     workflow_mgr = WorkflowManager(plan_dir)
-    state_mgr = StateManager(plan_dir)
-    state = state_mgr.load()
-    current_phase_id = state.get("current_phase")
+    current_phase_id = _state.get("current_phase")
     if current_phase_id:
         artifacts_dir = Path(__file__).parent / "artifacts"
         for artifact_spec in workflow_mgr.get_required_json_artifacts(current_phase_id):
@@ -3271,8 +3434,35 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
     state_mgr = StateManager(plan_dir)
     state = state_mgr.load()
 
-    # Check required_artifacts for the current phase (if any) before allowing transition
+    # Enforce transition legality unless caller has pre-validated
     current_phase = state.get("current_phase")
+    skip_check = getattr(args, '_skip_transition_check', False)
+    if current_phase and not skip_check:
+        if not workflow_mgr.is_transition_allowed(current_phase, args.phase_id):
+            print(f"Error: Transition not allowed: {current_phase} -> {args.phase_id}", file=sys.stderr)
+            suggested = workflow_mgr.get_suggested_next(current_phase)
+            if suggested:
+                print(f"Allowed transitions: {', '.join(suggested)}", file=sys.stderr)
+            print("Use 'enter-phase-by-number' or 'loop-to-phase' for validated transitions.", file=sys.stderr)
+            return 12
+        if workflow_mgr.transition_requires_approval(current_phase, args.phase_id):
+            print(f"Error: Transition {current_phase} -> {args.phase_id} requires approval.", file=sys.stderr)
+            print("Use 'propose-transition' or 'loop-to-phase' to initiate the approval flow.", file=sys.stderr)
+            return 11
+
+    # Check Codex availability if target phase requires it
+    if workflow_mgr.phase_requires_codex(args.phase_id) and not check_codex_available():
+        print(f"Error: Phase '{args.phase_id}' requires the Codex plugin, which is not installed.", file=sys.stderr)
+        print("Install with: /plugin install codex", file=sys.stderr)
+        phase_data = workflow_mgr.get_phase(args.phase_id)
+        if phase_data and phase_data.get("planning_panel"):
+            print("  - planning_panel (dual-model planning)", file=sys.stderr)
+        for task in (phase_data or {}).get("required_tasks", []):
+            if isinstance(task, dict) and task.get("executor") in CODEX_EXECUTORS:
+                print(f"  - task '{task.get('id')}' (executor: {task.get('executor')})", file=sys.stderr)
+        return 1
+
+    # Check required_artifacts for the current phase (if any) before allowing transition
     if current_phase:
         required_artifacts = workflow_mgr.get_required_artifacts(current_phase)
         if required_artifacts:
@@ -3797,6 +3987,7 @@ def cmd_enter_phase_by_number(args: argparse.Namespace) -> int:
         phase_id=target_phase,
         reason=reason_str,
         reason_file=None,
+        _skip_transition_check=True,  # Already validated via suggested_next index
     )
     return cmd_enter_phase(enter_args)
 
@@ -3964,6 +4155,7 @@ def cmd_loop_phase(args: argparse.Namespace) -> int:
         phase_id=current_phase,
         reason=reason,
         reason_file=None,
+        _skip_transition_check=True,  # Self-loop, bounded by max_retries
     )
 
     result = cmd_enter_phase(enter_args)
@@ -4106,6 +4298,7 @@ def cmd_loop_to_phase(args: argparse.Namespace) -> int:
         phase_id=target_phase,
         reason=reason,
         reason_file=None,
+        _skip_transition_check=True,  # Already validated by loop-to-phase
     )
 
     result = cmd_enter_phase(enter_args)
@@ -4242,6 +4435,7 @@ def cmd_approve_transition(args: argparse.Namespace) -> int:
         phase_id=target_phase,
         reason=reason,
         reason_file=None,
+        _skip_transition_check=True,  # Approval already granted
     )
 
     result = cmd_enter_phase(enter_args)
@@ -6412,6 +6606,16 @@ def cmd_validate_workflow(args: argparse.Namespace) -> int:
 
     # Run expandable validation
     errors.extend(workflow_mgr.validate_expandable())
+
+    # Run bounded-cycle validation
+    errors.extend(workflow_mgr.validate_cycle_bounds())
+
+    # Check Codex availability if workflow requires it
+    if workflow_mgr.requires_codex() and not check_codex_available():
+        errors.append(
+            "Workflow requires Codex plugin but it is not installed. "
+            "Install with: /plugin install codex"
+        )
 
     if errors:
         print("Validation errors:", file=sys.stderr)

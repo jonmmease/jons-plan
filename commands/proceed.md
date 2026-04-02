@@ -235,7 +235,7 @@ Mark a task as `blocked` when you encounter issues that **require replanning**:
 4. **Transition back to planning phase**:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py suggested-next
-   uv run ~/.claude-plugins/jons-plan/plan.py enter-phase plan --reason "Task <task-id> requires decomposition"
+   uv run ~/.claude-plugins/jons-plan/plan.py loop-to-phase plan --reason "Task <task-id> requires decomposition"
    ```
 
 5. **STOP execution** - Do not continue with other tasks. The plan needs to be updated.
@@ -275,13 +275,9 @@ When looping back to a phase that was previously entered (re-entry), you should 
    <Actionable items for the re-entered phase>
    ```
 
-2. **Call enter-phase**:
+2. **Call loop-to-phase**:
    ```bash
-   uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <phase-id> --reason-file "$TASK_DIR/reentry-analysis.md"
-   ```
-   Or, if needed:
-   ```bash
-   uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <phase-id> --reason "<detailed context>"
+   uv run ~/.claude-plugins/jons-plan/plan.py loop-to-phase <phase-id> --reason "<detailed context from reentry-analysis>"
    ```
 
 The file must be at least 100 characters to ensure sufficient detail.
@@ -289,9 +285,10 @@ The file must be at least 100 characters to ensure sufficient detail.
 4. **After phase tasks complete**:
    - Check `suggested-next` for the next phase
    - If phase has `requires_user_input: true`, set mode to `awaiting-feedback` and stop
-   - Otherwise, transition to the next phase:
+   - Otherwise, transition using `enter-phase-by-number`:
      ```bash
-     uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <next-phase-id>
+     uv run ~/.claude-plugins/jons-plan/plan.py suggested-next
+     uv run ~/.claude-plugins/jons-plan/plan.py enter-phase-by-number <N>
      ```
 
 5. **Handling Expandable Phases (`__expand__` in suggested-next)**:
@@ -335,7 +332,7 @@ The file must be at least 100 characters to ensure sufficient detail.
    g. **Continue with generated phases**:
       ```bash
       uv run ~/.claude-plugins/jons-plan/plan.py suggested-next
-      uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <first-generated-phase>
+      uv run ~/.claude-plugins/jons-plan/plan.py enter-phase-by-number 1
       ```
 
    **Rollback if needed**:
