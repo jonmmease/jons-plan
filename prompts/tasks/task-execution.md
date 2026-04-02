@@ -132,34 +132,9 @@ Task(
 )
 ```
 
-## Codex CLI Execution
-
-When a task has `"executor": "codex-cli"`, execute it via the codex CLI instead of the Task tool.
-
-### Pre-flight Check (once per phase)
-```bash
-codex --version >/dev/null 2>&1 || echo "ERROR: codex CLI not found in PATH"
-```
-
-### Execution
-Run the command with a **15-minute timeout** (Bash tool `timeout: 900000`):
-```bash
-CMD=$(uv run ~/.claude-plugins/jons-plan/plan.py get-execution-cmd <task-id>)
-eval "$CMD"
-EXIT_CODE=$?
-```
-
-### Post-execution
-- If exit code is non-zero or output file is empty:
-  1. Create `blockers.md` in the task directory with the command, exit code, and stderr excerpt
-  2. Mark the task as blocked
-- If successful: log completion and mark the task done
-
-Do NOT use the Task tool for codex-cli tasks. The codex CLI is invoked directly via Bash.
-
 ## Codex Rescue Execution
 
-When a task has `"executor": "codex-rescue"`, execute it via the `/codex:rescue` skill instead of the Task tool. This passes the full task prompt to Codex for review/analysis work.
+When a task has `"executor": "codex-rescue"`, execute it via the `/codex:rescue` skill instead of the Task tool. This passes the full task prompt to Codex.
 
 ### Execution
 1. Build the task prompt:
@@ -171,9 +146,8 @@ When a task has `"executor": "codex-rescue"`, execute it via the `/codex:rescue`
    TASK_DIR=$(uv run ~/.claude-plugins/jons-plan/plan.py ensure-task-dir <task-id>)
    ```
 3. Invoke the skill:
-   ```
-   Skill(skill: "codex:rescue", args: "--wait <prompt>")
-   ```
+   - **Foreground** (standalone tasks): `Skill(skill: "codex:rescue", args: "--fresh --wait <prompt>")`
+   - **Background** (parallel tasks, e.g. planning panel): `Skill(skill: "codex:rescue", args: "--fresh --background <prompt>")`
 4. Save Codex's response to `output.md` in the task directory.
 
 ### Post-execution
@@ -188,27 +162,24 @@ When a phase has `planning_panel = true`, it will have two independent planning 
 
 Each task uses a different execution mechanism, but they can both be dispatched in one response:
 - **opus-planning** (executor: `task-tool`) — launch via Task tool
-- **codex-planning** (executor: `codex-cli`) — launch via Bash with `run_in_background: true`
+- **codex-planning** (executor: `codex-rescue`) — launch via Skill with `--background`
 
 ### Example: Single message with 2 parallel tool calls
 
 ```
-1. Task tool → opus-planning subagent (model: opus)
-2. Bash tool (background) → eval codex-cli command (timeout: 900000)
+1. Skill tool → codex:rescue --fresh --background <codex-prompt>
+2. Task tool → opus-planning subagent (model: opus)
 ```
 
-**Set both to `in-progress` before launching.**
+**Set both to `in-progress` before launching.** Launch the background Codex skill first so it starts immediately, then the Task tool call for Opus which blocks.
 
 ### Waiting for Completion
 
 After launching both tasks:
-1. The Task tool call (opus) will block until complete
-2. The background Bash call (codex) returns a task ID immediately
-3. **You MUST use TaskOutput to wait for the background task before proceeding:**
-
-```
-TaskOutput(task_id: <codex-task-id>, block: true, timeout: 900000)
-```
+1. The Skill call with `--background` returns immediately — Codex runs in the background
+2. The Task tool call (opus) blocks until complete
+3. After opus completes, you will be notified when the background Codex task finishes
+4. Save the Codex output to `output.md` in the codex-planning task directory
 
 Only after **both tasks complete** should you proceed to the synthesis task.
 

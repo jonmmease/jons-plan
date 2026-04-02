@@ -1071,10 +1071,10 @@ class WorkflowManager:
                     errors.append(f"Phase '{phase_id}' has planning_panel=true but use_tasks is not true")
                 if required_tasks:
                     has_codex_executor = any(
-                        t.get("executor") == "codex-cli" for t in required_tasks if isinstance(t, dict)
+                        t.get("executor") == "codex-rescue" for t in required_tasks if isinstance(t, dict)
                     )
                     if not has_codex_executor:
-                        errors.append(f"Phase '{phase_id}' has planning_panel=true but no required_task with executor='codex-cli'")
+                        errors.append(f"Phase '{phase_id}' has planning_panel=true but no required_task with executor='codex-rescue'")
 
             # Validate required_json_artifacts
             json_artifacts = phase.get("required_json_artifacts", [])
@@ -2512,7 +2512,7 @@ def validate_task_schema(task: dict) -> list[str]:
     if "model" in task and task["model"] not in valid_models:
         errors.append(f"Invalid model: {task['model']}")
 
-    valid_executors = ("task-tool", "codex-cli", "codex-rescue")
+    valid_executors = ("task-tool", "codex-rescue")
     if "executor" in task and task["executor"] not in valid_executors:
         errors.append(f"Invalid executor: {task['executor']}")
 
@@ -2993,68 +2993,6 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
     print("\n".join(prompt_parts))
     return 0
 
-
-def cmd_get_execution_cmd(args: argparse.Namespace) -> int:
-    """Build and print the shell command to execute a codex-cli task."""
-    project_dir = get_project_dir()
-    plan_dir = get_active_plan_dir(project_dir)
-    if not plan_dir:
-        print("No active plan", file=sys.stderr)
-        return 1
-
-    tasks = get_tasks(plan_dir)
-    task = next((t for t in tasks if t.get("id") == args.task_id), None)
-    if not task:
-        print(f"Task not found: {args.task_id}", file=sys.stderr)
-        return 1
-
-    executor = task.get("executor", "task-tool")
-    if executor != "codex-cli":
-        print(f"Task '{args.task_id}' has executor '{executor}', expected 'codex-cli'", file=sys.stderr)
-        return 1
-
-    # Resolve task directory (create if needed)
-    task_dir = get_task_output_dir(plan_dir, args.task_id)
-    if not task_dir:
-        print("No current phase", file=sys.stderr)
-        return 1
-    task_dir.mkdir(parents=True, exist_ok=True)
-
-    # Build the command
-    plugin_path = PLUGIN_ROOT / "plan.py"
-    output_file = task_dir / "output.md"
-    stderr_file = task_dir / "stderr.log"
-
-    if executor == "codex-cli":
-        # Check if we're in a git repo
-        import subprocess as _sp
-        try:
-            result = _sp.run(["git", "rev-parse", "--show-toplevel"],
-                             capture_output=True, text=True, cwd=Path.cwd())
-            in_git = result.returncode == 0
-        except Exception:
-            in_git = False
-
-        # Save prompt to temp file and pass as positional argument
-        prompt_file = task_dir / "prompt.txt"
-        cmd_parts = [
-            f"uv run {plugin_path} build-task-prompt {args.task_id}",
-            f">\"{prompt_file}\"",
-            "&&",
-            "codex exec",
-            f"\"$(cat \"{prompt_file}\")\"",
-            "--sandbox read-only",
-            f"-C \"{project_dir}\"",
-            f"-o \"{output_file}\"",
-        ]
-
-        if not in_git:
-            cmd_parts.append("--skip-git-repo-check")
-
-        cmd_parts.append(f"2>\"{stderr_file}\"")
-
-    print(" ".join(cmd_parts))
-    return 0
 
 
 def cmd_help(args: argparse.Namespace) -> int:
@@ -6636,9 +6574,7 @@ def main() -> int:
     p_build_prompt = subparsers.add_parser("build-task-prompt", help="Build complete prompt for task")
     p_build_prompt.add_argument("task_id", help="Task ID")
 
-    # get-execution-cmd
-    p_exec_cmd = subparsers.add_parser("get-execution-cmd", help="Build shell command for codex-cli task")
-    p_exec_cmd.add_argument("task_id", help="Task ID")
+
 
     # record-confidence
     p_record_conf = subparsers.add_parser("record-confidence", help="Record confidence score for task")
@@ -6887,7 +6823,6 @@ def main() -> int:
         "phase-log": cmd_phase_log,
         "task-progress": cmd_task_progress,
         "build-task-prompt": cmd_build_task_prompt,
-        "get-execution-cmd": cmd_get_execution_cmd,
         "record-confidence": cmd_record_confidence,
         "check-confidence": cmd_check_confidence,
         "low-confidence-tasks": cmd_low_confidence_tasks,

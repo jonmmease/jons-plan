@@ -7,7 +7,7 @@ A Claude Code plugin inspired by Anthropic's [Effective Harnesses for Long-Runni
 - **Claude Code** v2.1.3+ (the Anthropic CLI tool)
 - **uv** - Python package runner (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - **graphviz** (optional) - For workflow viewer (`brew install graphviz`)
-- **Codex CLI** (optional) - For planning panel (`npm install -g @openai/codex`)
+- **Codex plugin** (optional) - For planning panel and Codex review tasks (`/plugin install codex`)
 
 ## Installation
 
@@ -64,7 +64,7 @@ Works incrementally on tasks across sessions:
 Workflows with `planning_panel = true` use two independent agents to generate plans in parallel, then a senior synthesis agent reviews both and produces the definitive plan:
 
 1. **Opus** — via Claude Code Task tool
-2. **Codex** — via Codex CLI (background)
+2. **Codex** — via `/codex:rescue` skill (background)
 3. **Synthesis** — Opus reviews both, investigates disagreements, dismisses weak ideas, and produces the final plan
 
 The synthesis agent has full authority to investigate the codebase, dismiss incorrect concerns, add missing elements, and restructure the plan. It is not a mechanical merger — it is the decision-maker.
@@ -142,7 +142,7 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 Key optional fields:
 - `subagent`: Agent type (`general-purpose`)
 - `model`: Model override (`sonnet`, `haiku`, `opus`)
-- `executor`: Execution method (`task-tool`, `codex-cli`, `codex-rescue`)
+- `executor`: Execution method (`task-tool`, `codex-rescue`)
 - `context_artifacts`: Artifact names to inject from phase history
 - `prompt_file`: Plugin prompt to inject (e.g., `"slop-detection"`)
 - `inject_phase_prompt`: Include phase prompt in task context

@@ -145,7 +145,6 @@ For each available task:
    ```
 
 2. **Check executor field**: Before executing, check the task's `executor` field:
-   - If `executor` is `"codex-cli"`: follow the "Codex CLI Execution" instructions in task-execution.md
    - If `executor` is `"codex-rescue"`: follow the "Codex Rescue Execution" instructions in task-execution.md
    - Otherwise (default): use the standard Task tool dispatch or execute directly
 

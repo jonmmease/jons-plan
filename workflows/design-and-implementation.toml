@@ -87,7 +87,7 @@ context_artifacts = ["request", "research"]
 required_artifacts = ["design", "verification-plan"]
 required_tasks = [
   { id = "opus-planning", description = "Generate design document via Opus", prompt_file = "dual-planning", model = "opus", inject_phase_prompt = true, context_artifacts = ["request", "research"] },
-  { id = "codex-planning", description = "Generate design document via Codex CLI", prompt_file = "dual-planning", executor = "codex-cli", inject_phase_prompt = true, inject_project_context = true, context_artifacts = ["request", "research"] },
+  { id = "codex-planning", description = "Generate design document via Codex", prompt_file = "dual-planning", executor = "codex-rescue", inject_phase_prompt = true, inject_project_context = true, context_artifacts = ["request", "research"] },
   { id = "synthesize-plans", description = "Judge and merge all designs", prompt_file = "plan-synthesis", parents = ["opus-planning", "codex-planning"], model = "opus" },
 ]
 prompt = """
