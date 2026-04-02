@@ -1310,9 +1310,19 @@ class WorkflowModel(QObject):
             lines.append(f"**Context artifacts:** {artifacts}")
             lines.append("")
 
-        # Subagent info
-        if task.get("subagent"):
-            lines.append(f"**Subagent:** `{task['subagent']}`")
+        # Execution info
+        executor = task.get("executor", "task-tool")
+        model = task.get("model", "")
+        if executor in ("codex-rescue", "codex-review", "codex-adversarial-review"):
+            label = executor.replace("codex-", "Codex ").title()
+            lines.append(f"**Executor:** `{label}`")
+        elif task.get("subagent"):
+            parts = [f"`{task['subagent']}`"]
+            if model:
+                parts.append(f"({model})")
+            lines.append(f"**Subagent:** {' '.join(parts)}")
+        elif model:
+            lines.append(f"**Model:** `{model}`")
         if task.get("subagent_prompt"):
             lines.append(f"**Subagent prompt:** {task['subagent_prompt']}")
 
