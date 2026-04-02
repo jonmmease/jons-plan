@@ -107,9 +107,13 @@ Determine the stop grouping for this PR.
 - **Convention last:** Tests, docs, formatting last unless they clarify earlier stops
 
 ### Chunking Rules
-**Group** files implementing same interface, function+tests, migration+model+schema, config+feature.
+
+The unit of assignment is the **hunk**, not the file. A file with multiple unrelated hunks SHOULD be split across stops.
+
+**Group** hunks implementing same interface, function+tests, migration+model+schema, config+feature.
+**Split** files with logically unrelated hunks — place each hunk in the stop where it fits thematically.
 **Isolate** large self-contained new modules, standalone refactors/renames/deletions.
-**Note** (v1): Assign entire files to stops. If a file has logically unrelated changes, place it where its primary change belongs and note secondary changes.
+**Collapse** trivial changes (pure renames, generated files, lockfiles, formatting-only) — these go in a dedicated "Trivial Changes" stop at the end, or are omitted from stops entirely and listed in the index.
 
 ### Sizing
 - <30 lines changed: 1 stop (overview still required)
@@ -120,11 +124,13 @@ Determine the stop grouping for this PR.
 ## Process
 
 1. Read pr-files.json from the gather phase directory (resolved above)
-2. For each file, read its `patch` field (first ~20 lines) to understand what changed
+2. For each file, parse its **entire** `patch` field to identify all hunks. Parse hunk headers (`@@ -old_start,old_count +new_start,new_count @@`) to extract line ranges. Do NOT limit to the first ~20 lines — read all hunks for accurate grouping.
 3. If `patch` is missing (binary file), note it and group by filename/status alone
-4. Identify thematic groups based on the chunking and ordering rules
-5. Assign every file to exactly one stop
-6. Order stops for comprehension
+4. For each hunk, determine its thematic group based on the chunking and ordering rules
+5. **Assign every changed hunk to exactly one stop.** A file may appear in multiple stops if its hunks belong to different thematic groups. Use `"hunks": "all"` when all hunks of a file belong to one stop.
+6. Identify trivial files (pure renames, generated files, lockfiles, formatting-only changes) and group them separately
+7. Order stops for comprehension
+8. Assign a risk level to each stop: `low` (trivial, tests, docs), `medium` (standard changes), `high` (complex logic, security, error handling)
 
 ## Output
 
@@ -139,7 +145,8 @@ Write `stop-plan.json`:
     {
       "number": 1,
       "title": "Thematic title for this stop",
-      "rationale": "Why these files belong together and why this stop comes first",
+      "rationale": "Why these hunks belong together and why this stop comes first",
+      "risk": "medium",
       "files": [
         {
           "filename": "src/types/auth.ts",
@@ -149,6 +156,18 @@ Write `stop-plan.json`:
           "previous_filename": null,
           "has_patch": true,
           "hunks": "all"
+        },
+        {
+          "filename": "src/middleware/handler.ts",
+          "status": "modified",
+          "additions": 15,
+          "deletions": 3,
+          "previous_filename": null,
+          "has_patch": true,
+          "hunks": [
+            { "index": 0, "new_start": 12, "new_end": 28 },
+            { "index": 2, "new_start": 95, "new_end": 110 }
+          ]
         }
       ]
     }
@@ -156,9 +175,12 @@ Write `stop-plan.json`:
 }
 ```
 
-Each file entry includes `status`, `additions`, `deletions`, `previous_filename` (for renames), and `has_patch` (false for binary files). This avoids fragile joins to pr-files.json during generation.
+**Field details:**
+- `hunks`: Either `"all"` (entire file) or an array of hunk objects with `index` (0-based), `new_start`, and `new_end` (new-file line range)
+- `risk`: One of `"low"`, `"medium"`, `"high"`
+- Other fields: `status`, `additions`, `deletions`, `previous_filename` (for renames), `has_patch` (false for binary files)
 
-Validate: every file from the manifest appears in exactly one stop.
+**Validation:** Every changed hunk from every file must appear in exactly one stop. Files may appear in multiple stops (with different hunks). Use the hunk indices to verify coverage is complete and non-overlapping.
 
 Record the artifact:
 ```bash
@@ -176,13 +198,13 @@ required_artifacts = ["review-tour"]
 prompt = """
 # Generate Tour Phase
 
-Write the complete review tour markdown file.
+Generate the review tour as structured JSON, then render multi-file markdown output.
 
 ## Inputs
 
 - pr-summary.md (injected above) — PR metadata
 - pr-metadata.json (injected above) — raw PR metadata including headRefOid and repository
-- stop-plan.json (injected above) — stop grouping plan with per-file metadata
+- stop-plan.json (injected above) — stop grouping plan with hunk-level file metadata
 - pr-files.json — read from gather phase directory (too large to inject for big PRs)
 - full.diff — read from gather phase directory (fallback for truncated patches)
 
@@ -194,66 +216,141 @@ Use the paths from `.found[]` to locate pr-files.json and full.diff.
 
 ## Diff Source
 
-Use per-file `patch` fields from pr-files.json as the **primary** diff source. For each stop, read the relevant file entries from pr-files.json to extract their patches.
+Use per-file `patch` fields from pr-files.json as the **primary** diff source. For each file entry in a stop, extract only the assigned hunks (by index) from the patch.
 
 If a file's `patch` is missing or truncated in pr-files.json, read the file's section from full.diff as a fallback.
 
+**Hunk extraction:** Parse hunk headers (`@@ -old,count +new,count @@`) to identify hunk boundaries. When `hunks` is `"all"`, include the entire patch. When `hunks` is an array of objects with `index`, extract only those hunks by their 0-based position in the patch.
+
 ## Instructions
 
-Follow the stop plan exactly. Do not reorder or regroup files.
+Follow the stop plan exactly. Do not reorder or regroup stops.
 
-### Header
+### Step 1: Generate review-tour.json
+
+Create `review-tour.json` as the structured source of truth:
+
+```json
+{
+  "pr": {
+    "title": "PR title",
+    "number": 123,
+    "owner": "owner",
+    "repo": "repo",
+    "author": "author",
+    "head_branch": "feature",
+    "base_branch": "main",
+    "files_changed": 5,
+    "additions": 127,
+    "deletions": 14,
+    "pr_files_url": "https://github.com/owner/repo/pull/123/files"
+  },
+  "overview": "2-4 paragraph synthesis of the PR...",
+  "stops": [
+    {
+      "number": 1,
+      "title": "Thematic title",
+      "risk": "medium",
+      "estimated_minutes": 5,
+      "narrative": "1-3 paragraphs explaining WHY...",
+      "files": [
+        {
+          "filename": "src/auth.ts",
+          "change_summary": "(+80 -0)",
+          "hunks": "all",
+          "line_range": "1-80",
+          "permalink": "https://github.com/.../files#diff-{hash}R1",
+          "diff": "@@ ... @@\\n+added line...",
+          "comments": [
+            {
+              "type": "suggestion",
+              "file": "src/auth.ts",
+              "line": 42,
+              "text": "Consider adding input validation here."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "trivial_files": [
+    {
+      "filename": "package-lock.json",
+      "change_summary": "(+500 -400)",
+      "reason": "lockfile update"
+    }
+  ]
+}
+```
+
+### Step 2: Render review-tour/index.md
+
+Create the `review-tour/` directory and write `index.md`:
 
 ```markdown
 # Review Tour: {title} (#{number})
 
 **Repository:** {owner}/{repo}
 **Author:** @{author}
-**Branch:** {headRefName} → {baseRefName}
-**Files changed:** {changedFiles} | **Additions:** +{additions} | **Deletions:** -{deletions}
+**Branch:** {head_branch} → {base_branch}
+**Files changed:** {files_changed} | **Additions:** +{additions} | **Deletions:** -{deletions}
+
+## Overview
+
+{overview text from JSON}
+
+## Tour Guide
+
+### Stop 1: {title} ({risk} risk, ~{minutes}m)
+Files: `file1.ts:12-28`, `file2.ts`
+- [ ] Review file1.ts:12-28 ({brief description of changes})
+- [ ] Review file2.ts ({brief description of changes})
+
+### Stop 2: {title} ({risk} risk, ~{minutes}m)
+...
+
+## Trivial Changes
+
+- `package-lock.json` — lockfile update (+500 -400)
+- `src/old.ts` → `src/new.ts` — rename
+
+## Review Notes
+
 ```
 
 Use owner/repo from the `repository` field in pr-metadata.json.
 
-### Overview
+### Step 3: Render review-tour/stop-NN.md
 
-Write 2-4 paragraphs synthesizing the PR's purpose, approach, and key decisions. Use the PR description (body) as context but do NOT copy it verbatim. If the PR description is empty or low-quality, synthesize entirely from the diff.
-
-If the PR description makes claims about what the PR does, note any discrepancies with the actual changes — features mentioned but not implemented, undocumented changes, or scope differences.
-
-### Stops
-
-For each stop in stop-plan.json:
+For each stop, write a separate `stop-01.md`, `stop-02.md`, etc.:
 
 ```markdown
----
+# Stop {n}: {title}
 
-### Stop {n}: {title}
-
-- [ ] Reviewed
+**Risk:** {risk} | **Files:** {file_count} | **Est. review:** ~{minutes}m
 
 {Narrative preamble: 1-3 paragraphs explaining WHY, not WHAT. Use the rationale from the stop plan as a seed, but expand with specific observations from the code.}
 
-#### `{filename}` ({change_summary})
+---
 
-[View on GitHub]({pr_files_url}#diff-{sha256_of_filepath}R{line})
+#### `{filename}` ({change_summary}) — lines {start}-{end}
+
+[View on GitHub]({permalink})
 
 ```diff
-{diff hunks — from per-file patch in pr-files.json}
+{ONLY the hunks assigned to this stop — not the entire file diff}
 ```
 
 **Candidate comments:**
 
-> **suggestion** `{filename}:{line}` — {Self-contained review comment text
-> that can be copied directly to the PR.}
+> **suggestion** `{filename}:{line}` — {Self-contained review comment.}
 
-> **question** `{filename}:{line}` — {Question about the implementation
-> that the reviewer might want to ask.}
+> **question** `{filename}:{line}` — {Question about implementation.}
 ```
 
 ### Candidate Comment Format
 
-After each stop's diff blocks, include a **Candidate comments** section with actionable review observations. Each comment is a blockquote with:
+After each file's diff blocks within a stop, include a **Candidate comments** section with actionable review observations. Each comment is a blockquote with:
 
 - **Type tag** (one of: `nit`, `suggestion`, `question`, `concern`):
   - `nit` — style, naming, minor cleanup
@@ -263,9 +360,15 @@ After each stop's diff blocks, include a **Candidate comments** section with act
 - **File and line number** (`filename:line`) — the exact line to comment on in the PR
 - **Self-contained text** — ready to copy-paste as a PR comment without editing
 
-Extract line numbers from the diff hunk context. Use the new-file line number (the `+` side).
+Extract line numbers from the diff hunk context. Use the new-file line number (the `+` side). Reference the specific line within the hunk, not just the hunk start.
 
 Only include comments where there is something genuinely worth raising. Do not force comments on clean code. Zero comments on a stop is fine.
+
+### Overview
+
+Write 2-4 paragraphs synthesizing the PR's purpose, approach, and key decisions. Use the PR description (body) as context but do NOT copy it verbatim. If the PR description is empty or low-quality, synthesize entirely from the diff.
+
+If the PR description makes claims about what the PR does, note any discrepancies with the actual changes — features mentioned but not implemented, undocumented changes, or scope differences.
 
 ### Change Summary Format
 - New file: `(new file)`
@@ -294,8 +397,7 @@ https://github.com/{owner}/{repo}/pull/{number}/files#diff-{hash}R{line}
   ```bash
   echo -n "path/to/file.ts" | shasum -a 256 | cut -d' ' -f1
   ```
-- `R{line}` = right-side (new file) line number from the diff hunk header
-- Use `new_start` from `@@ -old_start,old_count +new_start,new_count @@`
+- `R{line}` = right-side (new file) line number — use the exact line being referenced, not just the hunk start
 - Omit `R{line}` suffix to link to the file without a specific line
 
 Construct `{pr_files_url}` from pr-metadata.json: `https://github.com/{owner}/{repo}/pull/{number}/files`
@@ -312,23 +414,16 @@ Pre-compute SHA-256 hashes for all files during generation to avoid repeated she
 - Concise: 1-3 short paragraphs, not a wall of text
 - Do NOT restate what the diff shows
 
-### Review Notes
-
-End with:
-```markdown
----
-
-## Review Notes
-
-```
-
 ## Output
 
-Write `review-tour.md` to the phase directory.
+Write three types of output:
+1. `review-tour.json` — structured source of truth
+2. `review-tour/index.md` — overview and checklist
+3. `review-tour/stop-01.md`, `stop-02.md`, ... — one per stop
 
-Record the artifact:
+Record `review-tour.json` as the artifact (not the directory):
 ```bash
-uv run plan.py record-artifact review-tour review-tour.md
+uv run plan.py record-artifact review-tour review-tour.json
 ```
 """
 suggested_next = [
@@ -341,8 +436,8 @@ use_tasks = true
 max_retries = 2
 context_artifacts = ["review-tour", "pr-data"]
 required_tasks = [
-  { id = "slop-detection", description = "Scan tour narratives for AI-generated patterns", subagent = "general-purpose", prompt_file = "slop-detection", model = "haiku" },
-  { id = "quality-review", description = "Review tour completeness, grouping quality, and narrative usefulness", subagent = "general-purpose", prompt_file = "review-tour-spec", subagent_prompt = "Review this review tour for: (1) Completeness — does every file from the PR appear in exactly one stop? Cross-reference with the file manifest. (2) Grouping — are files grouped logically? Does the ordering follow dependency-first, scope-first, risk-first principles? (3) Narrative — do preambles explain WHY not WHAT? Are they concise? Do they add value beyond what the diff shows? (4) Format — correct markdown structure, working permalink format, proper diff fencing? (5) Binary files — are they handled without diff blocks? Tag each issue as Critical, Suggestion, or Nit.", model = "opus" },
+  { id = "slop-detection", description = "Scan tour narratives in review-tour/stop-*.md for AI-generated patterns", subagent = "general-purpose", prompt_file = "slop-detection", model = "haiku" },
+  { id = "quality-review", description = "Review tour completeness, grouping quality, and narrative usefulness", subagent = "general-purpose", prompt_file = "review-tour-spec", subagent_prompt = "Review this review tour for: (1) Hunk coverage — does every changed hunk appear in exactly one stop? Cross-reference stop-plan.json hunk assignments with the rendered stop files. (2) Anchor correctness — do line numbers in links and candidate comments match actual diff lines? (3) Stop sizing — no oversized stops (>200 lines of diff). (4) Checkbox presence — index.md has per-file checkboxes for every non-trivial file. (5) JSON/markdown consistency — review-tour.json matches the rendered markdown files. (6) Trivial files — renames/generated/lockfiles are in trivial section, not in stops. (7) Narrative — preambles explain WHY not WHAT, concise, no restating the diff. (8) Format — correct multi-file structure, working permalinks, proper diff fencing. Tag each issue as Critical, Suggestion, or Nit.", model = "opus" },
   { id = "synthesize-feedback", description = "Synthesize feedback into tour-feedback.md", parents = ["slop-detection", "quality-review"] },
 ]
 prompt = """
@@ -352,14 +447,21 @@ Review the generated tour for quality before presenting to the user.
 
 ## Inputs
 
-- review-tour.md (injected above) — the generated tour
+- review-tour.json (injected above) — the structured tour data
 - pr-summary.md (injected above) — PR data for cross-reference
+- review-tour/ directory — rendered markdown files (index.md + stop-*.md)
+
+The review-tour.json artifact is injected above. To access the rendered markdown files, resolve the generate-tour phase directory:
+```bash
+uv run plan.py input-artifacts --json
+```
+The `review-tour/` directory is alongside `review-tour.json` in the generate-tour phase directory.
 
 ## Tasks
 
 Run the required tasks:
-1. Slop detection (haiku) — scan narratives for AI patterns
-2. Quality review (opus) — completeness, grouping, narrative quality, format
+1. Slop detection (haiku) — scan narratives in review-tour/stop-*.md for AI patterns
+2. Quality review (opus) — hunk coverage, anchor correctness, stop sizing, checkboxes, format
 3. Synthesize — combine feedback into tour-feedback.md
 
 ## Output
@@ -382,10 +484,16 @@ Apply accepted feedback to improve the review tour.
 
 ## Inputs
 
-- review-tour.md (injected above) — current tour
+- review-tour.json (injected above) — current structured tour data
 - tour-feedback.md — from review phase
+- review-tour/ directory — rendered markdown files
 
 Read tour-feedback.md from the review-tour phase directory.
+
+Locate the review-tour/ directory alongside review-tour.json (in the generate-tour phase directory):
+```bash
+uv run plan.py input-artifacts --json
+```
 
 ## Process
 
@@ -394,14 +502,15 @@ Read tour-feedback.md from the review-tour phase directory.
    - **Critical**: Must fix
    - **Suggestion**: Fix if it clearly improves the tour
    - **Nit**: Fix only if trivial; otherwise skip
-3. Edit review-tour.md in place
-4. Write brief revision notes in revision-log.md
+3. Edit review-tour.json (the source of truth)
+4. Re-render affected review-tour/stop-NN.md files and review-tour/index.md to match
+5. Write brief revision notes in revision-log.md
 
 ## Output
 
-Updated review-tour.md. Record the artifact:
+Updated review-tour.json and markdown files. Record the artifact:
 ```bash
-uv run plan.py record-artifact review-tour review-tour.md
+uv run plan.py record-artifact review-tour review-tour.json
 ```
 """
 suggested_next = [
@@ -420,18 +529,28 @@ Present the review tour to the user.
 
 ## Inputs
 
-- review-tour.md (injected above) — the final tour
+- review-tour.json (injected above) — the final structured tour data
+- review-tour/ directory — rendered markdown files (index.md + stop-*.md)
+
+Locate the review-tour/ directory alongside review-tour.json:
+```bash
+uv run plan.py input-artifacts --json
+```
 
 ## Tasks
 
-1. Open the review tour in VS Code so the user can read it immediately:
+1. Open the review tour index so the user can read it immediately:
    ```bash
-   code review-tour.md
+   TOUR_DIR=$(dirname "$(uv run plan.py input-artifacts --json | jq -r '.found[] | select(contains("review-tour.json"))')")
+   code "$TOUR_DIR/review-tour/index.md"
    ```
-2. Present a brief summary: number of stops, key themes
-3. Offer to post the tour as a PR comment:
+2. Present a brief summary: number of stops, key themes, risk distribution
+3. Offer to post the tour as a PR comment. Concatenate index + stop files for a single comment:
    ```bash
-   gh pr comment <PR_URL> --body-file review-tour.md
+   TOUR_DIR=$(dirname "$(uv run plan.py input-artifacts --json | jq -r '.found[] | select(contains("review-tour.json"))')")
+   cat "$TOUR_DIR/review-tour/index.md" > /tmp/tour-comment.md
+   for f in "$TOUR_DIR/review-tour"/stop-*.md; do echo "" >> /tmp/tour-comment.md; cat "$f" >> /tmp/tour-comment.md; done
+   gh pr comment <PR_URL> --body-file /tmp/tour-comment.md
    ```
 4. Note any caveats (e.g., if completeness couldn't be verified for very large PRs)
 
