@@ -37,7 +37,7 @@ if [[ -z "$ACTIVE_PLAN_DIR" ]]; then
 fi
 
 # Check session mode
-SESSION_MODE_FILE="${PROJECT_DIR}/.claude/jons-plan/session-mode"
+SESSION_MODE_FILE="${PROJECT_DIR}/.jons-plan/session-mode"
 SESSION_MODE=""
 if [[ -f "$SESSION_MODE_FILE" ]]; then
     SESSION_MODE=$(cat "$SESSION_MODE_FILE")

@@ -1,6 +1,6 @@
 ---
 description: Show all jons-plan plans and task progress
-allowed-tools: Read(.claude/jons-plan/**)
+allowed-tools: Read(.jons-plan/**)
 ---
 
 # Plan Status
@@ -9,11 +9,11 @@ Show all existing plans and their task progress.
 
 ## Workflow
 
-1. **Find plans directory**: Look for `.claude/jons-plan/plans/` in the project
+1. **Find plans directory**: Look for `.jons-plan/plans/` in the project
 
-2. **Get active plan**: Read `.claude/jons-plan/active-plan` to identify which plan is active (if any)
+2. **Get active plan**: Read `.jons-plan/active-plan` to identify which plan is active (if any)
 
-3. **List all plans**: For each subdirectory in `.claude/jons-plan/plans/`:
+3. **List all plans**: For each subdirectory in `.jons-plan/plans/`:
    - Read its `tasks.json`
    - Count tasks by status (done, in-progress, todo)
    - Note if it's the active plan

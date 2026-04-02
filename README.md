@@ -105,7 +105,7 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 ## Plan Directory Structure
 
 ```
-.claude/jons-plan/
+.jons-plan/
 ├── active-plan              # Name of the currently active plan
 ├── session-mode             # Current command mode
 └── plans/
@@ -195,7 +195,7 @@ A Qt/QML desktop application that visualizes plan execution in real-time. The vi
 
 ```bash
 uv run /path/to/viewer.py /path/to/plan
-# Example: uv run ~/.claude-plugins/jons-plan/viewer.py .claude/jons-plan/plans/my-plan
+# Example: uv run ~/.claude-plugins/jons-plan/viewer.py .jons-plan/plans/my-plan
 ```
 
 **Requirements:** graphviz (`brew install graphviz`)

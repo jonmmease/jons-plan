@@ -1,6 +1,6 @@
 ---
 description: Refine the active jons-plan implementation plan
-allowed-tools: WebSearch, Fetch, WebFetch, Bash(find:*), Bash(git status:*), Bash(tree:*), Bash(mkdir:*), Write(**/.claude/jons-plan/**), Edit(**/.claude/jons-plan/**)
+allowed-tools: WebSearch, Fetch, WebFetch, Bash(find:*), Bash(git status:*), Bash(tree:*), Bash(mkdir:*), Write(**/.jons-plan/**), Edit(**/.jons-plan/**)
 ---
 
 # Refine Active Plan
@@ -15,7 +15,7 @@ Allowed actions:
 - Read any file in the codebase (Read, Glob, Grep tools)
 - Search the web (WebSearch, WebFetch tools)
 - Launch Explore agents for research
-- Write to `.claude/jons-plan/plans/[active-plan]/` directory ONLY
+- Write to `.jons-plan/plans/[active-plan]/` directory ONLY
 - Ask user questions (AskUserQuestion tool)
 
 Forbidden actions:
@@ -26,7 +26,7 @@ Forbidden actions:
 
 ## Check Active Plan
 
-First, read `.claude/jons-plan/active-plan` to get the active plan name.
+First, read `.jons-plan/active-plan` to get the active plan name.
 
 If the file is empty or missing:
 - Tell user: "No active plan. Use `/jons-plan:new [topic]` to create one."
@@ -276,7 +276,7 @@ Do NOT use multiple choice for straightforward updates or when the feedback is c
 
 ### Refining request.md
 
-Location: `.claude/jons-plan/plans/[plan-name]/request.md`
+Location: `.jons-plan/plans/[plan-name]/request.md`
 
 Update when:
 - User wants to clarify scope

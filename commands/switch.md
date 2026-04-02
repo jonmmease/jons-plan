@@ -1,6 +1,6 @@
 ---
 description: Switch to a different jons-plan
-allowed-tools: Write(.claude/jons-plan/active-plan)
+allowed-tools: Write(.jons-plan/active-plan)
 ---
 
 # Switch Plan
@@ -15,10 +15,10 @@ No plan name provided. Use `/jons-plan:status` to see available plans, then `/jo
 
 ## Workflow
 
-1. **Validate plan exists**: Check if `.claude/jons-plan/plans/{{args}}/` directory exists
+1. **Validate plan exists**: Check if `.jons-plan/plans/{{args}}/` directory exists
    - If not found, list available plans and stop
 
-2. **Switch active plan**: Write the plan name to `.claude/jons-plan/active-plan`
+2. **Switch active plan**: Write the plan name to `.jons-plan/active-plan`
 
 3. **Load plan state**: Read the plan's `tasks.json` and calculate:
    - Total tasks

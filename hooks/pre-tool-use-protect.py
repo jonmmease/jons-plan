@@ -45,17 +45,17 @@ ALLOWED_ONLY_DURING_PLANNING = {
 
 
 def is_in_jons_plan_dir(file_path: str) -> bool:
-    """Check if file is within a .claude/jons-plan/ directory."""
+    """Check if file is within a .jons-plan/ directory."""
     normalized = os.path.normpath(file_path)
-    return "/.claude/jons-plan/" in normalized or "\\.claude\\jons-plan\\" in normalized
+    return "/.jons-plan/" in normalized or "\\.jons-plan\\" in normalized
 
 
 def get_jons_plan_root(file_path: str) -> Path | None:
-    """Find the .claude/jons-plan directory from a file path within it."""
+    """Find the .jons-plan directory from a file path within it."""
     path = Path(file_path).resolve()
-    # Walk up to find .claude/jons-plan
+    # Walk up to find .jons-plan
     for parent in path.parents:
-        jons_plan_dir = parent / ".claude" / "jons-plan"
+        jons_plan_dir = parent / ".jons-plan"
         if jons_plan_dir.is_dir():
             return jons_plan_dir
     return None
@@ -162,7 +162,7 @@ def validate_tasks_json(content: str) -> tuple[bool, list[str]]:
 
 def get_plan_dir_from_tasks_path(tasks_path: str) -> Path | None:
     """Get the plan directory from a tasks.json file path."""
-    # tasks.json is at: .claude/jons-plan/plans/<plan>/phases/<phase>/tasks.json
+    # tasks.json is at: .jons-plan/plans/<plan>/phases/<phase>/tasks.json
     path = Path(tasks_path).resolve()
     # Walk up to find the plan directory (contains workflow.toml)
     for parent in path.parents:

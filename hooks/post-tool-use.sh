@@ -40,8 +40,8 @@ if [[ -z "$ACTIVE_PLAN_DIR" ]]; then
     exit 0
 fi
 
-# Skip if file is in .claude/jons-plan/plans/ (avoid recursive logging)
-if [[ "$FILE_PATH" == *".claude/jons-plan/plans/"* ]]; then
+# Skip if file is in .jons-plan/plans/ (avoid recursive logging)
+if [[ "$FILE_PATH" == *".jons-plan/plans/"* ]]; then
     exit 0
 fi
 

@@ -124,8 +124,8 @@ def get_project_dir() -> Path:
 
 
 def get_active_plan(project_dir: Path) -> str | None:
-    """Get active plan name from .claude/jons-plan/active-plan file."""
-    active_plan_file = project_dir / ".claude" / "jons-plan" / "active-plan"
+    """Get active plan name from .jons-plan/active-plan file."""
+    active_plan_file = project_dir / ".jons-plan" / "active-plan"
     if active_plan_file.exists():
         return active_plan_file.read_text().strip()
     return None
@@ -135,7 +135,7 @@ def get_active_plan_dir(project_dir: Path) -> Path | None:
     """Get the active plan directory path."""
     plan_name = get_active_plan(project_dir)
     if plan_name:
-        plan_dir = project_dir / ".claude" / "jons-plan" / "plans" / plan_name
+        plan_dir = project_dir / ".jons-plan" / "plans" / plan_name
         if plan_dir.is_dir():
             return plan_dir
     return None
@@ -1670,7 +1670,7 @@ class ResearchCache:
 
     def __init__(self, project_dir: Path):
         self.project_dir = project_dir
-        self.cache_dir = project_dir / ".claude" / "jons-plan" / "research-cache"
+        self.cache_dir = project_dir / ".jons-plan" / "research-cache"
         self.db_path = self.cache_dir / "cache.db"
         self._ensure_schema()
 
@@ -2051,7 +2051,7 @@ def cmd_active_plan_dir(args: argparse.Namespace) -> int:
 def cmd_list_plans(args: argparse.Namespace) -> int:
     """List all available plans."""
     project_dir = get_project_dir()
-    plans_dir = project_dir / ".claude" / "jons-plan" / "plans"
+    plans_dir = project_dir / ".jons-plan" / "plans"
     active = get_active_plan(project_dir)
     if plans_dir.is_dir():
         for plan in sorted(plans_dir.iterdir()):
@@ -2063,7 +2063,7 @@ def cmd_list_plans(args: argparse.Namespace) -> int:
 
 def _append_reflog_entry(project_dir: Path, plan_name: str, previous_plan: str | None) -> None:
     """Append an entry to the plan activation reflog."""
-    reflog_file = project_dir / ".claude" / "jons-plan" / "reflog.jsonl"
+    reflog_file = project_dir / ".jons-plan" / "reflog.jsonl"
     reflog_file.parent.mkdir(parents=True, exist_ok=True)
     entry = {
         "plan": plan_name,
@@ -2077,7 +2077,7 @@ def _append_reflog_entry(project_dir: Path, plan_name: str, previous_plan: str |
 def cmd_set_active(args: argparse.Namespace) -> int:
     """Set the active plan."""
     project_dir = get_project_dir()
-    plans_dir = project_dir / ".claude" / "jons-plan" / "plans"
+    plans_dir = project_dir / ".jons-plan" / "plans"
     plan_dir = plans_dir / args.plan_name
 
     if not plan_dir.is_dir():
@@ -2099,7 +2099,7 @@ def cmd_set_active(args: argparse.Namespace) -> int:
     # Record activation in reflog
     _append_reflog_entry(project_dir, args.plan_name, old_plan if old_plan != args.plan_name else None)
 
-    active_plan_file = project_dir / ".claude" / "jons-plan" / "active-plan"
+    active_plan_file = project_dir / ".jons-plan" / "active-plan"
     active_plan_file.parent.mkdir(parents=True, exist_ok=True)
     active_plan_file.write_text(args.plan_name)
     print(f"Active plan set to: {args.plan_name}")
@@ -2109,7 +2109,7 @@ def cmd_set_active(args: argparse.Namespace) -> int:
 def cmd_deactivate(args: argparse.Namespace) -> int:
     """Deactivate the current plan without switching to another."""
     project_dir = get_project_dir()
-    active_plan_file = project_dir / ".claude" / "jons-plan" / "active-plan"
+    active_plan_file = project_dir / ".jons-plan" / "active-plan"
 
     if not active_plan_file.exists():
         print("No active plan to deactivate")
@@ -2130,7 +2130,7 @@ def cmd_deactivate(args: argparse.Namespace) -> int:
 def cmd_reflog(args: argparse.Namespace) -> int:
     """Show plan activation history (most recent first)."""
     project_dir = get_project_dir()
-    reflog_file = project_dir / ".claude" / "jons-plan" / "reflog.jsonl"
+    reflog_file = project_dir / ".jons-plan" / "reflog.jsonl"
 
     if not reflog_file.exists():
         print("No reflog entries yet.")
@@ -3191,7 +3191,7 @@ VALID_MODES = ("new", "plan", "proceed", "awaiting-feedback")
 
 def get_session_mode_file(project_dir: Path) -> Path:
     """Get path to session-mode file."""
-    return project_dir / ".claude" / "jons-plan" / "session-mode"
+    return project_dir / ".jons-plan" / "session-mode"
 
 
 def set_session_mode(project_dir: Path, mode: str) -> None:
@@ -6106,7 +6106,7 @@ def cmd_acknowledge_challenge(args: argparse.Namespace) -> int:
 def cmd_status(args: argparse.Namespace) -> int:
     """Show comprehensive status overview."""
     project_dir = get_project_dir()
-    plans_dir = project_dir / ".claude" / "jons-plan" / "plans"
+    plans_dir = project_dir / ".jons-plan" / "plans"
     active = get_active_plan(project_dir)
 
     # Plans section

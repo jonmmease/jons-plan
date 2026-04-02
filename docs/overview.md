@@ -41,7 +41,7 @@ jons-plan is a “long-running agent harness” for Claude Code. It keeps multi-
 ## Data Model (On-Disk)
 
 ```
-.claude/jons-plan/
+.jons-plan/
 ├── active-plan
 ├── session-mode
 └── plans/

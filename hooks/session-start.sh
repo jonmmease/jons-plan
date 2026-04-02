@@ -35,7 +35,7 @@ while [[ "$PROJECT_DIR" != "/" ]]; do
 done
 echo "PROJECT_DIR: ${PROJECT_DIR}" >> "$DEBUG_LOG"
 
-PLANS_DIR="${PROJECT_DIR}/.claude/jons-plan/plans"
+PLANS_DIR="${PROJECT_DIR}/.jons-plan/plans"
 
 # Get active plan
 ACTIVE_PLAN=$(plan active-plan 2>/dev/null || echo "")
@@ -70,8 +70,8 @@ Example: \`/jons-plan:new add user authentication\`"
     elif [[ "$PLAN_COUNT" -eq 1 ]]; then
         # Single plan - auto-select it
         ACTIVE_PLAN=$(basename "$(find "$PLANS_DIR" -mindepth 1 -maxdepth 1 -type d | head -1)")
-        mkdir -p "${PROJECT_DIR}/.claude/jons-plan"
-        echo "$ACTIVE_PLAN" > "${PROJECT_DIR}/.claude/jons-plan/active-plan"
+        mkdir -p "${PROJECT_DIR}/.jons-plan"
+        echo "$ACTIVE_PLAN" > "${PROJECT_DIR}/.jons-plan/active-plan"
         echo "_Auto-selected single plan: ${ACTIVE_PLAN}_"
         echo ""
     else
@@ -321,7 +321,7 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
         echo ""
 
         # MOST IMPORTANT: Show the user's original request/topic
-        COMMAND_ARGS_FILE="${PROJECT_DIR}/.claude/jons-plan/command-args"
+        COMMAND_ARGS_FILE="${PROJECT_DIR}/.jons-plan/command-args"
         if [[ -f "$COMMAND_ARGS_FILE" ]]; then
             STORED_ARGS=$(cat "$COMMAND_ARGS_FILE")
             if [[ -n "$STORED_ARGS" ]]; then
@@ -362,7 +362,7 @@ if [[ -n "$ACTIVE_PLAN_DIR" && -d "$ACTIVE_PLAN_DIR" ]]; then
         echo ""
 
         # MOST IMPORTANT: Show the user's feedback/guidance
-        COMMAND_ARGS_FILE="${PROJECT_DIR}/.claude/jons-plan/command-args"
+        COMMAND_ARGS_FILE="${PROJECT_DIR}/.jons-plan/command-args"
         if [[ -f "$COMMAND_ARGS_FILE" ]]; then
             STORED_ARGS=$(cat "$COMMAND_ARGS_FILE")
             if [[ -n "$STORED_ARGS" ]]; then
@@ -443,7 +443,7 @@ else
     echo "## Session Start: Plan Not Found"
     echo ""
     echo "Active plan \`${ACTIVE_PLAN}\` not found. Clearing..."
-    rm -f "${PROJECT_DIR}/.claude/jons-plan/active-plan"
+    rm -f "${PROJECT_DIR}/.jons-plan/active-plan"
     echo ""
     echo "Use \`/jons-plan:new [topic]\` to create a new plan."
 fi

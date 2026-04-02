@@ -37,13 +37,13 @@ After tasks complete, synthesize findings into `research.md` with one section pe
 
 Brief overview of important findings from this task.
 
-[Full report](.claude/jons-plan/plans/<plan-name>/phases/01-research/tasks/research-sqlite-fts/findings.md)
+[Full report](.jons-plan/plans/<plan-name>/phases/01-research/tasks/research-sqlite-fts/findings.md)
 
 ### Task: research-caching-patterns
 
 Brief overview of important findings from this task.
 
-[Full report](.claude/jons-plan/plans/<plan-name>/phases/01-research/tasks/research-caching-patterns/findings.md)
+[Full report](.jons-plan/plans/<plan-name>/phases/01-research/tasks/research-caching-patterns/findings.md)
 
 ## Round 2 (phases/02-research)
 
@@ -54,7 +54,7 @@ Brief overview of important findings from this task.
 
 Brief overview of the experiment and conclusion.
 
-[Full experiment](.claude/jons-plan/plans/<plan-name>/phases/02-research/tasks/proto-async-compat/findings.md)
+[Full experiment](.jons-plan/plans/<plan-name>/phases/02-research/tasks/proto-async-compat/findings.md)
 ```
 
 Use `uv run plan.py task-dir <task-id>` to get the exact path for each task.

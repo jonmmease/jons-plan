@@ -28,7 +28,7 @@ This is used when a phase presents numbered options (like `suggested_next` trans
 
 ## Check Active Plan
 
-First, read `.claude/jons-plan/active-plan` to get the active plan name.
+First, read `.jons-plan/active-plan` to get the active plan name.
 
 If the file is empty or missing:
 - Tell user: "No active plan. Use `/jons-plan:new [topic]` to create one."

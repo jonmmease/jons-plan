@@ -1,6 +1,6 @@
 ---
 description: Create a new jons-plan implementation plan
-allowed-tools: WebSearch, Fetch, WebFetch, Bash(find:*), Bash(git status:*), Bash(git branch:*), Bash(gh pr view:*), Bash(tree:*), Bash(mkdir:*), Write(**/.claude/jons-plan/**), Edit(**/.claude/jons-plan/**), Edit(**/.git/info/exclude)
+allowed-tools: WebSearch, Fetch, WebFetch, Bash(find:*), Bash(git status:*), Bash(git branch:*), Bash(gh pr view:*), Bash(tree:*), Bash(mkdir:*), Write(**/.jons-plan/**), Edit(**/.jons-plan/**), Edit(**/.git/info/exclude)
 ---
 
 ultrathink
@@ -19,7 +19,7 @@ Allowed actions:
 - Read any file in the codebase (Read, Glob, Grep tools)
 - Search the web (WebSearch, WebFetch tools)
 - Launch Explore/Plan subagents for research
-- Write to `.claude/jons-plan/plans/[plan-name]/` directory ONLY
+- Write to `.jons-plan/plans/[plan-name]/` directory ONLY
 - Ask user questions (AskUserQuestion tool)
 
 Forbidden actions:
@@ -216,10 +216,10 @@ Convert topic to kebab-case (e.g., "add user authentication" → "add-user-authe
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 ```
 
-1. If in a git repo, ensure `.claude/jons-plan/` is in `.git/info/exclude` (do NOT modify `.gitignore`)
+1. If in a git repo, ensure `.jons-plan/` is in `.git/info/exclude` (do NOT modify `.gitignore`)
 2. Create directory:
    ```bash
-   mkdir -p "$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>"
+   mkdir -p "$PROJECT_ROOT/.jons-plan/plans/<plan-name>"
    ```
 3. **Immediately after creating the directory**, set active and mode (this ensures plan context is preserved if compaction occurs):
    ```bash
@@ -228,9 +228,9 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
    ```
 5. Copy workflow.toml to plan directory:
    ```bash
-   cp ~/.claude-plugins/jons-plan/workflows/<name>.toml "$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>/workflow.toml"
+   cp ~/.claude-plugins/jons-plan/workflows/<name>.toml "$PROJECT_ROOT/.jons-plan/plans/<plan-name>/workflow.toml"
    ```
-6. Create `request.md` with the user's request (use absolute path: `$PROJECT_ROOT/.claude/jons-plan/plans/<plan-name>/request.md`)
+6. Create `request.md` with the user's request (use absolute path: `$PROJECT_ROOT/.jons-plan/plans/<plan-name>/request.md`)
 7. Record the request as a plan-level artifact so downstream phases can reference it:
    ```bash
    uv run ~/.claude-plugins/jons-plan/plan.py record-artifact --plan-level request request.md
@@ -335,7 +335,7 @@ Example task:
 Tasks can run in parallel ONLY if they won't conflict:
 
 **Safe to parallelize** (no parent dependency needed):
-- Research tasks that only write to their task output directory: `.claude/jons-plan/plans/[plan]/phases/[phase]/tasks/[task-id]/` (use `ensure-task-dir` CLI to get path)
+- Research tasks that only write to their task output directory: `.jons-plan/plans/[plan]/phases/[phase]/tasks/[task-id]/` (use `ensure-task-dir` CLI to get path)
 - Monorepo tasks that modify separate packages (e.g., `packages/foo/` vs `packages/bar/`)
 - Tasks that only read from the codebase without writing
 
@@ -427,7 +427,7 @@ validate-* (late)          → Run tests, verify criteria
 ### Test Specification Output
 
 Test definition tasks write to the task output directory:
-`.claude/jons-plan/plans/[plan]/phases/[phase]/tasks/[task-id]/test-spec.md`
+`.jons-plan/plans/[plan]/phases/[phase]/tasks/[task-id]/test-spec.md`
 
 Use `ensure-task-dir <task-id>` CLI to get the path.
 

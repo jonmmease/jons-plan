@@ -51,7 +51,7 @@ done
 if [[ "$PROJECT_DIR" == "/" ]]; then
     PROJECT_DIR="$(pwd)"
 fi
-JONS_PLAN_DIR="${PROJECT_DIR}/.claude/jons-plan"
+JONS_PLAN_DIR="${PROJECT_DIR}/.jons-plan"
 
 # Check for /jons-plan:* commands and set appropriate mode
 if [[ "$MESSAGE" == "/jons-plan:plan"* ]]; then

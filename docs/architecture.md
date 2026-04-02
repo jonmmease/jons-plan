@@ -58,7 +58,7 @@ Key insights from the post:
                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    File System State                             │
-│  .claude/jons-plan/                                              │
+│  .jons-plan/                                              │
 │  ├── active-plan           # Current plan name                   │
 │  ├── session-mode          # Current command mode                │
 │  └── plans/                                                      │
@@ -203,7 +203,7 @@ To handle compaction correctly, we track which command is currently active:
 Each task can have its own progress log for fine-grained resumption context:
 
 ```
-.claude/jons-plan/plans/[plan]/phases/[phase]/tasks/[task-id]/
+.jons-plan/plans/[plan]/phases/[phase]/tasks/[task-id]/
 ├── progress.txt    # Timestamped progress entries
 └── output.md       # Task artifacts (optional)
 ```
@@ -582,10 +582,10 @@ uv run ~/.claude-plugins/jons-plan/plan.py <command>
 | `~/.claude-plugins/jons-plan/commands/` | Slash command definitions |
 | `~/.claude-plugins/jons-plan/hooks/` | Lifecycle hook scripts |
 | `~/.claude-plugins/jons-plan/workflows/` | Workflow TOML definitions |
-| `[project]/.claude/jons-plan/` | Project-specific plan data |
-| `[project]/.claude/jons-plan/active-plan` | Current plan name |
-| `[project]/.claude/jons-plan/session-mode` | Current command mode |
-| `[project]/.claude/jons-plan/plans/[name]/` | Individual plan directories |
-| `[project]/.claude/jons-plan/plans/[name]/workflow.toml` | Plan's workflow definition |
-| `[project]/.claude/jons-plan/plans/[name]/state.json` | Phase state machine |
-| `[project]/.claude/jons-plan/plans/[name]/phases/` | Phase directories |
+| `[project]/.jons-plan/` | Project-specific plan data |
+| `[project]/.jons-plan/active-plan` | Current plan name |
+| `[project]/.jons-plan/session-mode` | Current command mode |
+| `[project]/.jons-plan/plans/[name]/` | Individual plan directories |
+| `[project]/.jons-plan/plans/[name]/workflow.toml` | Plan's workflow definition |
+| `[project]/.jons-plan/plans/[name]/state.json` | Phase state machine |
+| `[project]/.jons-plan/plans/[name]/phases/` | Phase directories |
