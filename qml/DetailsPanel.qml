@@ -549,6 +549,187 @@ Rectangle {
                         }
                     }
 
+                    // Phase Config section (runtime state, retry limits, user guidance)
+                    Rectangle {
+                        id: configSection
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: configExpanded ? configContent.height + 28 + Theme.spacingSmall : 28
+                        color: Theme.bgPanel
+                        clip: true
+                        visible: Boolean(workflowModel.selectedPhaseDetails.requires_user_input) ||
+                                 (workflowModel.selectedPhaseDetails.max_retries !== undefined && workflowModel.selectedPhaseDetails.max_retries !== null) ||
+                                 (workflowModel.selectedPhaseDetails.required_json_artifacts || []).length > 0 ||
+                                 (workflowModel.selectedPhaseDetails.user_guidance || "") !== "" ||
+                                 (workflowModel.selectedPhaseDetails.dead_ends_count || 0) > 0 ||
+                                 (workflowModel.selectedPhaseDetails.prompt_files || []).length > 0
+
+                        property bool configExpanded: false
+
+                        Connections {
+                            target: workflowModel
+                            function onSelectedPhaseChanged() {
+                                configSection.configExpanded = false
+                            }
+                        }
+
+                        Rectangle {
+                            id: configHeader
+                            width: parent.width
+                            height: 28
+                            color: configHeaderMouse.containsMouse ? Theme.hoverHighlight : Theme.bgPanelHeader
+
+                            MouseArea {
+                                id: configHeaderMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: configSection.configExpanded = !configSection.configExpanded
+                            }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: Theme.spacingSmall
+                                anchors.rightMargin: Theme.spacingSmall
+
+                                Text {
+                                    text: configSection.configExpanded ? "▼" : "▶"
+                                    font.pixelSize: 10
+                                    color: Theme.textMuted
+                                }
+                                Text {
+                                    text: "Phase Config"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.weight: Font.Medium
+                                    color: Theme.textPrimary
+                                }
+                                Item { Layout.fillWidth: true }
+                            }
+                        }
+
+                        ColumnLayout {
+                            id: configContent
+                            anchors.top: configHeader.bottom
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.margins: Theme.spacingSmall
+                            spacing: Theme.spacingSmall
+
+                            // Requires user input badge
+                            Rectangle {
+                                visible: Boolean(workflowModel.selectedPhaseDetails.requires_user_input)
+                                width: userInputLabel.width + Theme.spacingSmall * 2
+                                height: userInputLabel.height + 4
+                                radius: 3
+                                color: "#FFF3E0"
+                                border.width: 1
+                                border.color: "#FFB74D"
+
+                                Text {
+                                    id: userInputLabel
+                                    anchors.centerIn: parent
+                                    text: "Requires User Input"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: "#E65100"
+                                }
+                            }
+
+                            // Retry info
+                            RowLayout {
+                                visible: workflowModel.selectedPhaseDetails.max_retries !== undefined &&
+                                         workflowModel.selectedPhaseDetails.max_retries !== null
+                                spacing: Theme.spacingSmall
+
+                                Text {
+                                    text: "Retries:"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.weight: Font.Medium
+                                    color: Theme.textSecondary
+                                }
+                                Text {
+                                    text: (workflowModel.selectedPhaseDetails.retry_count || 0) +
+                                          " / " + (workflowModel.selectedPhaseDetails.max_retries || "?")
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.textPrimary
+                                }
+                            }
+
+                            // Dead ends count
+                            RowLayout {
+                                visible: (workflowModel.selectedPhaseDetails.dead_ends_count || 0) > 0
+                                spacing: Theme.spacingSmall
+
+                                Text {
+                                    text: "Dead Ends:"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.weight: Font.Medium
+                                    color: Theme.textSecondary
+                                }
+                                Text {
+                                    text: String(workflowModel.selectedPhaseDetails.dead_ends_count || 0)
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: "#E65100"
+                                }
+                            }
+
+                            // User guidance
+                            ColumnLayout {
+                                visible: (workflowModel.selectedPhaseDetails.user_guidance || "") !== ""
+                                Layout.fillWidth: true
+                                spacing: 2
+
+                                Text {
+                                    text: "User Guidance:"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.weight: Font.Medium
+                                    color: Theme.textSecondary
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: workflowModel.selectedPhaseDetails.user_guidance || ""
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.textPrimary
+                                    wrapMode: Text.WordWrap
+                                }
+                            }
+
+                            // Prompt files
+                            RowLayout {
+                                visible: (workflowModel.selectedPhaseDetails.prompt_files || []).length > 0
+                                spacing: Theme.spacingSmall
+
+                                Text {
+                                    text: "Prompt Files:"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.weight: Font.Medium
+                                    color: Theme.textSecondary
+                                }
+                                Text {
+                                    text: (workflowModel.selectedPhaseDetails.prompt_files || []).join(", ")
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.textPrimary
+                                }
+                            }
+
+                            // Required JSON artifacts
+                            RowLayout {
+                                visible: (workflowModel.selectedPhaseDetails.required_json_artifacts || []).length > 0
+                                spacing: Theme.spacingSmall
+
+                                Text {
+                                    text: "JSON Artifacts:"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.weight: Font.Medium
+                                    color: Theme.textSecondary
+                                }
+                                Text {
+                                    text: (workflowModel.selectedPhaseDetails.required_json_artifacts || []).join(", ")
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.textPrimary
+                                }
+                            }
+                        }
+                    }
+
                     // Phase Prompt section
                     Rectangle {
                         id: promptSection

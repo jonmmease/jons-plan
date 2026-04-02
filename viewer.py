@@ -36,6 +36,7 @@ from PySide6.QtCore import (
     Property,
     QFileSystemWatcher,
     QObject,
+    QTimer,
     QUrl,
     Signal,
     Slot,
@@ -325,13 +326,31 @@ class WorkflowModel(QObject):
         self._theme_mode = "system"
         self._system_is_dark = darkdetect.isDark() or False
 
+        # Error-safe reload: cache last good parse results
+        self._last_good_workflow: dict = {"phases": []}
+        self._last_good_state: dict = {}
+
+        # Graphviz layout cache
+        self._workflow_hash: str | None = None
+        self._cached_layout: dict | None = None
+
+        # Incremental progress loading
+        self._progress_file_pos = 0
+        self._progress_raw_entries: list = []
+
+        # Debounce timer for reload (300ms)
+        self._reload_timer = QTimer()
+        self._reload_timer.setSingleShot(True)
+        self._reload_timer.setInterval(300)
+        self._reload_timer.timeout.connect(self._reload)
+
         # File watcher for live updates
         self._watcher = QFileSystemWatcher()
         self._watcher.fileChanged.connect(self._on_file_changed)
         self._watcher.directoryChanged.connect(self._on_directory_changed)
         self._setup_watches()
 
-        # Initial load
+        # Initial load (direct, not debounced)
         self._reload()
 
     def _setup_watches(self) -> None:
@@ -383,22 +402,23 @@ class WorkflowModel(QObject):
         logger.info(f"Watching {len(self._watcher.files())} files, {len(self._watcher.directories())} directories")
 
     def _on_file_changed(self, path: str) -> None:
-        """Reload when watched files change."""
+        """Reload when watched files change (debounced)."""
         logger.info(f"File changed: {path}")
-        self._reload()
-        # Re-add watch (Qt removes after change notification)
+        # Re-add watch immediately (Qt removes after change notification)
         if Path(path).exists():
             self._watcher.addPath(path)
-        # Check for new files that weren't being watched
         self._watch_new_phase_files()
+        # Debounced reload
+        self._reload_timer.start()
 
     def _on_directory_changed(self, path: str) -> None:
-        """Reload when directory contents change (new files created)."""
+        """Reload when directory contents change (debounced)."""
         logger.info(f"Directory changed: {path}")
-        self._reload()
-        # Watch any new files/directories that were created
+        # Watch any new files/directories immediately
         self._watch_new_phase_files()
         self._watch_new_directories()
+        # Debounced reload
+        self._reload_timer.start()
 
     def _watch_new_directories(self) -> None:
         """Add watches for any new directories."""
@@ -446,12 +466,36 @@ class WorkflowModel(QObject):
                         self._watcher.addPath(str(f))
                         logger.debug(f"Added watch for new file: {f}")
 
+    def _compute_workflow_hash(self, workflow: dict) -> str:
+        """Hash workflow structure for layout caching."""
+        import hashlib
+        parts = []
+        for phase in workflow.get("phases", []):
+            parts.append(phase.get("id", ""))
+            parts.append(str(phase.get("suggested_next", [])))
+            parts.append(str(phase.get("terminal", False)))
+        return hashlib.md5("".join(parts).encode()).hexdigest()
+
     def _reload(self) -> None:
         """Reload workflow and state from files."""
+        try:
+            self._reload_inner()
+        except Exception as e:
+            logger.warning(f"Reload failed: {e}")
+
+    def _reload_inner(self) -> None:
+        """Inner reload logic (called by _reload with error handling)."""
         logger.debug("Reloading workflow data...")
         workflow = self._load_workflow()
         state = self._load_state()
-        layout = compute_layout(workflow)
+
+        # Only recompute Graphviz layout when workflow structure changes
+        new_hash = self._compute_workflow_hash(workflow)
+        if new_hash != self._workflow_hash or self._cached_layout is None:
+            self._cached_layout = compute_layout(workflow)
+            self._workflow_hash = new_hash
+            logger.debug("Workflow structure changed, recomputed layout")
+        layout = self._cached_layout
 
         # Track current phase for auto-follow
         old_current = self._current_phase
@@ -496,20 +540,32 @@ class WorkflowModel(QObject):
         logger.debug("Reload complete, dataChanged emitted")
 
     def _load_workflow(self) -> dict:
-        """Load workflow.toml."""
+        """Load workflow.toml (error-safe, returns last good on failure)."""
         workflow_path = self._plan_path / "workflow.toml"
         if workflow_path.exists():
-            with open(workflow_path, "rb") as f:
-                return tomli.load(f)
-        return {"phases": []}
+            try:
+                with open(workflow_path, "rb") as f:
+                    result = tomli.load(f)
+                self._last_good_workflow = result
+                return result
+            except Exception as e:
+                logger.warning(f"Failed to parse workflow.toml: {e}")
+                return self._last_good_workflow
+        return self._last_good_workflow
 
     def _load_state(self) -> dict:
-        """Load state.json."""
+        """Load state.json (error-safe, returns last good on failure)."""
         state_path = self._plan_path / "state.json"
         if state_path.exists():
-            with open(state_path) as f:
-                return json.load(f)
-        return {}
+            try:
+                with open(state_path) as f:
+                    result = json.load(f)
+                self._last_good_state = result
+                return result
+            except Exception as e:
+                logger.warning(f"Failed to parse state.json: {e}")
+                return self._last_good_state
+        return self._last_good_state
 
     def _load_request(self) -> None:
         """Load request.md and convert to HTML."""
@@ -612,28 +668,52 @@ class WorkflowModel(QObject):
                 "plan_artifact_names": plan_art_names,
                 "entry_count": entry_counts.get(phase_id, 0),
                 "tasks": [],
+                # Phase config fields
+                "requires_user_input": phase.get("requires_user_input", False),
+                "max_retries": phase.get("max_retries"),
+                "prompt_files": phase.get("prompt_files", []),
+                "required_json_artifacts": phase.get("required_json_artifacts", []),
             }
 
     def _load_progress(self) -> None:
-        """Load claude-progress.txt entries."""
+        """Load claude-progress.txt entries (incremental on subsequent calls)."""
         progress_path = self._plan_path / "claude-progress.txt"
-        self._progress_entries = []
 
         if not progress_path.exists():
+            self._progress_entries = []
+            self._progress_file_pos = 0
+            self._progress_raw_entries = []
             return
 
-        # Parse progress lines: [YYYY-MM-DD HH:MM:SS] message
         pattern = re.compile(r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (.+)")
 
-        with open(progress_path) as f:
-            for line in f:
+        try:
+            file_size = progress_path.stat().st_size
+        except OSError:
+            return
+
+        # File truncated/rotated — re-read from start
+        if file_size < self._progress_file_pos:
+            self._progress_file_pos = 0
+            self._progress_raw_entries = []
+
+        # Only read new bytes
+        if file_size > self._progress_file_pos:
+            try:
+                with open(progress_path) as f:
+                    f.seek(self._progress_file_pos)
+                    new_data = f.read()
+                    self._progress_file_pos = f.tell()
+            except OSError:
+                return
+
+            for line in new_data.splitlines():
                 line = line.strip()
                 if not line:
                     continue
                 match = pattern.match(line)
                 if match:
                     timestamp, message = match.groups()
-                    # Categorize message
                     msg_type = "info"
                     if message.startswith("TASK_STATUS:"):
                         msg_type = "task"
@@ -641,15 +721,14 @@ class WorkflowModel(QObject):
                         msg_type = "phase"
                     elif message.startswith("SESSION_"):
                         msg_type = "session"
-
-                    self._progress_entries.append({
+                    self._progress_raw_entries.append({
                         "timestamp": timestamp,
                         "message": message,
                         "type": msg_type,
                     })
 
         # Keep most recent entries (last 100)
-        self._progress_entries = self._progress_entries[-100:]
+        self._progress_entries = self._progress_raw_entries[-100:]
 
     def _build_phase_history(self, state: dict) -> None:
         """Build phase history list for QML."""
@@ -668,7 +747,7 @@ class WorkflowModel(QObject):
             })
 
     def _load_phase_tasks(self, phase_dir: str) -> list:
-        """Load tasks for a specific phase directory."""
+        """Load tasks for a specific phase directory (error-safe)."""
         if not phase_dir:
             logger.debug("_load_phase_tasks: no phase_dir provided")
             return []
@@ -678,10 +757,14 @@ class WorkflowModel(QObject):
         tasks_file = phase_path / "tasks.json"
         logger.debug(f"_load_phase_tasks: checking {tasks_file}")
         if tasks_file.exists():
-            with open(tasks_file) as f:
-                tasks = json.load(f)
-                logger.debug(f"_load_phase_tasks: loaded {len(tasks)} tasks")
-                return tasks
+            try:
+                with open(tasks_file) as f:
+                    tasks = json.load(f)
+                    logger.debug(f"_load_phase_tasks: loaded {len(tasks)} tasks")
+                    return tasks
+            except Exception as e:
+                logger.warning(f"Failed to parse {tasks_file}: {e}")
+                return []
         logger.debug("_load_phase_tasks: tasks.json not found")
         return []
 
@@ -727,8 +810,20 @@ class WorkflowModel(QObject):
             details["entry"] = entry.get("entry")
             details["entryDir"] = phase_dir
             details["entered"] = entry.get("entered", "")
+            details["exited"] = entry.get("exited")
             details["reason"] = entry.get("reason", "")
             details["outcome"] = entry.get("outcome")
+            # Runtime state fields
+            details["retry_count"] = self._last_good_state.get("phase_retries", {}).get(phase_id, 0)
+            details["user_guidance"] = self._last_good_state.get("user_guidance", "")
+            dead_ends_file = self._plan_path / "dead-ends.json"
+            dead_ends_count = 0
+            if dead_ends_file.exists():
+                try:
+                    dead_ends_count = len(json.loads(dead_ends_file.read_text()))
+                except Exception:
+                    pass
+            details["dead_ends_count"] = dead_ends_count
             self._selected_phase_tasks = self._load_phase_tasks(phase_dir)
             details["tasks"] = self._selected_phase_tasks
             logger.debug(f"_update_selected_phase_details: loaded {len(details['tasks'])} tasks")
@@ -774,6 +869,38 @@ class WorkflowModel(QObject):
             # Refresh artifacts and logs (these methods now check before emitting)
             self._load_phase_artifacts(phase_dir)
             self._load_phase_logs(phase_dir)
+            # Refresh selected task findings (outputs written by agents)
+            if self._selected_task_id:
+                self._refresh_task_findings()
+
+    def _refresh_task_findings(self) -> None:
+        """Refresh findings for the currently selected task during live reload."""
+        if not self._selected_task_id:
+            return
+        task_dir = self._get_task_dir(self._selected_task_id)
+        if not task_dir:
+            return
+        new_findings = []
+        for file_path in task_dir.iterdir():
+            if file_path.is_file() and file_path.name != "progress.txt":
+                try:
+                    raw_content = file_path.read_text(encoding="utf-8")
+                    is_md = file_path.suffix.lower() == ".md"
+                    new_findings.append({
+                        "name": file_path.name,
+                        "filePath": str(file_path),
+                        "content": md_to_html(raw_content) if is_md else raw_content,
+                        "rawContent": raw_content,
+                        "isHtml": is_md,
+                    })
+                except Exception:
+                    pass
+        # Only emit if findings actually changed
+        old_by_name = {f["name"]: f.get("rawContent", "") for f in self._selected_task_findings}
+        new_by_name = {f["name"]: f.get("rawContent", "") for f in new_findings}
+        if old_by_name != new_by_name:
+            self._selected_task_findings = new_findings
+            self.selectedTaskFindingsChanged.emit()
 
     def _load_phase_artifacts(self, phase_dir: str) -> None:
         """Load artifacts from phase directory.
@@ -820,12 +947,8 @@ class WorkflowModel(QObject):
         return old_by_name != new_by_name
 
     def _tasks_changed(self, old: list, new: list) -> bool:
-        """Check if task lists differ (by id and status)."""
-        if len(old) != len(new):
-            return True
-        old_by_id = {t.get("id"): t.get("status") for t in old}
-        new_by_id = {t.get("id"): t.get("status") for t in new}
-        return old_by_id != new_by_id
+        """Check if task lists differ (full content comparison)."""
+        return old != new
 
     def _refresh_selected_task(self) -> None:
         """Update the selected task from the refreshed task list."""
