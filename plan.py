@@ -37,6 +37,7 @@ def check_codex_available() -> bool:
     except (json.JSONDecodeError, OSError):
         return False
 
+
 # Task schema documentation injected into phases with use_tasks=true
 # Keep in sync with schemas/tasks-schema.json
 TASK_SCHEMA = """
@@ -129,8 +130,9 @@ def _migrate_plan_dir(project_dir: Path) -> None:
     new_dir = project_dir / ".jons-plan"
     if old_dir.is_dir() and not new_dir.exists():
         import shutil
+
         shutil.move(str(old_dir), str(new_dir))
-        print(f"Migrated plan data: .claude/jons-plan/ -> .jons-plan/", file=sys.stderr)
+        print("Migrated plan data: .claude/jons-plan/ -> .jons-plan/", file=sys.stderr)
         # Update .git/info/exclude
         _update_git_exclude(project_dir)
 
@@ -353,9 +355,7 @@ class StateManager:
                 temp_file.unlink()
             raise
 
-    def update_phase(
-        self, phase_id: str, phase_dir: str, reason: str = ""
-    ) -> dict:
+    def update_phase(self, phase_id: str, phase_dir: str, reason: str = "") -> dict:
         """Transition to new phase, update history, return updated state."""
         state = self.load()
         entry = state.get("current_phase_entry", 0) + 1
@@ -511,7 +511,10 @@ class StateManager:
         pending_entry = pending.get("from_entry", 0)
 
         if current_entry != pending_entry:
-            return False, f"Stale approval: proposed at entry {pending_entry}, now at entry {current_entry}"
+            return (
+                False,
+                f"Stale approval: proposed at entry {pending_entry}, now at entry {current_entry}",
+            )
 
         return True, ""
 
@@ -525,11 +528,13 @@ class StateManager:
         state = self.load()
         if "expansions" not in state:
             state["expansions"] = []
-        state["expansions"].append({
-            "phase": phase_id,
-            "generated": generated_phases,
-            "timestamp": datetime.now().isoformat()
-        })
+        state["expansions"].append(
+            {
+                "phase": phase_id,
+                "generated": generated_phases,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
         self.save(state)
 
     def get_expansions(self) -> list[dict]:
@@ -690,7 +695,9 @@ class WorkflowManager:
     def get_suggested_next(self, phase_id: str) -> list[str]:
         """Get suggested next phases for a given phase (phase IDs only)."""
         return self.normalize_suggested_next(
-            self.get_phase(phase_id).get("suggested_next", []) if self.get_phase(phase_id) else []
+            self.get_phase(phase_id).get("suggested_next", [])
+            if self.get_phase(phase_id)
+            else []
         )
 
     def normalize_suggested_next(self, suggested_next: list) -> list[str]:
@@ -800,7 +807,10 @@ class WorkflowManager:
                     if content:
                         parts.append(content)
                 else:
-                    print(f"Warning: prompt_file '{pf}' not found at {prompt_path}", file=sys.stderr)
+                    print(
+                        f"Warning: prompt_file '{pf}' not found at {prompt_path}",
+                        file=sys.stderr,
+                    )
 
         # Add inline prompt
         inline_prompt = phase.get("prompt", "").strip()
@@ -977,13 +987,23 @@ class WorkflowManager:
                 elif isinstance(item, dict):
                     target = item.get("phase", "")
                     # Check approval_prompt is present when requires_approval is true
-                    if item.get("requires_approval") and not item.get("approval_prompt"):
-                        errors.append(f"Phase '{pid}' transition to '{target}' requires approval but has no approval_prompt")
+                    if item.get("requires_approval") and not item.get(
+                        "approval_prompt"
+                    ):
+                        errors.append(
+                            f"Phase '{pid}' transition to '{target}' requires approval but has no approval_prompt"
+                        )
                 else:
                     continue
 
-                if target and target not in phase_ids and target not in ("complete", "__expand__"):
-                    errors.append(f"Phase '{pid}' has suggested_next '{target}' which doesn't exist")
+                if (
+                    target
+                    and target not in phase_ids
+                    and target not in ("complete", "__expand__")
+                ):
+                    errors.append(
+                        f"Phase '{pid}' has suggested_next '{target}' which doesn't exist"
+                    )
 
         return errors
 
@@ -1017,7 +1037,9 @@ class WorkflowManager:
         VALID_TOP_LEVEL = {"workflow", "phases"}
         for key in workflow.keys():
             if key not in VALID_TOP_LEVEL:
-                errors.append(f"Unknown top-level key: '{key}' (valid: {VALID_TOP_LEVEL})")
+                errors.append(
+                    f"Unknown top-level key: '{key}' (valid: {VALID_TOP_LEVEL})"
+                )
 
         # Valid [workflow] section keys
         VALID_WORKFLOW_KEYS = {"name", "description"}
@@ -1025,27 +1047,57 @@ class WorkflowManager:
         if isinstance(workflow_section, dict):
             for key in workflow_section.keys():
                 if key not in VALID_WORKFLOW_KEYS:
-                    errors.append(f"Unknown [workflow] key: '{key}' (valid: {VALID_WORKFLOW_KEYS})")
+                    errors.append(
+                        f"Unknown [workflow] key: '{key}' (valid: {VALID_WORKFLOW_KEYS})"
+                    )
 
         # Valid [[phases]] keys
         VALID_PHASE_KEYS = {
-            "id", "prompt", "prompt_files", "suggested_next", "terminal", "use_tasks",
-            "requires_user_input", "max_retries", "max_iterations",
+            "id",
+            "prompt",
+            "prompt_files",
+            "suggested_next",
+            "terminal",
+            "use_tasks",
+            "requires_user_input",
+            "max_retries",
+            "max_iterations",
             "supports_proposals",  # deprecated: kept for compat with existing plans
-            "supports_prototypes", "supports_cache_reference",
-            "expand_prompt", "required_artifacts", "context_artifacts",
-            "required_tasks", "required_json_artifacts",
+            "supports_prototypes",
+            "supports_cache_reference",
+            "expand_prompt",
+            "required_artifacts",
+            "context_artifacts",
+            "required_tasks",
+            "required_json_artifacts",
             "planning_panel",
         }
         # Valid keys in suggested_next objects
-        VALID_TRANSITION_KEYS = {"phase", "instruction", "requires_approval", "approval_prompt"}
+        VALID_TRANSITION_KEYS = {
+            "phase",
+            "instruction",
+            "requires_approval",
+            "approval_prompt",
+        }
 
         # Valid keys in required_tasks items
         VALID_REQUIRED_TASK_KEYS = {
-            "id", "description", "prompt_file", "subagent", "subagent_prompt",
-            "model", "parents", "steps", "context_artifacts", "type",
-            "question", "hypothesis", "inject_project_context", "locks",
-            "executor", "inject_phase_prompt",
+            "id",
+            "description",
+            "prompt_file",
+            "subagent",
+            "subagent_prompt",
+            "model",
+            "parents",
+            "steps",
+            "context_artifacts",
+            "type",
+            "question",
+            "hypothesis",
+            "inject_project_context",
+            "locks",
+            "executor",
+            "inject_phase_prompt",
         }
 
         phases = workflow.get("phases", [])
@@ -1061,7 +1113,9 @@ class WorkflowManager:
             phase_id = phase.get("id", f"<index {i}>")
             for key in phase.keys():
                 if key not in VALID_PHASE_KEYS:
-                    errors.append(f"Phase '{phase_id}' has unknown key: '{key}' (valid: {sorted(VALID_PHASE_KEYS)})")
+                    errors.append(
+                        f"Phase '{phase_id}' has unknown key: '{key}' (valid: {sorted(VALID_PHASE_KEYS)})"
+                    )
 
             # Check required fields
             if "id" not in phase:
@@ -1074,14 +1128,18 @@ class WorkflowManager:
                 if isinstance(item, dict):
                     for key in item.keys():
                         if key not in VALID_TRANSITION_KEYS:
-                            errors.append(f"Phase '{phase_id}' suggested_next has unknown key: '{key}' (valid: {VALID_TRANSITION_KEYS})")
+                            errors.append(
+                                f"Phase '{phase_id}' suggested_next has unknown key: '{key}' (valid: {VALID_TRANSITION_KEYS})"
+                            )
 
             # Validate required_tasks
             required_tasks = phase.get("required_tasks", [])
             if required_tasks:
                 # Check that use_tasks is true when required_tasks is set
                 if not phase.get("use_tasks"):
-                    errors.append(f"Phase '{phase_id}' has required_tasks but use_tasks is not true")
+                    errors.append(
+                        f"Phase '{phase_id}' has required_tasks but use_tasks is not true"
+                    )
 
                 if not isinstance(required_tasks, list):
                     errors.append(f"Phase '{phase_id}' required_tasks must be an array")
@@ -1089,7 +1147,9 @@ class WorkflowManager:
                     seen_ids = set()
                     for j, task in enumerate(required_tasks):
                         if not isinstance(task, dict):
-                            errors.append(f"Phase '{phase_id}' required_tasks[{j}] must be a table")
+                            errors.append(
+                                f"Phase '{phase_id}' required_tasks[{j}] must be a table"
+                            )
                             continue
 
                         task_id = task.get("id", f"<index {j}>")
@@ -1097,45 +1157,69 @@ class WorkflowManager:
                         # Check for unknown keys
                         for key in task.keys():
                             if key not in VALID_REQUIRED_TASK_KEYS:
-                                errors.append(f"Phase '{phase_id}' required_tasks[{j}] has unknown key: '{key}' (valid: {sorted(VALID_REQUIRED_TASK_KEYS)})")
+                                errors.append(
+                                    f"Phase '{phase_id}' required_tasks[{j}] has unknown key: '{key}' (valid: {sorted(VALID_REQUIRED_TASK_KEYS)})"
+                                )
 
                         # Check required fields
                         if "id" not in task:
-                            errors.append(f"Phase '{phase_id}' required_tasks[{j}] missing required 'id' field")
+                            errors.append(
+                                f"Phase '{phase_id}' required_tasks[{j}] missing required 'id' field"
+                            )
                         if "description" not in task:
-                            errors.append(f"Phase '{phase_id}' required_tasks[{j}] (id={task_id}) missing required 'description' field")
+                            errors.append(
+                                f"Phase '{phase_id}' required_tasks[{j}] (id={task_id}) missing required 'description' field"
+                            )
 
                         # Check for duplicate IDs
                         if task_id in seen_ids:
-                            errors.append(f"Phase '{phase_id}' has duplicate required_task id: '{task_id}'")
+                            errors.append(
+                                f"Phase '{phase_id}' has duplicate required_task id: '{task_id}'"
+                            )
                         seen_ids.add(task_id)
 
                         # Validate parents is a list if present
                         parents = task.get("parents")
                         if parents is not None and not isinstance(parents, list):
-                            errors.append(f"Phase '{phase_id}' required_tasks[{j}] (id={task_id}) parents must be an array")
+                            errors.append(
+                                f"Phase '{phase_id}' required_tasks[{j}] (id={task_id}) parents must be an array"
+                            )
 
                         # Validate model if present
                         model = task.get("model")
-                        if model is not None and model not in ("sonnet", "haiku", "opus"):
-                            errors.append(f"Phase '{phase_id}' required_tasks[{j}] (id={task_id}) has invalid model: '{model}' (valid: sonnet, haiku, opus)")
+                        if model is not None and model not in (
+                            "sonnet",
+                            "haiku",
+                            "opus",
+                        ):
+                            errors.append(
+                                f"Phase '{phase_id}' required_tasks[{j}] (id={task_id}) has invalid model: '{model}' (valid: sonnet, haiku, opus)"
+                            )
 
             # Validate planning_panel constraints
             if phase.get("planning_panel"):
                 if not phase.get("use_tasks"):
-                    errors.append(f"Phase '{phase_id}' has planning_panel=true but use_tasks is not true")
+                    errors.append(
+                        f"Phase '{phase_id}' has planning_panel=true but use_tasks is not true"
+                    )
                 if required_tasks:
                     has_codex_executor = any(
-                        t.get("executor") == "codex-rescue" for t in required_tasks if isinstance(t, dict)
+                        t.get("executor") == "codex-rescue"
+                        for t in required_tasks
+                        if isinstance(t, dict)
                     )
                     if not has_codex_executor:
-                        errors.append(f"Phase '{phase_id}' has planning_panel=true but no required_task with executor='codex-rescue'")
+                        errors.append(
+                            f"Phase '{phase_id}' has planning_panel=true but no required_task with executor='codex-rescue'"
+                        )
 
             # Validate required_json_artifacts
             json_artifacts = phase.get("required_json_artifacts", [])
             if json_artifacts:
                 if not isinstance(json_artifacts, list):
-                    errors.append(f"Phase '{phase_id}' required_json_artifacts must be an array")
+                    errors.append(
+                        f"Phase '{phase_id}' required_json_artifacts must be an array"
+                    )
                 else:
                     seen_names = set()
                     for j, artifact in enumerate(json_artifacts):
@@ -1145,15 +1229,21 @@ class WorkflowManager:
                         elif isinstance(artifact, dict):
                             # Check required fields
                             if "name" not in artifact:
-                                errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] missing required 'name' field")
+                                errors.append(
+                                    f"Phase '{phase_id}' required_json_artifacts[{j}] missing required 'name' field"
+                                )
                             if "schema" not in artifact:
-                                errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] missing required 'schema' field")
+                                errors.append(
+                                    f"Phase '{phase_id}' required_json_artifacts[{j}] missing required 'schema' field"
+                                )
 
                             # Check for unknown keys
                             valid_keys = {"name", "schema"}
                             for key in artifact.keys():
                                 if key not in valid_keys:
-                                    errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] has unknown key: '{key}' (valid: {valid_keys})")
+                                    errors.append(
+                                        f"Phase '{phase_id}' required_json_artifacts[{j}] has unknown key: '{key}' (valid: {valid_keys})"
+                                    )
 
                             name = artifact.get("name", f"<index {j}>")
                             schema = artifact.get("schema", "")
@@ -1165,12 +1255,16 @@ class WorkflowManager:
 
                         # Check for duplicate names
                         if name in seen_names:
-                            errors.append(f"Phase '{phase_id}' has duplicate required_json_artifacts name: '{name}'")
+                            errors.append(
+                                f"Phase '{phase_id}' has duplicate required_json_artifacts name: '{name}'"
+                            )
                         seen_names.add(name)
 
                         # Schema name must not contain path separators
                         if "/" in schema or "\\" in schema:
-                            errors.append(f"Phase '{phase_id}' required_json_artifacts[{j}] schema name must not contain path separators: '{schema}'")
+                            errors.append(
+                                f"Phase '{phase_id}' required_json_artifacts[{j}] schema name must not contain path separators: '{schema}'"
+                            )
 
         return errors
 
@@ -1187,7 +1281,9 @@ class WorkflowManager:
         errors = []
         for phase in self.get_all_phases():
             # Use normalized suggested_next to handle both string and object formats
-            suggested_ids = self.normalize_suggested_next(phase.get("suggested_next", []))
+            suggested_ids = self.normalize_suggested_next(
+                phase.get("suggested_next", [])
+            )
             has_expand_marker = "__expand__" in suggested_ids
             has_expand_prompt = "expand_prompt" in phase
 
@@ -1256,7 +1352,11 @@ class WorkflowManager:
                     continue
                 if has_approval:
                     continue
-                if target in phase_ids and target not in bounding_phases and target != "__expand__":
+                if (
+                    target in phase_ids
+                    and target not in bounding_phases
+                    and target != "__expand__"
+                ):
                     reduced_adj[pid].append(target)
 
         # Find SCCs in reduced graph
@@ -1594,14 +1694,18 @@ def validate_json_artifact(
     try:
         import jsonschema
     except ImportError:
-        errors.append("jsonschema library not installed - cannot validate JSON artifacts")
+        errors.append(
+            "jsonschema library not installed - cannot validate JSON artifacts"
+        )
         return errors
 
     try:
         jsonschema.validate(artifact_data, schema)
     except jsonschema.ValidationError as e:
         # Format a helpful error message
-        path = ".".join(str(p) for p in e.absolute_path) if e.absolute_path else "(root)"
+        path = (
+            ".".join(str(p) for p in e.absolute_path) if e.absolute_path else "(root)"
+        )
         errors.append(f"Validation error at {path}: {e.message}")
 
     return errors
@@ -1963,9 +2067,7 @@ class ResearchCache:
             ValueError: If no targeting argument provided
         """
         if not any([entry_id, query, all_entries]):
-            raise ValueError(
-                "Must specify --id, --query, or --all to clear entries"
-            )
+            raise ValueError("Must specify --id, --query, or --all to clear entries")
 
         with self._connect() as conn:
             if all_entries:
@@ -2006,9 +2108,7 @@ class ResearchCache:
             "SELECT COUNT(*) as cnt FROM research_entries WHERE expires_at <= unixepoch()"
         ).fetchone()
         if result and result["cnt"] > self.GC_THRESHOLD:
-            conn.execute(
-                "DELETE FROM research_entries WHERE expires_at <= unixepoch()"
-            )
+            conn.execute("DELETE FROM research_entries WHERE expires_at <= unixepoch()")
             conn.commit()
 
     def stats(self) -> CacheStats:
@@ -2093,7 +2193,9 @@ def cmd_list_plans(args: argparse.Namespace) -> int:
     return 0
 
 
-def _append_reflog_entry(project_dir: Path, plan_name: str, previous_plan: str | None) -> None:
+def _append_reflog_entry(
+    project_dir: Path, plan_name: str, previous_plan: str | None
+) -> None:
     """Append an entry to the plan activation reflog."""
     reflog_file = project_dir / ".jons-plan" / "reflog.jsonl"
     reflog_file.parent.mkdir(parents=True, exist_ok=True)
@@ -2129,7 +2231,9 @@ def cmd_set_active(args: argparse.Namespace) -> int:
         state_mgr.clear_pending_approval()
 
     # Record activation in reflog
-    _append_reflog_entry(project_dir, args.plan_name, old_plan if old_plan != args.plan_name else None)
+    _append_reflog_entry(
+        project_dir, args.plan_name, old_plan if old_plan != args.plan_name else None
+    )
 
     active_plan_file = project_dir / ".jons-plan" / "active-plan"
     active_plan_file.parent.mkdir(parents=True, exist_ok=True)
@@ -2227,7 +2331,9 @@ def cmd_task_stats(args: argparse.Namespace) -> int:
     total = len(tasks)
 
     if blocked > 0:
-        print(f"{done}/{total} done, {in_progress} in-progress, {blocked} blocked, {todo} todo")
+        print(
+            f"{done}/{total} done, {in_progress} in-progress, {blocked} blocked, {todo} todo"
+        )
     else:
         print(f"{done}/{total} done, {in_progress} in-progress, {todo} todo")
     return 0
@@ -2318,7 +2424,10 @@ def cmd_next_tasks(args: argparse.Namespace) -> int:
 def cmd_set_status(args: argparse.Namespace) -> int:
     """Set task status."""
     if args.status not in ("todo", "in-progress", "done", "blocked"):
-        print(f"Invalid status: {args.status} (must be todo, in-progress, done, or blocked)", file=sys.stderr)
+        print(
+            f"Invalid status: {args.status} (must be todo, in-progress, done, or blocked)",
+            file=sys.stderr,
+        )
         return 1
 
     project_dir = get_project_dir()
@@ -2346,7 +2455,9 @@ def cmd_set_status(args: argparse.Namespace) -> int:
             return 1
         blockers_file = task_dir / "blockers.md"
         if not blockers_file.exists():
-            print(f"Cannot mark task as blocked: blockers.md not found", file=sys.stderr)
+            print(
+                f"Cannot mark task as blocked: blockers.md not found", file=sys.stderr
+            )
             print(f"First write: {blockers_file}", file=sys.stderr)
             print("", file=sys.stderr)
             print("blockers.md should contain:", file=sys.stderr)
@@ -2361,24 +2472,38 @@ def cmd_set_status(args: argparse.Namespace) -> int:
     if tasks_file:
         print(f"Updated: {tasks_file}")
     else:
-        print("Warning: No current phase - could not determine tasks.json location", file=sys.stderr)
+        print(
+            "Warning: No current phase - could not determine tasks.json location",
+            file=sys.stderr,
+        )
         return 1
     log_progress(plan_dir, f"TASK_STATUS: {args.task_id} -> {args.status}")
 
     # Write task-level progress entries
     if args.status == "in-progress":
         # Initialize task progress with description and steps
-        log_task_progress(plan_dir, args.task_id, f"TASK_STARTED: {found_task.get('description', '')}")
+        log_task_progress(
+            plan_dir, args.task_id, f"TASK_STARTED: {found_task.get('description', '')}"
+        )
         steps = found_task.get("steps", [])
         if steps:
             steps_text = "\n".join(f"  - {step}" for step in steps)
             log_task_progress(plan_dir, args.task_id, f"Steps:\n{steps_text}")
     elif args.status == "done":
-        log_task_progress(plan_dir, args.task_id, f"TASK_COMPLETED: {found_task.get('description', '')}")
+        log_task_progress(
+            plan_dir,
+            args.task_id,
+            f"TASK_COMPLETED: {found_task.get('description', '')}",
+        )
     elif args.status == "blocked":
-        log_task_progress(plan_dir, args.task_id, f"TASK_BLOCKED: {found_task.get('description', '')}")
+        log_task_progress(
+            plan_dir, args.task_id, f"TASK_BLOCKED: {found_task.get('description', '')}"
+        )
         print(f"Task {args.task_id} is now BLOCKED.", file=sys.stderr)
-        print("STOP execution and run /jons-plan:plan to address the blocker.", file=sys.stderr)
+        print(
+            "STOP execution and run /jons-plan:plan to address the blocker.",
+            file=sys.stderr,
+        )
 
     return 0
 
@@ -2393,7 +2518,7 @@ def cmd_recent_progress(args: argparse.Namespace) -> int:
     progress_file = plan_dir / "claude-progress.txt"
     if progress_file.exists():
         lines = progress_file.read_text().splitlines()
-        for line in lines[-args.lines:]:
+        for line in lines[-args.lines :]:
             print(line)
     return 0
 
@@ -2543,7 +2668,7 @@ def cmd_task_progress(args: argparse.Namespace) -> int:
         return 0
 
     lines = progress_file.read_text().splitlines()
-    for line in lines[-args.lines:]:
+    for line in lines[-args.lines :]:
         print(line)
 
     return 0
@@ -2586,7 +2711,9 @@ def cmd_record_confidence(args: argparse.Namespace) -> int:
     print(f"Recorded: {confidence_file}")
 
     # Log to task progress
-    log_task_progress(plan_dir, args.task_id, f"CONFIDENCE: {args.score}/5 - {args.rationale}")
+    log_task_progress(
+        plan_dir, args.task_id, f"CONFIDENCE: {args.score}/5 - {args.rationale}"
+    )
 
     # Log to plan progress
     log_progress(plan_dir, f"CONFIDENCE: {args.task_id} scored {args.score}/5")
@@ -2594,7 +2721,10 @@ def cmd_record_confidence(args: argparse.Namespace) -> int:
     # Warn if low confidence
     if args.score < 4:
         print(f"LOW CONFIDENCE ({args.score}/5): {args.rationale}", file=sys.stderr)
-        print("Consider using AskUserQuestion to discuss concerns with user.", file=sys.stderr)
+        print(
+            "Consider using AskUserQuestion to discuss concerns with user.",
+            file=sys.stderr,
+        )
 
     return 0
 
@@ -2685,10 +2815,20 @@ def validate_task_schema(task: dict) -> list[str]:
     if "steps" in task and not isinstance(task["steps"], list):
         errors.append("Field 'steps' must be an array")
 
-    if "status" in task and task["status"] not in ("todo", "in-progress", "done", "blocked"):
+    if "status" in task and task["status"] not in (
+        "todo",
+        "in-progress",
+        "done",
+        "blocked",
+    ):
         errors.append(f"Invalid status: {task['status']}")
 
-    valid_subagents = ("general-purpose", "Explore", "Plan", "claude-code-guide")  # Explore/Plan kept for backwards compat
+    valid_subagents = (
+        "general-purpose",
+        "Explore",
+        "Plan",
+        "claude-code-guide",
+    )  # Explore/Plan kept for backwards compat
     if "subagent" in task and task["subagent"] not in valid_subagents:
         errors.append(f"Invalid subagent: {task['subagent']}")
 
@@ -2696,7 +2836,12 @@ def validate_task_schema(task: dict) -> list[str]:
     if "model" in task and task["model"] not in valid_models:
         errors.append(f"Invalid model: {task['model']}")
 
-    valid_executors = ("task-tool", "codex-rescue", "codex-review", "codex-adversarial-review")
+    valid_executors = (
+        "task-tool",
+        "codex-rescue",
+        "codex-review",
+        "codex-adversarial-review",
+    )
     if "executor" in task and task["executor"] not in valid_executors:
         errors.append(f"Invalid executor: {task['executor']}")
 
@@ -2753,7 +2898,9 @@ def cmd_add_task(args: argparse.Namespace) -> int:
     tasks_file = save_tasks(plan_dir, tasks)
 
     if not tasks_file:
-        print("No current phase - cannot determine tasks.json location", file=sys.stderr)
+        print(
+            "No current phase - cannot determine tasks.json location", file=sys.stderr
+        )
         return 1
 
     # Log the modification
@@ -2802,7 +2949,10 @@ def cmd_update_task_parents(args: argparse.Namespace) -> int:
     save_tasks(plan_dir, tasks)
 
     # Log the modification
-    log_progress(plan_dir, f"TASK_PARENTS_UPDATED: {args.task_id} from {old_parents} to {list(args.parent_ids)}")
+    log_progress(
+        plan_dir,
+        f"TASK_PARENTS_UPDATED: {args.task_id} from {old_parents} to {list(args.parent_ids)}",
+    )
     print(f"Updated parents for {args.task_id}: {list(args.parent_ids)}")
     print(f"Updated: {tasks_file}")
 
@@ -2857,7 +3007,10 @@ def cmd_update_task_steps(args: argparse.Namespace) -> int:
     save_tasks(plan_dir, tasks)
 
     # Log the modification
-    log_progress(plan_dir, f"TASK_STEPS_UPDATED: {args.task_id} ({old_steps_count} -> {len(new_steps)} steps)")
+    log_progress(
+        plan_dir,
+        f"TASK_STEPS_UPDATED: {args.task_id} ({old_steps_count} -> {len(new_steps)} steps)",
+    )
     print(f"Updated steps for {args.task_id}: {len(new_steps)} steps")
     print(f"Updated: {tasks_file}")
 
@@ -2878,9 +3031,17 @@ def is_research_task(task: dict) -> bool:
     # Check description for research keywords
     description = task.get("description", "").lower()
     research_keywords = [
-        "research", "investigate", "explore", "find out", "lookup",
-        "look up", "search for", "documentation", "web search",
-        "find documentation", "find examples"
+        "research",
+        "investigate",
+        "explore",
+        "find out",
+        "lookup",
+        "look up",
+        "search for",
+        "documentation",
+        "web search",
+        "find documentation",
+        "find examples",
     ]
 
     for keyword in research_keywords:
@@ -2890,7 +3051,9 @@ def is_research_task(task: dict) -> bool:
     return False
 
 
-def get_cache_suggestions_for_task(project_dir: Path, task: dict, limit: int = 3) -> list[dict]:
+def get_cache_suggestions_for_task(
+    project_dir: Path, task: dict, limit: int = 3
+) -> list[dict]:
     """Get cache suggestions for a task description.
 
     Returns a list of cache hits that may be relevant to the task.
@@ -2905,10 +3068,16 @@ def get_cache_suggestions_for_task(project_dir: Path, task: dict, limit: int = 3
 
         # Filter by relevance (lower BM25 score = more relevant)
         RELEVANCE_THRESHOLD = 0.0
-        relevant_hits = [h for h in hits if h.score is not None and h.score <= RELEVANCE_THRESHOLD]
+        relevant_hits = [
+            h for h in hits if h.score is not None and h.score <= RELEVANCE_THRESHOLD
+        ]
 
         return [
-            {"id": h.id, "query": h.query, "score": round(h.score, 2) if h.score else None}
+            {
+                "id": h.id,
+                "query": h.query,
+                "score": round(h.score, 2) if h.score else None,
+            }
             for h in relevant_hits
         ]
     except Exception:
@@ -2923,6 +3092,7 @@ def _resolve_relative_markdown_links(content: str, base_dir: Path) -> str:
     agents receiving injected artifact content can locate referenced files.
     Only resolves links that point to existing files on disk.
     """
+
     def _resolve(match: re.Match) -> str:
         text = match.group(1)
         target = match.group(2)
@@ -2934,7 +3104,7 @@ def _resolve_relative_markdown_links(content: str, base_dir: Path) -> str:
             return f"[{text}]({resolved})"
         return match.group(0)
 
-    return re.sub(r'\[([^\]]+)\]\(([^)]+)\)', _resolve, content)
+    return re.sub(r"\[([^\]]+)\]\(([^)]+)\)", _resolve, content)
 
 
 def cmd_build_task_prompt(args: argparse.Namespace) -> int:
@@ -2989,7 +3159,10 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
                 prompt_parts.append(f"\n\n## Instructions\n\n{prompt_content}")
         else:
             # Warn but don't fail - the prompt file might be optional
-            print(f"Warning: prompt_file '{prompt_file}' not found at {prompt_path}", file=sys.stderr)
+            print(
+                f"Warning: prompt_file '{prompt_file}' not found at {prompt_path}",
+                file=sys.stderr,
+            )
 
     # 1d. Phase prompt injection - when inject_phase_prompt=true, inject the current
     # phase's prompt into the task prompt under a demarcated heading
@@ -3004,7 +3177,9 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
                 if current_phase_id:
                     phase_prompt = wm.get_phase_prompt(current_phase_id)
                     if phase_prompt:
-                        prompt_parts.append(f"\n\n## Phase Requirements\n\n{phase_prompt}")
+                        prompt_parts.append(
+                            f"\n\n## Phase Requirements\n\n{phase_prompt}"
+                        )
         except Exception as e:
             print(f"Warning: Could not inject phase prompt: {e}", file=sys.stderr)
 
@@ -3040,12 +3215,18 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
         suggestions = get_cache_suggestions_for_task(project_dir, task, limit=3)
         if suggestions:
             prompt_parts.append("\n\n## Cache Suggestions")
-            prompt_parts.append("The following cached findings may be relevant to this task:")
+            prompt_parts.append(
+                "The following cached findings may be relevant to this task:"
+            )
             for s in suggestions:
                 prompt_parts.append(f"- **ID {s['id']}**: {s['query']}")
             prompt_parts.append("")
-            prompt_parts.append("Run `uv run ~/.claude-plugins/jons-plan/plan.py cache-get <id>` to retrieve full findings.")
-            prompt_parts.append("If cached findings are sufficient, use them and skip redundant research.")
+            prompt_parts.append(
+                "Run `uv run ~/.claude-plugins/jons-plan/plan.py cache-get <id>` to retrieve full findings."
+            )
+            prompt_parts.append(
+                "If cached findings are sufficient, use them and skip redundant research."
+            )
 
     # 2b. Project context (CLAUDE.md) - opt-in via task field
     if task.get("inject_project_context", False):
@@ -3058,11 +3239,15 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
                 content = claude_path.read_text().strip()
                 if content:
                     # Size guard: truncate if over 500 lines
-                    lines = content.split('\n')
+                    lines = content.split("\n")
                     if len(lines) > 500:
-                        content = '\n'.join(lines[:500])
-                        content += f"\n\n[... truncated, {len(lines) - 500} lines omitted]"
-                    prompt_parts.append(f"\n\n## Project Context (from {claude_path.name})")
+                        content = "\n".join(lines[:500])
+                        content += (
+                            f"\n\n[... truncated, {len(lines) - 500} lines omitted]"
+                        )
+                    prompt_parts.append(
+                        f"\n\n## Project Context (from {claude_path.name})"
+                    )
                     prompt_parts.append(content)
                 break
 
@@ -3079,8 +3264,12 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
                 if artifact_path.exists():
                     content = artifact_path.read_text().strip()
                     if content:
-                        content = _resolve_relative_markdown_links(content, artifact_path.parent)
-                        artifact_contents.append((artifact_name, artifact_path, content))
+                        content = _resolve_relative_markdown_links(
+                            content, artifact_path.parent
+                        )
+                        artifact_contents.append(
+                            (artifact_name, artifact_path, content)
+                        )
 
         if artifact_contents:
             prompt_parts.append("\n\n## Context Artifacts")
@@ -3123,16 +3312,22 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
 
     # 6. Progress logging (required for resumption)
     prompt_parts.append("\n\n## Progress Logging (Required)")
-    prompt_parts.append("Log key actions as you work to enable resumption and provide visibility:")
+    prompt_parts.append(
+        "Log key actions as you work to enable resumption and provide visibility:"
+    )
     prompt_parts.append("```bash")
-    prompt_parts.append(f"uv run {PLUGIN_ROOT}/plan.py task-log {args.task_id} \"<message>\"")
+    prompt_parts.append(
+        f'uv run {PLUGIN_ROOT}/plan.py task-log {args.task_id} "<message>"'
+    )
     prompt_parts.append("```")
     prompt_parts.append("")
     prompt_parts.append("**What to log:**")
-    prompt_parts.append("- File modifications: `\"Edited path/to/file.py: Brief description of change\"`")
-    prompt_parts.append("- Key decisions: `\"Chose approach X because Y\"`")
-    prompt_parts.append("- Blockers: `\"BLOCKED: Description of issue\"`")
-    prompt_parts.append("- Completion: `\"Complete: Summary of what was accomplished\"`")
+    prompt_parts.append(
+        '- File modifications: `"Edited path/to/file.py: Brief description of change"`'
+    )
+    prompt_parts.append('- Key decisions: `"Chose approach X because Y"`')
+    prompt_parts.append('- Blockers: `"BLOCKED: Description of issue"`')
+    prompt_parts.append('- Completion: `"Complete: Summary of what was accomplished"`')
     prompt_parts.append("")
     prompt_parts.append("Log after each file edit, decision, or significant step.")
 
@@ -3140,9 +3335,13 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
     output_dir = get_task_output_dir(plan_dir, args.task_id)
     if output_dir:
         prompt_parts.append("\n\n## Task Output Directory")
-        prompt_parts.append(f"Write output files to this directory so downstream tasks can use them:")
+        prompt_parts.append(
+            f"Write output files to this directory so downstream tasks can use them:"
+        )
         prompt_parts.append(f"- Output path: `{output_dir}/`")
-        prompt_parts.append(f"- Use `findings.md` for research/review results, or other names as appropriate")
+        prompt_parts.append(
+            f"- Use `findings.md` for research/review results, or other names as appropriate"
+        )
 
     # 8. Task guidance for required JSON artifacts
     workflow_mgr = WorkflowManager(plan_dir)
@@ -3163,7 +3362,9 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
         prompt_parts.append("\n\n## Failed Approaches (Do Not Repeat)")
         prompt_parts.append("These approaches have already been tried and failed:")
         for de in dead_ends:
-            prompt_parts.append(f"\n- **{de.get('what_failed', 'Unknown')}** ({de.get('discovery_type', 'UNKNOWN')})")
+            prompt_parts.append(
+                f"\n- **{de.get('what_failed', 'Unknown')}** ({de.get('discovery_type', 'UNKNOWN')})"
+            )
             prompt_parts.append(f"  Why: {de.get('why_failed', 'Unknown')}")
             if de.get("task_id"):
                 prompt_parts.append(f"  Task: {de['task_id']}")
@@ -3174,12 +3375,15 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
         try:
             manifest = json.loads(proposal_manifest.read_text())
             proposals = [
-                p for p in manifest.get("proposals", [])
+                p
+                for p in manifest.get("proposals", [])
                 if p.get("status") in ("pending", "accepted")
             ]
             if proposals:
                 prompt_parts.append("\n\n## Lessons Learned (from earlier tasks)")
-                prompt_parts.append("These insights were discovered during earlier work in this plan:")
+                prompt_parts.append(
+                    "These insights were discovered during earlier work in this plan:"
+                )
                 for p in proposals:
                     prompt_parts.append(f"\n- **{p.get('title', 'Untitled')}**")
                     if p.get("content"):
@@ -3189,12 +3393,13 @@ def cmd_build_task_prompt(args: argparse.Namespace) -> int:
 
     # 11. CLI reference for task completion
     prompt_parts.append("\n\n## When Done")
-    prompt_parts.append(f"Mark this task complete: `uv run {PLUGIN_ROOT}/plan.py set-status {args.task_id} done`")
+    prompt_parts.append(
+        f"Mark this task complete: `uv run {PLUGIN_ROOT}/plan.py set-status {args.task_id} done`"
+    )
 
     # Output the complete prompt
     print("\n".join(prompt_parts))
     return 0
-
 
 
 def cmd_help(args: argparse.Namespace) -> int:
@@ -3259,7 +3464,10 @@ def cmd_set_mode(args: argparse.Namespace) -> int:
     # Log mode change to plan progress
     plan_dir = get_active_plan_dir(project_dir)
     if plan_dir:
-        log_progress(plan_dir, f"MODE_CHANGE: {old_mode} -> {args.mode} (command: set-mode {args.mode})")
+        log_progress(
+            plan_dir,
+            f"MODE_CHANGE: {old_mode} -> {args.mode} (command: set-mode {args.mode})",
+        )
 
     return 0
 
@@ -3289,7 +3497,9 @@ def cmd_clear_mode(args: argparse.Namespace) -> int:
     # Log mode change to plan progress
     plan_dir = get_active_plan_dir(project_dir)
     if plan_dir:
-        log_progress(plan_dir, f"MODE_CHANGE: {old_mode} -> (cleared) (command: clear-mode)")
+        log_progress(
+            plan_dir, f"MODE_CHANGE: {old_mode} -> (cleared) (command: clear-mode)"
+        )
 
     return 0
 
@@ -3341,7 +3551,10 @@ def cmd_add_dead_end(args: argparse.Namespace) -> int:
     # Validate discovery type
     if args.type not in DeadEndRegistry.DISCOVERY_TYPES:
         print(f"Invalid discovery type: {args.type}", file=sys.stderr)
-        print(f"Valid types: {', '.join(sorted(DeadEndRegistry.DISCOVERY_TYPES))}", file=sys.stderr)
+        print(
+            f"Valid types: {', '.join(sorted(DeadEndRegistry.DISCOVERY_TYPES))}",
+            file=sys.stderr,
+        )
         return 2
 
     registry = DeadEndRegistry(plan_dir)
@@ -3378,7 +3591,7 @@ def cmd_get_dead_ends(args: argparse.Namespace) -> int:
 
     # Apply recent filter
     if args.recent > 0:
-        dead_ends = dead_ends[-args.recent:]
+        dead_ends = dead_ends[-args.recent :]
 
     if args.json:
         print(json.dumps(dead_ends, indent=2))
@@ -3468,30 +3681,48 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
 
     # Enforce transition legality unless caller has pre-validated
     current_phase = state.get("current_phase")
-    skip_check = getattr(args, '_skip_transition_check', False)
+    skip_check = getattr(args, "_skip_transition_check", False)
     if current_phase and not skip_check:
         if not workflow_mgr.is_transition_allowed(current_phase, args.phase_id):
-            print(f"Error: Transition not allowed: {current_phase} -> {args.phase_id}", file=sys.stderr)
+            print(
+                f"Error: Transition not allowed: {current_phase} -> {args.phase_id}",
+                file=sys.stderr,
+            )
             suggested = workflow_mgr.get_suggested_next(current_phase)
             if suggested:
                 print(f"Allowed transitions: {', '.join(suggested)}", file=sys.stderr)
-            print("Use 'enter-phase-by-number' or 'loop-to-phase' for validated transitions.", file=sys.stderr)
+            print(
+                "Use 'enter-phase-by-number' or 'loop-to-phase' for validated transitions.",
+                file=sys.stderr,
+            )
             return 12
         if workflow_mgr.transition_requires_approval(current_phase, args.phase_id):
-            print(f"Error: Transition {current_phase} -> {args.phase_id} requires approval.", file=sys.stderr)
-            print("Use 'propose-transition' or 'loop-to-phase' to initiate the approval flow.", file=sys.stderr)
+            print(
+                f"Error: Transition {current_phase} -> {args.phase_id} requires approval.",
+                file=sys.stderr,
+            )
+            print(
+                "Use 'propose-transition' or 'loop-to-phase' to initiate the approval flow.",
+                file=sys.stderr,
+            )
             return 11
 
     # Check Codex availability if target phase requires it
     if workflow_mgr.phase_requires_codex(args.phase_id) and not check_codex_available():
-        print(f"Error: Phase '{args.phase_id}' requires the Codex plugin, which is not installed.", file=sys.stderr)
+        print(
+            f"Error: Phase '{args.phase_id}' requires the Codex plugin, which is not installed.",
+            file=sys.stderr,
+        )
         print("Install with: /plugin install codex", file=sys.stderr)
         phase_data = workflow_mgr.get_phase(args.phase_id)
         if phase_data and phase_data.get("planning_panel"):
             print("  - planning_panel (dual-model planning)", file=sys.stderr)
         for task in (phase_data or {}).get("required_tasks", []):
             if isinstance(task, dict) and task.get("executor") in CODEX_EXECUTORS:
-                print(f"  - task '{task.get('id')}' (executor: {task.get('executor')})", file=sys.stderr)
+                print(
+                    f"  - task '{task.get('id')}' (executor: {task.get('executor')})",
+                    file=sys.stderr,
+                )
         return 1
 
     # Check required_artifacts for the current phase (if any) before allowing transition
@@ -3517,14 +3748,22 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                     print(f"  - {artifact}", file=sys.stderr)
                 print("", file=sys.stderr)
                 print("Record each artifact before transitioning:", file=sys.stderr)
-                print("  uv run plan.py record-artifact <name> <filename>", file=sys.stderr)
+                print(
+                    "  uv run plan.py record-artifact <name> <filename>",
+                    file=sys.stderr,
+                )
                 print("", file=sys.stderr)
                 print("Example:", file=sys.stderr)
-                print(f"  uv run plan.py record-artifact {missing[0]} {missing[0]}.md", file=sys.stderr)
+                print(
+                    f"  uv run plan.py record-artifact {missing[0]} {missing[0]}.md",
+                    file=sys.stderr,
+                )
                 return 1
 
         # Validate required_json_artifacts against their schemas
-        required_json_artifacts = workflow_mgr.get_required_json_artifacts(current_phase)
+        required_json_artifacts = workflow_mgr.get_required_json_artifacts(
+            current_phase
+        )
         if required_json_artifacts:
             all_validation_errors: list[str] = []
             for artifact_spec in required_json_artifacts:
@@ -3553,7 +3792,9 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                     artifact_name = error.split(":")[0].strip()
                     failed_artifacts.add(artifact_name)
                 for artifact_name in sorted(failed_artifacts):
-                    instructions_file = artifacts_dir / artifact_name / "instructions.md"
+                    instructions_file = (
+                        artifacts_dir / artifact_name / "instructions.md"
+                    )
                     if instructions_file.exists():
                         print("", file=sys.stderr)
                         print(instructions_file.read_text().strip(), file=sys.stderr)
@@ -3587,20 +3828,29 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                                         if query and findings_file:
                                             findings_path = plan_dir / findings_file
                                             if findings_path.exists():
-                                                findings_content = findings_path.read_text()
+                                                findings_content = (
+                                                    findings_path.read_text()
+                                                )
                                                 cache.add(
                                                     query=query,
                                                     findings=findings_content,
-                                                    source_type=entry.get("source_type", "task_research"),
+                                                    source_type=entry.get(
+                                                        "source_type", "task_research"
+                                                    ),
                                                     source_url=entry.get("source_url"),
                                                     plan_id=plan_dir.name,
                                                     replace=True,
                                                 )
                                                 imported += 1
                                     if imported:
-                                        print(f"Auto-imported {imported} cache entries from {artifact_name}")
+                                        print(
+                                            f"Auto-imported {imported} cache entries from {artifact_name}"
+                                        )
                             except Exception as e:
-                                print(f"Warning: Failed to auto-import cache entries: {e}", file=sys.stderr)
+                                print(
+                                    f"Warning: Failed to auto-import cache entries: {e}",
+                                    file=sys.stderr,
+                                )
 
             # Auto-import proposals if present and validated
             for artifact_spec in required_json_artifacts:
@@ -3628,9 +3878,15 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                                     existing_ids = set()
                                     if manifest_file.exists():
                                         try:
-                                            manifest_data = json.loads(manifest_file.read_text())
-                                            existing_proposals = manifest_data.get("proposals", [])
-                                            existing_ids = {p.get("id") for p in existing_proposals}
+                                            manifest_data = json.loads(
+                                                manifest_file.read_text()
+                                            )
+                                            existing_proposals = manifest_data.get(
+                                                "proposals", []
+                                            )
+                                            existing_ids = {
+                                                p.get("id") for p in existing_proposals
+                                            }
                                         except (json.JSONDecodeError, KeyError):
                                             pass
 
@@ -3644,7 +3900,9 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                                             proposal = {
                                                 "id": proposal_id,
                                                 "source_phase": f"phases/{phase_dir_name}",
-                                                "target_file": p.get("target_file", "CLAUDE.md"),
+                                                "target_file": p.get(
+                                                    "target_file", "CLAUDE.md"
+                                                ),
                                                 "title": p.get("title", ""),
                                                 "content": p.get("content", ""),
                                                 "rationale": p.get("rationale", ""),
@@ -3655,11 +3913,18 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                                             imported += 1
 
                                     # Write updated manifest
-                                    manifest_file.write_text(json.dumps({"proposals": existing_proposals}, indent=2))
+                                    manifest_file.write_text(
+                                        json.dumps(
+                                            {"proposals": existing_proposals}, indent=2
+                                        )
+                                    )
                                     if imported:
                                         print(f"Auto-collected {imported} proposals")
                             except Exception as e:
-                                print(f"Warning: Failed to auto-import proposals: {e}", file=sys.stderr)
+                                print(
+                                    f"Warning: Failed to auto-import proposals: {e}",
+                                    file=sys.stderr,
+                                )
 
             # Auto-import challenges if present and validated
             for artifact_spec in required_json_artifacts:
@@ -3682,14 +3947,22 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                                 challenges_list = data.get("challenges", [])
                                 if challenges_list:
                                     # Load existing manifest
-                                    manifest_file = plan_dir / "challenges-manifest.json"
+                                    manifest_file = (
+                                        plan_dir / "challenges-manifest.json"
+                                    )
                                     existing_challenges = []
                                     existing_ids = set()
                                     if manifest_file.exists():
                                         try:
-                                            manifest_data = json.loads(manifest_file.read_text())
-                                            existing_challenges = manifest_data.get("challenges", [])
-                                            existing_ids = {c.get("id") for c in existing_challenges}
+                                            manifest_data = json.loads(
+                                                manifest_file.read_text()
+                                            )
+                                            existing_challenges = manifest_data.get(
+                                                "challenges", []
+                                            )
+                                            existing_ids = {
+                                                c.get("id") for c in existing_challenges
+                                            }
                                         except (json.JSONDecodeError, KeyError):
                                             pass
 
@@ -3714,11 +3987,19 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                                             imported += 1
 
                                     # Write updated manifest
-                                    manifest_file.write_text(json.dumps({"challenges": existing_challenges}, indent=2))
+                                    manifest_file.write_text(
+                                        json.dumps(
+                                            {"challenges": existing_challenges},
+                                            indent=2,
+                                        )
+                                    )
                                     if imported:
                                         print(f"Auto-collected {imported} challenges")
                             except Exception as e:
-                                print(f"Warning: Failed to auto-import challenges: {e}", file=sys.stderr)
+                                print(
+                                    f"Warning: Failed to auto-import challenges: {e}",
+                                    file=sys.stderr,
+                                )
 
     # Count existing entries for this phase (for re-entry detection)
     prev_entries = [
@@ -3751,7 +4032,10 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                     f"Error: Reason file too short ({len(reentry_reason_content)} chars)",
                     file=sys.stderr,
                 )
-                print("Re-entry context must be detailed (at least 100 characters).", file=sys.stderr)
+                print(
+                    "Re-entry context must be detailed (at least 100 characters).",
+                    file=sys.stderr,
+                )
                 return 1
         else:
             reason_text = (getattr(args, "reason", "") or "").strip()
@@ -3762,8 +4046,14 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                 )
                 print("", file=sys.stderr)
                 print("Provide detailed loopback context with one of:", file=sys.stderr)
-                print("  uv run plan.py enter-phase <phase> --reason-file <path>", file=sys.stderr)
-                print("  uv run plan.py enter-phase <phase> --reason \"<detailed reason>\"", file=sys.stderr)
+                print(
+                    "  uv run plan.py enter-phase <phase> --reason-file <path>",
+                    file=sys.stderr,
+                )
+                print(
+                    '  uv run plan.py enter-phase <phase> --reason "<detailed reason>"',
+                    file=sys.stderr,
+                )
                 return 1
 
             last_entry = prev_entries[-1]
@@ -3808,11 +4098,11 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
         reentry_content = f"""# Re-entry Context
 
 ## Previous Attempt
-- Entry: {last_entry['entry']}
-- Directory: {last_entry.get('dir', 'N/A')}
-- Entered: {last_entry.get('entered', 'N/A')}
-- Exited: {last_entry.get('exited', 'N/A')}
-- Outcome: {last_entry.get('outcome', 'N/A')}
+- Entry: {last_entry["entry"]}
+- Directory: {last_entry.get("dir", "N/A")}
+- Entered: {last_entry.get("entered", "N/A")}
+- Exited: {last_entry.get("exited", "N/A")}
+- Outcome: {last_entry.get("outcome", "N/A")}
 
 ## Artifacts from Previous Attempt
 """
@@ -3854,7 +4144,9 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
             if tasks_file.exists():
                 try:
                     data = json.loads(tasks_file.read_text())
-                    existing_tasks = data if isinstance(data, list) else data.get("tasks", [])
+                    existing_tasks = (
+                        data if isinstance(data, list) else data.get("tasks", [])
+                    )
                 except (json.JSONDecodeError, KeyError):
                     pass
 
@@ -3874,13 +4166,23 @@ def cmd_enter_phase(args: argparse.Namespace) -> int:
                     added_count += 1
                 else:
                     # Check protected fields match
-                    existing_task = next(t for t in existing_tasks if t.get("id") == req_id)
-                    protected_fields = ["prompt_file", "subagent", "model", "executor", "inject_phase_prompt"]
+                    existing_task = next(
+                        t for t in existing_tasks if t.get("id") == req_id
+                    )
+                    protected_fields = [
+                        "prompt_file",
+                        "subagent",
+                        "model",
+                        "executor",
+                        "inject_phase_prompt",
+                    ]
                     for field in protected_fields:
                         req_val = req_task.get(field)
                         existing_val = existing_task.get(field)
                         if req_val is not None and existing_val != req_val:
-                            warnings.append(f"Task '{req_id}' has modified {field}: expected '{req_val}', got '{existing_val}'")
+                            warnings.append(
+                                f"Task '{req_id}' has modified {field}: expected '{req_val}', got '{existing_val}'"
+                            )
 
             if added_count > 0 or warnings:
                 tasks_file.write_text(json.dumps(existing_tasks, indent=2))
@@ -3932,7 +4234,11 @@ def cmd_suggested_next(args: argparse.Namespace) -> int:
         if all_phases:
             first_phase = all_phases[0]
             terminal = " (terminal)" if first_phase.get("terminal") else ""
-            user_input = " (requires user input)" if first_phase.get("requires_user_input") else ""
+            user_input = (
+                " (requires user input)"
+                if first_phase.get("requires_user_input")
+                else ""
+            )
             print(f"{first_phase['id']}{terminal}{user_input}")
         else:
             print("(no phases found)")
@@ -3988,14 +4294,19 @@ def cmd_enter_phase_by_number(args: argparse.Namespace) -> int:
     suggested = workflow_mgr.get_suggested_next(current_phase)
     if not suggested:
         if workflow_mgr.is_terminal(current_phase):
-            print("Current phase is terminal, no transitions available", file=sys.stderr)
+            print(
+                "Current phase is terminal, no transitions available", file=sys.stderr
+            )
         else:
             print("No suggested transitions from current phase", file=sys.stderr)
         return 1
 
     number = args.number
     if number < 1 or number > len(suggested):
-        print(f"Invalid option: {number}. Valid range: 1-{len(suggested)}", file=sys.stderr)
+        print(
+            f"Invalid option: {number}. Valid range: 1-{len(suggested)}",
+            file=sys.stderr,
+        )
         print("Options:", file=sys.stderr)
         for i, phase_id in enumerate(suggested, 1):
             print(f"  {i}. {phase_id}", file=sys.stderr)
@@ -4050,12 +4361,18 @@ def cmd_phase_history(args: argparse.Namespace) -> int:
         outcome = entry.get("outcome", "")
 
         current_marker = " *" if entry_num == current_entry else ""
-        reentry_marker = f" (from {entry.get('context_from')})" if entry.get("context_from") else ""
+        reentry_marker = (
+            f" (from {entry.get('context_from')})" if entry.get("context_from") else ""
+        )
 
         if exited:
-            print(f"{entry_num:2d}. {phase_id}: {entered} -> {exited} [{outcome}]{reentry_marker}")
+            print(
+                f"{entry_num:2d}. {phase_id}: {entered} -> {exited} [{outcome}]{reentry_marker}"
+            )
         else:
-            print(f"{entry_num:2d}. {phase_id}: {entered} (active){current_marker}{reentry_marker}")
+            print(
+                f"{entry_num:2d}. {phase_id}: {entered} (active){current_marker}{reentry_marker}"
+            )
 
     return 0
 
@@ -4095,21 +4412,15 @@ def cmd_prior_phase_outputs(args: argparse.Namespace) -> int:
                         if task_dir.is_dir():
                             files = [f.name for f in task_dir.iterdir() if f.is_file()]
                             if files:
-                                task_outputs.append({
-                                    "task": task_dir.name,
-                                    "files": sorted(files)
-                                })
-                prior_entries.append({
-                    "entry": entry_num,
-                    "dir": entry_dir,
-                    "task_outputs": task_outputs
-                })
+                                task_outputs.append(
+                                    {"task": task_dir.name, "files": sorted(files)}
+                                )
+                prior_entries.append(
+                    {"entry": entry_num, "dir": entry_dir, "task_outputs": task_outputs}
+                )
 
     if args.json:
-        result = {
-            "phase_type": phase_type,
-            "prior_entries": prior_entries
-        }
+        result = {"phase_type": phase_type, "prior_entries": prior_entries}
         print(json.dumps(result, indent=2))
     else:
         if not prior_entries:
@@ -4170,13 +4481,16 @@ def cmd_loop_phase(args: argparse.Namespace) -> int:
     if max_retries is not None and current_retries >= max_retries:
         # Set mode to awaiting-feedback via file-based store
         set_session_mode(project_dir, "awaiting-feedback")
-        print(f"Max retries ({max_retries}) exceeded for {current_phase}. User intervention required.", file=sys.stderr)
+        print(
+            f"Max retries ({max_retries}) exceeded for {current_phase}. User intervention required.",
+            file=sys.stderr,
+        )
         if args.json:
             result = {
                 "error": "max_retries_exceeded",
                 "phase": current_phase,
                 "retries": current_retries,
-                "max_retries": max_retries
+                "max_retries": max_retries,
             }
             print(json.dumps(result))
         return 10
@@ -4198,7 +4512,7 @@ def cmd_loop_phase(args: argparse.Namespace) -> int:
             "success": True,
             "phase": current_phase,
             "new_dir": new_state.get("current_phase_dir"),
-            "retry_count": new_state.get("phase_retries", {}).get(current_phase, 0)
+            "retry_count": new_state.get("phase_retries", {}).get(current_phase, 0),
         }
         print(json.dumps(output))
 
@@ -4242,12 +4556,15 @@ def cmd_loop_to_phase(args: argparse.Namespace) -> int:
 
     # Validate transition is allowed
     if not workflow_mgr.is_transition_allowed(current_phase, target_phase):
-        print(f"Transition not allowed: {current_phase} -> {target_phase}", file=sys.stderr)
+        print(
+            f"Transition not allowed: {current_phase} -> {target_phase}",
+            file=sys.stderr,
+        )
         if args.json:
             result = {
                 "error": "invalid_transition",
                 "from": current_phase,
-                "to": target_phase
+                "to": target_phase,
             }
             print(json.dumps(result))
         return 12
@@ -4262,13 +4579,16 @@ def cmd_loop_to_phase(args: argparse.Namespace) -> int:
         current_retries = state_mgr.get_phase_retries(target_phase)
         if max_retries is not None and current_retries >= max_retries:
             set_session_mode(project_dir, "awaiting-feedback")
-            print(f"Max retries ({max_retries}) exceeded for target phase '{target_phase}'.", file=sys.stderr)
+            print(
+                f"Max retries ({max_retries}) exceeded for target phase '{target_phase}'.",
+                file=sys.stderr,
+            )
             if args.json:
                 result = {
                     "error": "max_retries_exceeded",
                     "phase": target_phase,
                     "retries": current_retries,
-                    "max_retries": max_retries
+                    "max_retries": max_retries,
                 }
                 print(json.dumps(result))
             return 10
@@ -4276,17 +4596,24 @@ def cmd_loop_to_phase(args: argparse.Namespace) -> int:
     # Check if transition requires approval
     if workflow_mgr.transition_requires_approval(current_phase, target_phase):
         # Get approval prompt from suggested_next object
-        approval_prompt = workflow_mgr.get_approval_prompt(current_phase, target_phase) or f"Transition to {target_phase}?"
+        approval_prompt = (
+            workflow_mgr.get_approval_prompt(current_phase, target_phase)
+            or f"Transition to {target_phase}?"
+        )
 
         # Set pending approval
         current_entry = state.get("current_phase_entry", 0)
         reason = args.reason or f"Loopback: {current_phase} -> {target_phase}"
-        state_mgr.set_pending_approval(current_phase, target_phase, reason, current_entry)
+        state_mgr.set_pending_approval(
+            current_phase, target_phase, reason, current_entry
+        )
 
         # Set mode to awaiting-feedback via file-based store
         set_session_mode(project_dir, "awaiting-feedback")
 
-        log_progress(plan_dir, f"TRANSITION_PROPOSED: {current_phase} -> {target_phase}")
+        log_progress(
+            plan_dir, f"TRANSITION_PROPOSED: {current_phase} -> {target_phase}"
+        )
 
         print(f"Transition proposed: {current_phase} -> {target_phase}")
         print(f"Reason: {reason}")
@@ -4303,7 +4630,7 @@ def cmd_loop_to_phase(args: argparse.Namespace) -> int:
                 "from": current_phase,
                 "to": target_phase,
                 "reason": reason,
-                "approval_prompt": approval_prompt
+                "approval_prompt": approval_prompt,
             }
             print(json.dumps(result))
 
@@ -4321,7 +4648,9 @@ def cmd_loop_to_phase(args: argparse.Namespace) -> int:
             blocked = sum(1 for t in current_tasks if t.get("status") == "blocked")
             total = len(current_tasks)
             if total > 0:
-                reason_parts.append(f"Tasks in {current_phase}: {done}/{total} done, {blocked} blocked")
+                reason_parts.append(
+                    f"Tasks in {current_phase}: {done}/{total} done, {blocked} blocked"
+                )
         except Exception:
             pass
         reason = ". ".join(reason_parts)
@@ -4343,7 +4672,7 @@ def cmd_loop_to_phase(args: argparse.Namespace) -> int:
                 "success": True,
                 "from": current_phase,
                 "to": target_phase,
-                "new_dir": new_state.get("current_phase_dir")
+                "new_dir": new_state.get("current_phase_dir"),
             }
             print(json.dumps(output))
 
@@ -4374,7 +4703,10 @@ def cmd_propose_transition(args: argparse.Namespace) -> int:
     # Check no existing pending approval
     pending = state_mgr.get_pending_approval()
     if pending:
-        print(f"Existing pending approval: {pending['from_phase']} -> {pending['to_phase']}", file=sys.stderr)
+        print(
+            f"Existing pending approval: {pending['from_phase']} -> {pending['to_phase']}",
+            file=sys.stderr,
+        )
         print("Call reject-transition to cancel first.", file=sys.stderr)
         return 1
 
@@ -4416,7 +4748,7 @@ def cmd_propose_transition(args: argparse.Namespace) -> int:
             "from": current_phase,
             "to": target_phase,
             "reason": reason,
-            "approval_prompt": approval_prompt
+            "approval_prompt": approval_prompt,
         }
         print(json.dumps(result))
 
@@ -4451,16 +4783,15 @@ def cmd_approve_transition(args: argparse.Namespace) -> int:
     if not is_valid:
         print(f"Cannot approve: {error_msg}", file=sys.stderr)
         if args.json:
-            result = {
-                "error": "stale_approval",
-                "message": error_msg
-            }
+            result = {"error": "stale_approval", "message": error_msg}
             print(json.dumps(result))
         return 14
 
     target_phase = pending["to_phase"]
     from_phase = pending["from_phase"]
-    reason = pending.get("reason", f"Approved transition: {from_phase} -> {target_phase}")
+    reason = pending.get(
+        "reason", f"Approved transition: {from_phase} -> {target_phase}"
+    )
 
     # Execute transition via enter-phase
     enter_args = argparse.Namespace(
@@ -4485,7 +4816,7 @@ def cmd_approve_transition(args: argparse.Namespace) -> int:
                 "success": True,
                 "from": from_phase,
                 "to": target_phase,
-                "new_dir": new_state.get("current_phase_dir")
+                "new_dir": new_state.get("current_phase_dir"),
             }
             print(json.dumps(output))
 
@@ -4532,7 +4863,7 @@ def cmd_reject_transition(args: argparse.Namespace) -> int:
             "success": True,
             "rejected_from": from_phase,
             "rejected_to": to_phase,
-            "current_phase": state.get("current_phase")
+            "current_phase": state.get("current_phase"),
         }
         print(json.dumps(output))
 
@@ -4743,7 +5074,8 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             try:
                 manifest = json.loads(proposal_manifest.read_text())
                 active_proposals = [
-                    p for p in manifest.get("proposals", [])
+                    p
+                    for p in manifest.get("proposals", [])
                     if p.get("status") in ("pending", "accepted")
                 ]
                 if active_proposals:
@@ -4753,7 +5085,9 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
 
         output = {
             "phase_id": current_phase,
-            "phase_dir": str(plan_dir / current_phase_dir) if current_phase_dir else None,
+            "phase_dir": str(plan_dir / current_phase_dir)
+            if current_phase_dir
+            else None,
             "prompt": workflow_mgr.resolve_phase_prompt(current_phase),
             "terminal": phase.get("terminal", False),
             "requires_user_input": phase.get("requires_user_input", False),
@@ -4762,7 +5096,9 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             "assembled_prompts": assembled_prompts if assembled_prompts else None,
             "suggested_next": phase.get("suggested_next", []),
             "required_artifacts": required_artifacts if required_artifacts else None,
-            "context_artifacts": context_artifacts_content if context_artifacts_content else None,
+            "context_artifacts": context_artifacts_content
+            if context_artifacts_content
+            else None,
             "dead_ends": dead_ends if dead_ends else None,
             "proposals": proposals_for_json,
             "input_artifacts": {
@@ -4771,7 +5107,9 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             },
             "reentry_context": reentry_context,
             "request": request_content,
-            "plan_artifacts": plan_artifacts_content if plan_artifacts_content else None,
+            "plan_artifacts": plan_artifacts_content
+            if plan_artifacts_content
+            else None,
             "user_guidance": state.get("user_guidance", ""),
         }
         print(json.dumps(output, indent=2))
@@ -4792,7 +5130,11 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             print("## Plan Artifacts")
             print()
             for name, info in plan_artifacts_content.items():
-                rel = Path(info["path"]).relative_to(plan_dir) if plan_dir in Path(info["path"]).parents else info["path"]
+                rel = (
+                    Path(info["path"]).relative_to(plan_dir)
+                    if plan_dir in Path(info["path"]).parents
+                    else info["path"]
+                )
                 print(f"### {name}")
                 print(f"_Source: {rel}_")
                 print()
@@ -4817,7 +5159,9 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             for t in transitions:
                 phase_name = t.get("phase", "")
                 instruction = t.get("instruction", "")
-                approval = " *(requires approval)*" if t.get("requires_approval") else ""
+                approval = (
+                    " *(requires approval)*" if t.get("requires_approval") else ""
+                )
                 if instruction:
                     print(f"- **{phase_name}**{approval} — {instruction}")
                 else:
@@ -4845,7 +5189,10 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
                             print(content)
                             print()
                 else:
-                    print(f"**Warning:** Context artifact '{artifact_name}' not found in phase history", file=sys.stderr)
+                    print(
+                        f"**Warning:** Context artifact '{artifact_name}' not found in phase history",
+                        file=sys.stderr,
+                    )
 
         # Dead-end injection (prevent repeating failed approaches)
         dead_end_mgr = DeadEndRegistry(plan_dir)
@@ -4856,7 +5203,9 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             print("These approaches have already been tried and failed:")
             print()
             for de in dead_ends:
-                print(f"- **{de.get('what_failed', 'Unknown')}** ({de.get('discovery_type', 'UNKNOWN')})")
+                print(
+                    f"- **{de.get('what_failed', 'Unknown')}** ({de.get('discovery_type', 'UNKNOWN')})"
+                )
                 print(f"  Why: {de.get('why_failed', 'Unknown')}")
                 if de.get("task_id"):
                     print(f"  Task: {de['task_id']}")
@@ -4868,13 +5217,16 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
             try:
                 manifest = json.loads(proposal_manifest.read_text())
                 proposals = [
-                    p for p in manifest.get("proposals", [])
+                    p
+                    for p in manifest.get("proposals", [])
                     if p.get("status") in ("pending", "accepted")
                 ]
                 if proposals:
                     print("## Lessons Learned (from earlier tasks)")
                     print()
-                    print("These insights were discovered during earlier work in this plan:")
+                    print(
+                        "These insights were discovered during earlier work in this plan:"
+                    )
                     print()
                     for p in proposals:
                         print(f"- **{p.get('title', 'Untitled')}**")
@@ -4927,7 +5279,9 @@ def cmd_phase_context(args: argparse.Namespace) -> int:
         if required_artifacts:
             print("## Required Artifacts")
             print()
-            print("**IMPORTANT:** Before transitioning to the next phase, you MUST record these artifacts:")
+            print(
+                "**IMPORTANT:** Before transitioning to the next phase, you MUST record these artifacts:"
+            )
             print()
             for artifact in required_artifacts:
                 print(f"```bash")
@@ -4990,7 +5344,11 @@ def cmd_phase_summary(args: argparse.Namespace) -> int:
     reentries = sum(1 for e in history if e.get("context_from"))
 
     # Check for re-entry
-    prev_entries = [e for e in history if e.get("phase") == current_phase and e.get("entry") != entry_num]
+    prev_entries = [
+        e
+        for e in history
+        if e.get("phase") == current_phase and e.get("entry") != entry_num
+    ]
     is_reentry = len(prev_entries) > 0
 
     # Build summary
@@ -5194,7 +5552,9 @@ def _normalize_suggested_next(suggested_next: list) -> list[str]:
     return result
 
 
-def _render_vertical_diagram(phases: list[dict], phase_map: dict, current_phase: str | None) -> None:
+def _render_vertical_diagram(
+    phases: list[dict], phase_map: dict, current_phase: str | None
+) -> None:
     """Render workflow as vertical Unicode box diagram."""
     # Build transition graph (normalize to handle object format)
     transitions: dict[str, list[str]] = {}
@@ -5250,7 +5610,9 @@ def _render_vertical_diagram(phases: list[dict], phase_map: dict, current_phase:
             print(f"     ↓")
 
 
-def _render_horizontal_diagram(phases: list[dict], phase_map: dict, current_phase: str | None) -> None:
+def _render_horizontal_diagram(
+    phases: list[dict], phase_map: dict, current_phase: str | None
+) -> None:
     """Render workflow as horizontal Unicode box diagram."""
     # Build boxes and arrows
     boxes = []
@@ -5316,7 +5678,9 @@ def cmd_cache_add(args: argparse.Namespace) -> int:
     elif args.findings:
         findings = args.findings
     else:
-        print("Must specify --findings, --findings-file, or --findings -", file=sys.stderr)
+        print(
+            "Must specify --findings, --findings-file, or --findings -", file=sys.stderr
+        )
         return 1
 
     try:
@@ -5507,7 +5871,9 @@ def cmd_cache_suggest(args: argparse.Namespace) -> int:
     # Note: BM25 scores are typically small negative numbers for good matches
     # A threshold of 0.0 means "any match is relevant" (using <= to include -0.00)
     RELEVANCE_THRESHOLD = 0.0
-    relevant_hits = [h for h in hits if h.score is not None and h.score <= RELEVANCE_THRESHOLD]
+    relevant_hits = [
+        h for h in hits if h.score is not None and h.score <= RELEVANCE_THRESHOLD
+    ]
 
     # Build suggestions
     suggestions = []
@@ -5521,12 +5887,14 @@ def cmd_cache_suggest(args: argparse.Namespace) -> int:
             "steps": [],
             "status": "todo",
         }
-        suggestions.append({
-            "cache_id": hit.id,
-            "query": hit.query,
-            "score": round(hit.score, 2) if hit.score else None,
-            "ref_task": ref_task,
-        })
+        suggestions.append(
+            {
+                "cache_id": hit.id,
+                "query": hit.query,
+                "score": round(hit.score, 2) if hit.score else None,
+                "ref_task": ref_task,
+            }
+        )
 
     output = {
         "has_hits": len(suggestions) > 0,
@@ -5691,9 +6059,10 @@ def cmd_validate_json_artifact(args: argparse.Namespace) -> int:
 def slugify(text: str) -> str:
     """Convert text to slug format for IDs."""
     import re
+
     text = text.lower().strip()
-    text = re.sub(r'[^\w\s-]', '', text)
-    text = re.sub(r'[-\s]+', '-', text)
+    text = re.sub(r"[^\w\s-]", "", text)
+    text = re.sub(r"[-\s]+", "-", text)
     return text[:50]  # Limit length
 
 
@@ -5712,46 +6081,47 @@ def parse_proposals_md(content: str) -> list[dict]:
     <rationale lines>
     """
     import re
+
     proposals = []
 
     # Split by ## Proposal: headers
-    sections = re.split(r'^## Proposal:\s*', content, flags=re.MULTILINE)
+    sections = re.split(r"^## Proposal:\s*", content, flags=re.MULTILINE)
 
     for section in sections[1:]:  # Skip content before first proposal
-        lines = section.strip().split('\n')
+        lines = section.strip().split("\n")
         if not lines:
             continue
 
         title = lines[0].strip()
-        section_text = '\n'.join(lines[1:])
+        section_text = "\n".join(lines[1:])
 
         # Extract Target File
-        target_match = re.search(r'\*\*Target File\*\*:\s*`([^`]+)`', section_text)
+        target_match = re.search(r"\*\*Target File\*\*:\s*`([^`]+)`", section_text)
         target_file = target_match.group(1) if target_match else ""
 
         # Extract Content (between **Content**: and **Rationale**:)
         content_match = re.search(
-            r'\*\*Content\*\*:\s*\n(.*?)(?=\*\*Rationale\*\*:|\Z)',
+            r"\*\*Content\*\*:\s*\n(.*?)(?=\*\*Rationale\*\*:|\Z)",
             section_text,
-            re.DOTALL
+            re.DOTALL,
         )
         proposal_content = content_match.group(1).strip() if content_match else ""
 
         # Extract Rationale
         rationale_match = re.search(
-            r'\*\*Rationale\*\*:\s*\n(.*?)(?=---|\Z)',
-            section_text,
-            re.DOTALL
+            r"\*\*Rationale\*\*:\s*\n(.*?)(?=---|\Z)", section_text, re.DOTALL
         )
         rationale = rationale_match.group(1).strip() if rationale_match else ""
 
         if title and target_file:
-            proposals.append({
-                "title": title,
-                "target_file": target_file,
-                "content": proposal_content,
-                "rationale": rationale,
-            })
+            proposals.append(
+                {
+                    "title": title,
+                    "target_file": target_file,
+                    "content": proposal_content,
+                    "rationale": rationale,
+                }
+            )
 
     return proposals
 
@@ -5813,7 +6183,9 @@ def cmd_collect_proposals(args: argparse.Namespace) -> int:
 
                     # Preserve status from existing manifest
                     if proposal_id in existing:
-                        proposal["status"] = existing[proposal_id].get("status", "pending")
+                        proposal["status"] = existing[proposal_id].get(
+                            "status", "pending"
+                        )
 
                     proposals.append(proposal)
 
@@ -5851,7 +6223,7 @@ def cmd_list_proposals(args: argparse.Namespace) -> int:
         return 0
 
     # Filter by status if specified
-    status_filter = getattr(args, 'status', None)
+    status_filter = getattr(args, "status", None)
     if status_filter:
         proposals = [p for p in proposals if p.get("status") == status_filter]
 
@@ -5873,7 +6245,9 @@ def cmd_list_proposals(args: argparse.Namespace) -> int:
         if by_status[status]:
             print(f"\n  {status}:")
             for p in by_status[status]:
-                print(f"    {p['id']}: [{p['target_file']}] {p['title']} (from {p['source_task']})")
+                print(
+                    f"    {p['id']}: [{p['target_file']}] {p['title']} (from {p['source_task']})"
+                )
 
     return 0
 
@@ -5930,50 +6304,51 @@ def parse_challenges_md(content: str) -> list[dict]:
     <workaround lines> (optional)
     """
     import re
+
     challenges = []
 
     # Split by ## Challenge: headers
-    sections = re.split(r'^## Challenge:\s*', content, flags=re.MULTILINE)
+    sections = re.split(r"^## Challenge:\s*", content, flags=re.MULTILINE)
 
     for section in sections[1:]:  # Skip content before first challenge
-        lines = section.strip().split('\n')
+        lines = section.strip().split("\n")
         if not lines:
             continue
 
         title = lines[0].strip()
-        section_text = '\n'.join(lines[1:])
+        section_text = "\n".join(lines[1:])
 
         # Extract What was attempted
         attempted_match = re.search(
-            r'\*\*What was attempted\*\*:\s*\n(.*?)(?=\*\*What went wrong\*\*:|\Z)',
+            r"\*\*What was attempted\*\*:\s*\n(.*?)(?=\*\*What went wrong\*\*:|\Z)",
             section_text,
-            re.DOTALL
+            re.DOTALL,
         )
         attempted = attempted_match.group(1).strip() if attempted_match else ""
 
         # Extract What went wrong
         issue_match = re.search(
-            r'\*\*What went wrong\*\*:\s*\n(.*?)(?=\*\*Workaround used\*\*:|---|\Z)',
+            r"\*\*What went wrong\*\*:\s*\n(.*?)(?=\*\*Workaround used\*\*:|---|\Z)",
             section_text,
-            re.DOTALL
+            re.DOTALL,
         )
         issue = issue_match.group(1).strip() if issue_match else ""
 
         # Extract Workaround (optional)
         workaround_match = re.search(
-            r'\*\*Workaround used\*\*:\s*\n(.*?)(?=---|\Z)',
-            section_text,
-            re.DOTALL
+            r"\*\*Workaround used\*\*:\s*\n(.*?)(?=---|\Z)", section_text, re.DOTALL
         )
         workaround = workaround_match.group(1).strip() if workaround_match else ""
 
         if title:
-            challenges.append({
-                "title": title,
-                "attempted": attempted,
-                "issue": issue,
-                "workaround": workaround,
-            })
+            challenges.append(
+                {
+                    "title": title,
+                    "attempted": attempted,
+                    "issue": issue,
+                    "workaround": workaround,
+                }
+            )
 
     return challenges
 
@@ -6035,7 +6410,9 @@ def cmd_collect_challenges(args: argparse.Namespace) -> int:
 
                     # Preserve status from existing manifest
                     if challenge_id in existing:
-                        challenge["status"] = existing[challenge_id].get("status", "pending")
+                        challenge["status"] = existing[challenge_id].get(
+                            "status", "pending"
+                        )
 
                     challenges.append(challenge)
 
@@ -6093,7 +6470,9 @@ def cmd_list_challenges(args: argparse.Namespace) -> int:
                 print(f"    {c['id']}: {c['title']} (from {c['source_task']})")
                 if c.get("issue"):
                     # Truncate long issue text
-                    issue_preview = c["issue"][:60] + "..." if len(c["issue"]) > 60 else c["issue"]
+                    issue_preview = (
+                        c["issue"][:60] + "..." if len(c["issue"]) > 60 else c["issue"]
+                    )
                     print(f"      Issue: {issue_preview}")
 
     return 0
@@ -6160,7 +6539,9 @@ def cmd_status(args: argparse.Namespace) -> int:
         if plan_dir:
             tasks = get_tasks(plan_dir)
             todo = sum(1 for t in tasks if t.get("status") == "todo")
-            in_progress_count = sum(1 for t in tasks if t.get("status") == "in-progress")
+            in_progress_count = sum(
+                1 for t in tasks if t.get("status") == "in-progress"
+            )
             done = sum(1 for t in tasks if t.get("status") == "done")
             blocked_count = sum(1 for t in tasks if t.get("status") == "blocked")
             total = len(tasks)
@@ -6179,9 +6560,13 @@ def cmd_status(args: argparse.Namespace) -> int:
                     pass
 
             if blocked_count > 0:
-                print(f"  Current phase progress: {done}/{total} done, {in_progress_count} in-progress, {blocked_count} blocked, {todo} todo")
+                print(
+                    f"  Current phase progress: {done}/{total} done, {in_progress_count} in-progress, {blocked_count} blocked, {todo} todo"
+                )
             else:
-                print(f"  Current phase progress: {done}/{total} done, {in_progress_count} in-progress, {todo} todo")
+                print(
+                    f"  Current phase progress: {done}/{total} done, {in_progress_count} in-progress, {todo} todo"
+                )
 
             # Blocked tasks (show first - most important)
             blocked_tasks = [t for t in tasks if t.get("status") == "blocked"]
@@ -6421,7 +6806,9 @@ def validate_generated_phases(generated: dict) -> list[str]:
 
         # Every non-terminal phase must have suggested_next
         if not phase.get("suggested_next") and not phase.get("terminal"):
-            errors.append(f"Phase '{pid}' missing suggested_next (every non-terminal phase needs it)")
+            errors.append(
+                f"Phase '{pid}' missing suggested_next (every non-terminal phase needs it)"
+            )
 
         # Check suggested_next targets exist (handles both string and object format)
         suggested_ids = normalize_suggested(phase.get("suggested_next", []))
@@ -6432,12 +6819,20 @@ def validate_generated_phases(generated: dict) -> list[str]:
                 target = item.get("phase", "")
                 # Check approval config
                 if item.get("requires_approval") and not item.get("approval_prompt"):
-                    errors.append(f"Phase '{pid}' transition to '{target}' requires approval but has no approval_prompt")
+                    errors.append(
+                        f"Phase '{pid}' transition to '{target}' requires approval but has no approval_prompt"
+                    )
             else:
                 continue
 
-            if target and target not in ("complete", "__expand__") and target not in phase_ids:
-                errors.append(f"Phase '{pid}' has suggested_next '{target}' which doesn't exist")
+            if (
+                target
+                and target not in ("complete", "__expand__")
+                and target not in phase_ids
+            ):
+                errors.append(
+                    f"Phase '{pid}' has suggested_next '{target}' which doesn't exist"
+                )
 
         # Check expandable config (using normalized IDs)
         has_expand = "__expand__" in suggested_ids
@@ -6445,7 +6840,9 @@ def validate_generated_phases(generated: dict) -> list[str]:
         if has_expand and not has_expand_prompt:
             errors.append(f"Phase '{pid}' has __expand__ but no expand_prompt")
         if has_expand_prompt and not has_expand:
-            errors.append(f"Phase '{pid}' has expand_prompt but no __expand__ in suggested_next")
+            errors.append(
+                f"Phase '{pid}' has expand_prompt but no __expand__ in suggested_next"
+            )
 
     # Check phase count
     if len(phases) > 10:
@@ -6456,7 +6853,9 @@ def validate_generated_phases(generated: dict) -> list[str]:
         last_phase = phases[-1]
         suggested_ids = normalize_suggested(last_phase.get("suggested_next", []))
         if "complete" not in suggested_ids and "__expand__" not in suggested_ids:
-            errors.append(f"Last phase '{last_phase.get('id')}' must end with 'complete' or '__expand__'")
+            errors.append(
+                f"Last phase '{last_phase.get('id')}' must end with 'complete' or '__expand__'"
+            )
 
     return errors
 
@@ -6481,7 +6880,10 @@ def cmd_expand_phase(args: argparse.Namespace) -> int:
 
     # Check if expandable
     if not workflow_mgr.is_expandable(current_phase):
-        print(f"Phase '{current_phase}' is not expandable (no __expand__ in suggested_next)", file=sys.stderr)
+        print(
+            f"Phase '{current_phase}' is not expandable (no __expand__ in suggested_next)",
+            file=sys.stderr,
+        )
         return 1
 
     # Read generated phases from stdin
@@ -6510,10 +6912,12 @@ def cmd_expand_phase(args: argparse.Namespace) -> int:
     backup_file = phase_dir / "workflow-backup.toml"
 
     import shutil
+
     shutil.copy(workflow_file, backup_file)
 
     # Load and modify workflow
     import tomllib
+
     with open(workflow_file, "rb") as f:
         workflow = tomllib.load(f)
 
@@ -6546,7 +6950,10 @@ def cmd_expand_phase(args: argparse.Namespace) -> int:
     try:
         import tomli_w
     except ImportError:
-        print("Error: tomli_w not installed. Install with: pip install tomli_w", file=sys.stderr)
+        print(
+            "Error: tomli_w not installed. Install with: pip install tomli_w",
+            file=sys.stderr,
+        )
         return 1
 
     temp_file = workflow_file.with_suffix(".tmp")
@@ -6558,14 +6965,14 @@ def cmd_expand_phase(args: argparse.Namespace) -> int:
     workflow_mgr.invalidate_cache()
 
     # Record expansion
-    state_mgr.record_expansion(
-        current_phase,
-        [p["id"] for p in generated["phases"]]
-    )
+    state_mgr.record_expansion(current_phase, [p["id"] for p in generated["phases"]])
 
     print(f"Expanded workflow with {len(generated['phases'])} phases")
     print(f"Backup saved to: {backup_file}")
-    log_progress(plan_dir, f"EXPANDED: {current_phase} -> {[p['id'] for p in generated['phases']]}")
+    log_progress(
+        plan_dir,
+        f"EXPANDED: {current_phase} -> {[p['id'] for p in generated['phases']]}",
+    )
     return 0
 
 
@@ -6604,6 +7011,7 @@ def cmd_rollback_expansion(args: argparse.Namespace) -> int:
 
     workflow_file = plan_dir / "workflow.toml"
     import shutil
+
     shutil.copy(backup_file, workflow_file)
 
     # Invalidate cache
@@ -6688,7 +7096,9 @@ def cmd_validate_required_tasks(args: argparse.Namespace) -> int:
     # Load tasks.json
     tasks_file = get_tasks_file(plan_dir)
     if not tasks_file or not tasks_file.exists():
-        print(f"Error: tasks.json not found for phase '{current_phase}'", file=sys.stderr)
+        print(
+            f"Error: tasks.json not found for phase '{current_phase}'", file=sys.stderr
+        )
         return 1
 
     tasks = get_tasks(plan_dir)
@@ -6696,7 +7106,13 @@ def cmd_validate_required_tasks(args: argparse.Namespace) -> int:
 
     errors = []
     warnings = []
-    protected_fields = ["prompt_file", "subagent", "model", "executor", "inject_phase_prompt"]
+    protected_fields = [
+        "prompt_file",
+        "subagent",
+        "model",
+        "executor",
+        "inject_phase_prompt",
+    ]
 
     for req_task in required_tasks:
         req_id = req_task.get("id")
@@ -6708,7 +7124,9 @@ def cmd_validate_required_tasks(args: argparse.Namespace) -> int:
                 req_val = req_task.get(field)
                 existing_val = existing.get(field)
                 if req_val is not None and existing_val != req_val:
-                    warnings.append(f"Task '{req_id}' has modified {field}: expected '{req_val}', got '{existing_val}'")
+                    warnings.append(
+                        f"Task '{req_id}' has modified {field}: expected '{req_val}', got '{existing_val}'"
+                    )
 
     if errors:
         print("Validation errors:", file=sys.stderr)
@@ -6751,11 +7169,15 @@ def main() -> int:
     p_set_active.add_argument("plan_name", help="Plan name to activate")
 
     # deactivate
-    subparsers.add_parser("deactivate", help="Deactivate current plan without switching")
+    subparsers.add_parser(
+        "deactivate", help="Deactivate current plan without switching"
+    )
 
     # reflog
     p_reflog = subparsers.add_parser("reflog", help="Show plan activation history")
-    p_reflog.add_argument("--limit", type=int, default=20, help="Max entries to show (default: 20)")
+    p_reflog.add_argument(
+        "--limit", type=int, default=20, help="Max entries to show (default: 20)"
+    )
 
     # log
     p_log = subparsers.add_parser("log", help="Append message to progress log")
@@ -6771,7 +7193,9 @@ def main() -> int:
     subparsers.add_parser("blocked-tasks", help="List blocked tasks")
 
     # has-blockers
-    subparsers.add_parser("has-blockers", help="Check if plan has blocked tasks (exit 0=yes, 1=no)")
+    subparsers.add_parser(
+        "has-blockers", help="Check if plan has blocked tasks (exit 0=yes, 1=no)"
+    )
 
     # next-tasks
     subparsers.add_parser("next-tasks", help="List available tasks")
@@ -6779,22 +7203,32 @@ def main() -> int:
     # set-status
     p_status = subparsers.add_parser("set-status", help="Set task status")
     p_status.add_argument("task_id", help="Task ID")
-    p_status.add_argument("status", choices=["todo", "in-progress", "done", "blocked"], help="New status")
+    p_status.add_argument(
+        "status", choices=["todo", "in-progress", "done", "blocked"], help="New status"
+    )
 
     # recent-progress
-    p_progress = subparsers.add_parser("recent-progress", help="Show recent progress entries")
-    p_progress.add_argument("--lines", "-n", type=int, default=10, help="Number of lines")
+    p_progress = subparsers.add_parser(
+        "recent-progress", help="Show recent progress entries"
+    )
+    p_progress.add_argument(
+        "--lines", "-n", type=int, default=10, help="Number of lines"
+    )
 
     # task-dir
     p_taskdir = subparsers.add_parser("task-dir", help="Print task directory path")
     p_taskdir.add_argument("task_id", help="Task ID")
 
     # ensure-task-dir
-    p_ensure = subparsers.add_parser("ensure-task-dir", help="Create task directory, print path")
+    p_ensure = subparsers.add_parser(
+        "ensure-task-dir", help="Create task directory, print path"
+    )
     p_ensure.add_argument("task_id", help="Task ID")
 
     # parent-dirs
-    p_parents = subparsers.add_parser("parent-dirs", help="List parent task directories")
+    p_parents = subparsers.add_parser(
+        "parent-dirs", help="List parent task directories"
+    )
     p_parents.add_argument("task_id", help="Task ID")
 
     # has-outputs
@@ -6802,51 +7236,73 @@ def main() -> int:
     p_outputs.add_argument("task_id", help="Task ID")
 
     # task-log
-    p_task_log = subparsers.add_parser("task-log", help="Append message to task progress")
+    p_task_log = subparsers.add_parser(
+        "task-log", help="Append message to task progress"
+    )
     p_task_log.add_argument("task_id", help="Task ID")
     p_task_log.add_argument("message", help="Message to log")
 
     # phase-log
-    p_phase_log = subparsers.add_parser("phase-log", help="Append message to phase progress")
+    p_phase_log = subparsers.add_parser(
+        "phase-log", help="Append message to phase progress"
+    )
     p_phase_log.add_argument("message", help="Message to log")
 
     # task-progress
-    p_task_progress = subparsers.add_parser("task-progress", help="Show task progress entries")
+    p_task_progress = subparsers.add_parser(
+        "task-progress", help="Show task progress entries"
+    )
     p_task_progress.add_argument("task_id", help="Task ID")
-    p_task_progress.add_argument("--lines", "-n", type=int, default=10, help="Number of lines")
+    p_task_progress.add_argument(
+        "--lines", "-n", type=int, default=10, help="Number of lines"
+    )
 
     # build-task-prompt
-    p_build_prompt = subparsers.add_parser("build-task-prompt", help="Build complete prompt for task")
+    p_build_prompt = subparsers.add_parser(
+        "build-task-prompt", help="Build complete prompt for task"
+    )
     p_build_prompt.add_argument("task_id", help="Task ID")
 
-
-
     # record-confidence
-    p_record_conf = subparsers.add_parser("record-confidence", help="Record confidence score for task")
+    p_record_conf = subparsers.add_parser(
+        "record-confidence", help="Record confidence score for task"
+    )
     p_record_conf.add_argument("task_id", help="Task ID")
     p_record_conf.add_argument("score", type=int, help="Confidence score (1-5)")
     p_record_conf.add_argument("rationale", help="Explanation for the score")
 
     # check-confidence
-    p_check_conf = subparsers.add_parser("check-confidence", help="Check confidence score for task")
+    p_check_conf = subparsers.add_parser(
+        "check-confidence", help="Check confidence score for task"
+    )
     p_check_conf.add_argument("task_id", help="Task ID")
 
     # low-confidence-tasks
     subparsers.add_parser("low-confidence-tasks", help="List tasks with confidence < 4")
 
     # add-task
-    p_add_task = subparsers.add_parser("add-task", help="Add a task from JSON file or stdin")
-    p_add_task.add_argument("json_file", help="JSON file with task definition, or '-' for stdin")
+    p_add_task = subparsers.add_parser(
+        "add-task", help="Add a task from JSON file or stdin"
+    )
+    p_add_task.add_argument(
+        "json_file", help="JSON file with task definition, or '-' for stdin"
+    )
 
     # update-task-parents
-    p_update_parents = subparsers.add_parser("update-task-parents", help="Update task parent dependencies")
+    p_update_parents = subparsers.add_parser(
+        "update-task-parents", help="Update task parent dependencies"
+    )
     p_update_parents.add_argument("task_id", help="Task ID to update")
     p_update_parents.add_argument("parent_ids", nargs="*", help="New parent task IDs")
 
     # update-task-steps
-    p_update_steps = subparsers.add_parser("update-task-steps", help="Update task steps from JSON")
+    p_update_steps = subparsers.add_parser(
+        "update-task-steps", help="Update task steps from JSON"
+    )
     p_update_steps.add_argument("task_id", help="Task ID to update")
-    p_update_steps.add_argument("json_file", help="JSON file with steps array, or '-' for stdin")
+    p_update_steps.add_argument(
+        "json_file", help="JSON file with steps array, or '-' for stdin"
+    )
 
     # status
     subparsers.add_parser("status", help="Show comprehensive status overview")
@@ -6866,20 +7322,32 @@ def main() -> int:
 
     # User guidance commands
     subparsers.add_parser("get-user-guidance", help="Get user guidance from state.json")
-    subparsers.add_parser("clear-user-guidance", help="Clear user guidance after processing")
+    subparsers.add_parser(
+        "clear-user-guidance", help="Clear user guidance after processing"
+    )
 
     # --- Workflow Commands ---
 
     # Dead-end commands
     p_add_de = subparsers.add_parser("add-dead-end", help="Record a failed approach")
-    p_add_de.add_argument("--task-id", required=True, help="Task ID where failure occurred")
+    p_add_de.add_argument(
+        "--task-id", required=True, help="Task ID where failure occurred"
+    )
     p_add_de.add_argument("--what-failed", required=True, help="What was attempted")
     p_add_de.add_argument("--why-failed", required=True, help="Why it failed")
-    p_add_de.add_argument("--type", required=True, help="Discovery type (WRONG_ASSUMPTION, MISSING_PREREQUISITE, DEPENDENCY_CONFLICT, ARCHITECTURAL_MISMATCH, SCOPE_EXCEEDED, EXTERNAL_BLOCKER)")
+    p_add_de.add_argument(
+        "--type",
+        required=True,
+        help="Discovery type (WRONG_ASSUMPTION, MISSING_PREREQUISITE, DEPENDENCY_CONFLICT, ARCHITECTURAL_MISMATCH, SCOPE_EXCEEDED, EXTERNAL_BLOCKER)",
+    )
 
-    p_get_de = subparsers.add_parser("get-dead-ends", help="Get dead ends for prompt injection")
+    p_get_de = subparsers.add_parser(
+        "get-dead-ends", help="Get dead ends for prompt injection"
+    )
     p_get_de.add_argument("--json", action="store_true", help="Output as JSON")
-    p_get_de.add_argument("--recent", type=int, default=0, help="Only show N most recent")
+    p_get_de.add_argument(
+        "--recent", type=int, default=0, help="Only show N most recent"
+    )
 
     p_clear_de = subparsers.add_parser("clear-dead-end", help="Remove a dead end")
     p_clear_de.add_argument("dead_end_id", help="Dead end ID to remove")
@@ -6887,109 +7355,182 @@ def main() -> int:
     # Phase navigation commands
     subparsers.add_parser("current-phase", help="Print current phase ID")
 
-    subparsers.add_parser("current-phase-dir", help="Print current phase directory path")
+    subparsers.add_parser(
+        "current-phase-dir", help="Print current phase directory path"
+    )
 
     p_enter_phase = subparsers.add_parser("enter-phase", help="Enter a new phase")
     p_enter_phase.add_argument("phase_id", help="Phase ID to enter")
-    p_enter_phase.add_argument("--reason", default="", help="Reason for entering phase (for first entry)")
-    p_enter_phase.add_argument("--reason-file", help="Path to markdown file with detailed re-entry context (recommended for re-entries)")
+    p_enter_phase.add_argument(
+        "--reason", default="", help="Reason for entering phase (for first entry)"
+    )
+    p_enter_phase.add_argument(
+        "--reason-file",
+        help="Path to markdown file with detailed re-entry context (recommended for re-entries)",
+    )
 
     subparsers.add_parser("suggested-next", help="List possible phase transitions")
 
-    p_enter_by_num = subparsers.add_parser("enter-phase-by-number", help="Enter phase by number from suggested_next")
+    p_enter_by_num = subparsers.add_parser(
+        "enter-phase-by-number", help="Enter phase by number from suggested_next"
+    )
     p_enter_by_num.add_argument("number", type=int, help="Option number (1-indexed)")
-    p_enter_by_num.add_argument("guidance", nargs="?", default="", help="Optional guidance text")
+    p_enter_by_num.add_argument(
+        "guidance", nargs="?", default="", help="Optional guidance text"
+    )
 
     subparsers.add_parser("phase-history", help="Show all phase entries")
 
-    p_prior_outputs = subparsers.add_parser("prior-phase-outputs", help="List outputs from prior same-type phases")
-    p_prior_outputs.add_argument("--phase-type", help="Phase type to look for (default: current phase)")
+    p_prior_outputs = subparsers.add_parser(
+        "prior-phase-outputs", help="List outputs from prior same-type phases"
+    )
+    p_prior_outputs.add_argument(
+        "--phase-type", help="Phase type to look for (default: current phase)"
+    )
     p_prior_outputs.add_argument("--json", action="store_true", help="Output as JSON")
 
     # Phase loopback commands
-    p_loop_phase = subparsers.add_parser("loop-phase", help="Re-enter current phase (self-loop)")
+    p_loop_phase = subparsers.add_parser(
+        "loop-phase", help="Re-enter current phase (self-loop)"
+    )
     p_loop_phase.add_argument("--reason", help="Reason for looping")
     p_loop_phase.add_argument("--json", action="store_true", help="Output as JSON")
 
-    p_loop_to = subparsers.add_parser("loop-to-phase", help="Transition to a different phase (cross-phase loopback)")
+    p_loop_to = subparsers.add_parser(
+        "loop-to-phase", help="Transition to a different phase (cross-phase loopback)"
+    )
     p_loop_to.add_argument("phase_id", help="Target phase ID")
     p_loop_to.add_argument("--reason", help="Reason for looping")
     p_loop_to.add_argument("--json", action="store_true", help="Output as JSON")
 
-    p_propose = subparsers.add_parser("propose-transition", help="Request user approval for a transition")
+    p_propose = subparsers.add_parser(
+        "propose-transition", help="Request user approval for a transition"
+    )
     p_propose.add_argument("phase_id", help="Target phase ID")
     p_propose.add_argument("--reason", help="Reason for transition")
     p_propose.add_argument("--json", action="store_true", help="Output as JSON")
 
-    p_approve = subparsers.add_parser("approve-transition", help="Execute a pending approved transition")
+    p_approve = subparsers.add_parser(
+        "approve-transition", help="Execute a pending approved transition"
+    )
     p_approve.add_argument("--json", action="store_true", help="Output as JSON")
 
-    p_reject = subparsers.add_parser("reject-transition", help="Cancel a pending transition")
+    p_reject = subparsers.add_parser(
+        "reject-transition", help="Cancel a pending transition"
+    )
     p_reject.add_argument("--json", action="store_true", help="Output as JSON")
 
     # Artifact commands
-    p_record_art = subparsers.add_parser("record-artifact", help="Record artifact produced by current phase")
+    p_record_art = subparsers.add_parser(
+        "record-artifact", help="Record artifact produced by current phase"
+    )
     p_record_art.add_argument("filename", help="Logical name for artifact")
     p_record_art.add_argument("path", help="Relative path to artifact file")
-    p_record_art.add_argument("--plan-level", action="store_true", dest="plan_level",
-                              help="Record as plan-level artifact (not tied to any phase)")
+    p_record_art.add_argument(
+        "--plan-level",
+        action="store_true",
+        dest="plan_level",
+        help="Record as plan-level artifact (not tied to any phase)",
+    )
 
-    p_input_art = subparsers.add_parser("input-artifacts", help="List all artifacts from prior phases")
+    p_input_art = subparsers.add_parser(
+        "input-artifacts", help="List all artifacts from prior phases"
+    )
     p_input_art.add_argument("--json", action="store_true", help="Output as JSON")
 
-    p_list_plan_art = subparsers.add_parser("list-plan-artifacts", help="List plan-level artifacts")
+    p_list_plan_art = subparsers.add_parser(
+        "list-plan-artifacts", help="List plan-level artifacts"
+    )
     p_list_plan_art.add_argument("--json", action="store_true", help="Output as JSON")
 
     # Phase display commands
-    p_phase_ctx = subparsers.add_parser("phase-context", help="Display full phase context")
+    p_phase_ctx = subparsers.add_parser(
+        "phase-context", help="Display full phase context"
+    )
     p_phase_ctx.add_argument("--json", action="store_true", help="Output as JSON")
-    p_phase_ctx.add_argument("--entry", type=int, help="Show context for specific phase entry number")
+    p_phase_ctx.add_argument(
+        "--entry", type=int, help="Show context for specific phase entry number"
+    )
 
     subparsers.add_parser("phase-summary", help="Display compact phase summary")
 
     # Phase task commands
-    subparsers.add_parser("phase-tasks-file", help="Print current phase's tasks.json path")
+    subparsers.add_parser(
+        "phase-tasks-file", help="Print current phase's tasks.json path"
+    )
 
     subparsers.add_parser("phase-tasks", help="List tasks in current phase")
 
-    subparsers.add_parser("phase-next-tasks", help="List available tasks in current phase")
+    subparsers.add_parser(
+        "phase-next-tasks", help="List available tasks in current phase"
+    )
 
-    subparsers.add_parser("check-tasks-required", help="Check if phase requires tasks but none exist (exit 1 if missing)")
+    subparsers.add_parser(
+        "check-tasks-required",
+        help="Check if phase requires tasks but none exist (exit 1 if missing)",
+    )
 
     # Workflow diagram
-    p_diagram = subparsers.add_parser("workflow-diagram", help="Display ASCII diagram of workflow")
-    p_diagram.add_argument("--flow", choices=["east", "south"], default="south", help="Direction (default: south)")
+    p_diagram = subparsers.add_parser(
+        "workflow-diagram", help="Display ASCII diagram of workflow"
+    )
+    p_diagram.add_argument(
+        "--flow",
+        choices=["east", "south"],
+        default="south",
+        help="Direction (default: south)",
+    )
 
     # --- Research Cache Commands ---
 
     # cache-add
     p_cache_add = subparsers.add_parser("cache-add", help="Add entry to research cache")
-    p_cache_add.add_argument("--query", "-q", required=True, help="The research query/question")
-    p_cache_add.add_argument("--findings", "-f", help="The research findings (direct text)")
-    p_cache_add.add_argument("--findings-file", help="Path to file with findings, or '-' for stdin")
-    p_cache_add.add_argument("--ttl-days", type=int, default=30, help="Days until expiration (default: 30)")
-    p_cache_add.add_argument("--source-type", default="web_search", help="Source type (default: web_search)")
+    p_cache_add.add_argument(
+        "--query", "-q", required=True, help="The research query/question"
+    )
+    p_cache_add.add_argument(
+        "--findings", "-f", help="The research findings (direct text)"
+    )
+    p_cache_add.add_argument(
+        "--findings-file", help="Path to file with findings, or '-' for stdin"
+    )
+    p_cache_add.add_argument(
+        "--ttl-days", type=int, default=30, help="Days until expiration (default: 30)"
+    )
+    p_cache_add.add_argument(
+        "--source-type", default="web_search", help="Source type (default: web_search)"
+    )
     p_cache_add.add_argument("--source-url", help="URL of the source")
     p_cache_add.add_argument("--plan-id", help="ID of the plan creating this entry")
-    p_cache_add.add_argument("--replace", action="store_true", help="Replace existing entry with same query")
+    p_cache_add.add_argument(
+        "--replace", action="store_true", help="Replace existing entry with same query"
+    )
 
     # cache-search
     p_cache_search = subparsers.add_parser("cache-search", help="Search research cache")
     p_cache_search.add_argument("query", help="Search query")
-    p_cache_search.add_argument("--limit", "-n", type=int, default=5, help="Max results (default: 5)")
-    p_cache_search.add_argument("--include-expired", action="store_true", help="Include expired entries")
+    p_cache_search.add_argument(
+        "--limit", "-n", type=int, default=5, help="Max results (default: 5)"
+    )
+    p_cache_search.add_argument(
+        "--include-expired", action="store_true", help="Include expired entries"
+    )
     p_cache_search.add_argument("--json", action="store_true", help="Output as JSON")
 
     # cache-get
     p_cache_get = subparsers.add_parser("cache-get", help="Get cache entry by ID")
     p_cache_get.add_argument("id", type=int, help="Entry ID")
-    p_cache_get.add_argument("--allow-expired", action="store_true", help="Return even if expired")
+    p_cache_get.add_argument(
+        "--allow-expired", action="store_true", help="Return even if expired"
+    )
     p_cache_get.add_argument("--json", action="store_true", help="Output as JSON")
 
     # cache-clear
     p_cache_clear = subparsers.add_parser("cache-clear", help="Clear cache entries")
     p_cache_clear.add_argument("--id", type=int, help="Delete specific entry by ID")
-    p_cache_clear.add_argument("--query", help="Delete entries matching normalized query")
+    p_cache_clear.add_argument(
+        "--query", help="Delete entries matching normalized query"
+    )
     p_cache_clear.add_argument("--all", action="store_true", help="Delete all entries")
 
     # cache-gc
@@ -7000,48 +7541,91 @@ def main() -> int:
     p_cache_stats.add_argument("--json", action="store_true", help="Output as JSON")
 
     # cache-suggest
-    p_cache_suggest = subparsers.add_parser("cache-suggest", help="Suggest cache references for a task")
-    p_cache_suggest.add_argument("--description", "-d", required=True, help="Task description to search for")
+    p_cache_suggest = subparsers.add_parser(
+        "cache-suggest", help="Suggest cache references for a task"
+    )
+    p_cache_suggest.add_argument(
+        "--description", "-d", required=True, help="Task description to search for"
+    )
 
     # cache-import
-    p_cache_import = subparsers.add_parser("cache-import", help="Import cache entries from JSON artifact")
+    p_cache_import = subparsers.add_parser(
+        "cache-import", help="Import cache entries from JSON artifact"
+    )
     p_cache_import.add_argument("path", help="Path to JSON file with cache entries")
-    p_cache_import.add_argument("--plan-id", help="Override plan ID for imported entries")
-    p_cache_import.add_argument("--dry-run", action="store_true", help="Show what would be imported without importing")
+    p_cache_import.add_argument(
+        "--plan-id", help="Override plan ID for imported entries"
+    )
+    p_cache_import.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be imported without importing",
+    )
 
     # validate-json-artifact
-    p_validate_json = subparsers.add_parser("validate-json-artifact", help="Validate JSON artifact against schema")
+    p_validate_json = subparsers.add_parser(
+        "validate-json-artifact", help="Validate JSON artifact against schema"
+    )
     p_validate_json.add_argument("name", help="Artifact name")
-    p_validate_json.add_argument("--schema", help="Schema name (auto-detected from workflow if not specified)")
+    p_validate_json.add_argument(
+        "--schema", help="Schema name (auto-detected from workflow if not specified)"
+    )
 
     # Proposal commands
-    subparsers.add_parser("collect-proposals", help="Collect proposals from task directories")
+    subparsers.add_parser(
+        "collect-proposals", help="Collect proposals from task directories"
+    )
 
-    p_list_proposals = subparsers.add_parser("list-proposals", help="List proposals with status")
-    p_list_proposals.add_argument("--status", choices=["pending", "accepted", "rejected"], help="Filter by status")
+    p_list_proposals = subparsers.add_parser(
+        "list-proposals", help="List proposals with status"
+    )
+    p_list_proposals.add_argument(
+        "--status", choices=["pending", "accepted", "rejected"], help="Filter by status"
+    )
 
-    p_update_proposal = subparsers.add_parser("update-proposal-status", help="Update proposal status")
+    p_update_proposal = subparsers.add_parser(
+        "update-proposal-status", help="Update proposal status"
+    )
     p_update_proposal.add_argument("proposal_id", help="Proposal ID")
-    p_update_proposal.add_argument("status", choices=["pending", "accepted", "rejected"], help="New status")
+    p_update_proposal.add_argument(
+        "status", choices=["pending", "accepted", "rejected"], help="New status"
+    )
 
     # Challenge commands
-    subparsers.add_parser("collect-challenges", help="Collect challenges from task directories")
+    subparsers.add_parser(
+        "collect-challenges", help="Collect challenges from task directories"
+    )
     subparsers.add_parser("list-challenges", help="List challenges with status")
 
-    p_ack_challenge = subparsers.add_parser("acknowledge-challenge", help="Acknowledge a challenge")
+    p_ack_challenge = subparsers.add_parser(
+        "acknowledge-challenge", help="Acknowledge a challenge"
+    )
     p_ack_challenge.add_argument("challenge_id", help="Challenge ID")
 
     # Workflow expansion commands
-    subparsers.add_parser("build-expand-prompt", help="Build full expand prompt with reference workflows")
+    subparsers.add_parser(
+        "build-expand-prompt", help="Build full expand prompt with reference workflows"
+    )
 
-    p_expand = subparsers.add_parser("expand-phase", help="Expand current phase with generated phases")
-    p_expand.add_argument("--dry-run", action="store_true", help="Preview without writing")
+    p_expand = subparsers.add_parser(
+        "expand-phase", help="Expand current phase with generated phases"
+    )
+    p_expand.add_argument(
+        "--dry-run", action="store_true", help="Preview without writing"
+    )
 
-    subparsers.add_parser("rollback-expansion", help="Rollback to pre-expansion workflow")
+    subparsers.add_parser(
+        "rollback-expansion", help="Rollback to pre-expansion workflow"
+    )
 
-    subparsers.add_parser("validate-workflow", help="Validate workflow including expandable rules")
+    subparsers.add_parser(
+        "validate-workflow", help="Validate workflow including expandable rules"
+    )
 
-    subparsers.add_parser("validate-required-tasks", help="Validate tasks.json contains all required tasks")
+    subparsers.add_parser(
+        "validate-required-tasks",
+        help="Validate tasks.json contains all required tasks",
+    )
 
     args = parser.parse_args()
 
