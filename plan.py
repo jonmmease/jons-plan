@@ -123,8 +123,19 @@ def get_project_dir() -> Path:
     return Path.cwd()
 
 
+def _migrate_plan_dir(project_dir: Path) -> None:
+    """Migrate plan data from .claude/jons-plan/ to .jons-plan/ if needed."""
+    old_dir = project_dir / ".claude" / "jons-plan"
+    new_dir = project_dir / ".jons-plan"
+    if old_dir.is_dir() and not new_dir.exists():
+        import shutil
+        shutil.move(str(old_dir), str(new_dir))
+        print(f"Migrated plan data: .claude/jons-plan/ -> .jons-plan/", file=sys.stderr)
+
+
 def get_active_plan(project_dir: Path) -> str | None:
     """Get active plan name from .jons-plan/active-plan file."""
+    _migrate_plan_dir(project_dir)
     active_plan_file = project_dir / ".jons-plan" / "active-plan"
     if active_plan_file.exists():
         return active_plan_file.read_text().strip()
