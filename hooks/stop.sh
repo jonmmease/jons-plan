@@ -122,8 +122,25 @@ if [[ "$SESSION_MODE" == "proceed" ]]; then
                 fi
 
                 # Check if there are suggested next phases (workflow not complete)
+                # But only if the phase's required artifacts have all been recorded
+                # (if not, the phase work isn't done yet — may be waiting on a background agent)
+                PHASE_COMPLETE=true
+                REQUIRED_ARTS=$(jq -r '.required_artifacts // []' < "$PHASE_JSON_FILE" 2>/dev/null)
+                if [[ -n "$REQUIRED_ARTS" && "$REQUIRED_ARTS" != "null" && "$REQUIRED_ARTS" != "[]" ]]; then
+                    STATE_FILE="${ACTIVE_PLAN_DIR}/state.json"
+                    if [[ -f "$STATE_FILE" ]]; then
+                        CURRENT_ENTRY=$(jq -r '.current_phase_entry // 0' < "$STATE_FILE" 2>/dev/null)
+                        RECORDED_ARTS=$(jq -r --argjson entry "$CURRENT_ENTRY" \
+                            '[.phase_history[] | select(.entry == $entry) | .artifacts // {} | keys[]] | length' \
+                            < "$STATE_FILE" 2>/dev/null || echo "0")
+                        REQUIRED_COUNT=$(echo "$REQUIRED_ARTS" | jq -r 'length' 2>/dev/null || echo "0")
+                        if [[ "$RECORDED_ARTS" -lt "$REQUIRED_COUNT" ]]; then
+                            PHASE_COMPLETE=false
+                        fi
+                    fi
+                fi
                 SUGGESTED_NEXT_COUNT=$(jq -r '.suggested_next | length' < "$PHASE_JSON_FILE" 2>/dev/null || echo "0")
-                if [[ "$SUGGESTED_NEXT_COUNT" -gt 0 ]]; then
+                if [[ "$PHASE_COMPLETE" == "true" && "$SUGGESTED_NEXT_COUNT" -gt 0 ]]; then
                     # Check safety limit before blocking
                     COUNTER=$(get_iteration_counter)
                     MAX_ITER=$(get_max_iterations)

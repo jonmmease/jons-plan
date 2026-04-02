@@ -193,12 +193,13 @@ suggested_next = [
 
 [[phases]]
 id = "generate-tour"
+use_tasks = true
 context_artifacts = ["pr-data", "pr-metadata", "stop-plan"]
 required_artifacts = ["review-tour"]
 prompt = """
 # Generate Tour Phase
 
-Generate the review tour as structured JSON, then render multi-file markdown output.
+Generate the review tour using parallel subagents — one per stop.
 
 ## Inputs
 
@@ -214,6 +215,84 @@ uv run plan.py input-artifacts --json
 ```
 Use the paths from `.found[]` to locate pr-files.json and full.diff.
 
+## Task Creation
+
+Read stop-plan.json to get the number of stops. Create tasks dynamically:
+
+### 1. `generate-overview` task (no parents)
+
+Writes `review-tour/index.md` with:
+- PR header (title, repo, author, branches, stats)
+- 2-4 paragraph overview synthesizing the PR's purpose (from PR description + stop plan)
+- Tour Guide section with per-stop summary and per-file checkboxes
+- Trivial Changes section
+- Review Notes placeholder
+
+Also pre-computes SHA-256 hashes for all file paths and writes them to `review-tour/hashes.json` (`{"path": "hash", ...}`) for stop tasks to use.
+
+Use owner/repo from the `repository` field in pr-metadata.json.
+
+### 2. Per-stop tasks: `generate-stop-01`, `generate-stop-02`, ... (parents: [`generate-overview`])
+
+One task per stop in stop-plan.json. Each writes `review-tour/stop-NN.md`.
+
+**Each stop task receives in its `subagent_prompt`:**
+- The stop's entry from stop-plan.json (number, title, rationale, risk, files with hunk assignments)
+- Path to pr-files.json for reading patches
+- Path to full.diff for fallback
+- Path to review-tour/hashes.json for permalink construction
+
+**Each stop task produces:**
+- `review-tour/stop-NN.md` with the stop content (see Stop File Format below)
+- A JSON fragment `review-tour/stop-NN.json` with structured data for that stop
+
+All stop tasks run in parallel since they write to separate files.
+
+### 3. `assemble-tour` task (parents: all stop tasks)
+
+Reads all `review-tour/stop-NN.json` fragments and `review-tour/index.md`, assembles the final `review-tour.json`.
+
+Records the artifact:
+```bash
+uv run plan.py record-artifact review-tour review-tour.json
+```
+
+## Task Configuration
+
+```json
+{
+  "id": "generate-overview",
+  "description": "Generate index.md with PR overview, tour guide, and hash map",
+  "subagent": "general-purpose",
+  "parents": [],
+  "steps": ["Read pr-metadata.json and stop-plan.json", "Write review-tour/index.md", "Write review-tour/hashes.json"],
+  "status": "todo"
+}
+```
+
+For each stop N:
+```json
+{
+  "id": "generate-stop-NN",
+  "description": "Generate stop NN: {stop title}",
+  "subagent": "general-purpose",
+  "parents": ["generate-overview"],
+  "steps": ["Read stop data and patches", "Write review-tour/stop-NN.md", "Write review-tour/stop-NN.json"],
+  "status": "todo"
+}
+```
+
+Final assembly:
+```json
+{
+  "id": "assemble-tour",
+  "description": "Assemble review-tour.json from stop fragments",
+  "parents": ["generate-stop-01", "generate-stop-02", ...],
+  "steps": ["Read all stop-NN.json fragments", "Combine into review-tour.json", "Record artifact"],
+  "status": "todo"
+}
+```
+
 ## Diff Source
 
 Use per-file `patch` fields from pr-files.json as the **primary** diff source. For each file entry in a stop, extract only the assigned hunks (by index) from the patch.
@@ -222,107 +301,9 @@ If a file's `patch` is missing or truncated in pr-files.json, read the file's se
 
 **Hunk extraction:** Parse hunk headers (`@@ -old,count +new,count @@`) to identify hunk boundaries. When `hunks` is `"all"`, include the entire patch. When `hunks` is an array of objects with `index`, extract only those hunks by their 0-based position in the patch.
 
-## Instructions
+## Stop File Format
 
-Follow the stop plan exactly. Do not reorder or regroup stops.
-
-### Step 1: Generate review-tour.json
-
-Create `review-tour.json` as the structured source of truth:
-
-```json
-{
-  "pr": {
-    "title": "PR title",
-    "number": 123,
-    "owner": "owner",
-    "repo": "repo",
-    "author": "author",
-    "head_branch": "feature",
-    "base_branch": "main",
-    "files_changed": 5,
-    "additions": 127,
-    "deletions": 14,
-    "pr_files_url": "https://github.com/owner/repo/pull/123/files"
-  },
-  "overview": "2-4 paragraph synthesis of the PR...",
-  "stops": [
-    {
-      "number": 1,
-      "title": "Thematic title",
-      "risk": "medium",
-      "estimated_minutes": 5,
-      "narrative": "1-3 paragraphs explaining WHY...",
-      "files": [
-        {
-          "filename": "src/auth.ts",
-          "change_summary": "(+80 -0)",
-          "hunks": "all",
-          "line_range": "1-80",
-          "permalink": "https://github.com/.../files#diff-{hash}R1",
-          "diff": "@@ ... @@\\n+added line...",
-          "comments": [
-            {
-              "type": "suggestion",
-              "file": "src/auth.ts",
-              "line": 42,
-              "text": "Consider adding input validation here."
-            }
-          ]
-        }
-      ]
-    }
-  ],
-  "trivial_files": [
-    {
-      "filename": "package-lock.json",
-      "change_summary": "(+500 -400)",
-      "reason": "lockfile update"
-    }
-  ]
-}
-```
-
-### Step 2: Render review-tour/index.md
-
-Create the `review-tour/` directory and write `index.md`:
-
-```markdown
-# Review Tour: {title} (#{number})
-
-**Repository:** {owner}/{repo}
-**Author:** @{author}
-**Branch:** {head_branch} → {base_branch}
-**Files changed:** {files_changed} | **Additions:** +{additions} | **Deletions:** -{deletions}
-
-## Overview
-
-{overview text from JSON}
-
-## Tour Guide
-
-### Stop 1: {title} ({risk} risk, ~{minutes}m)
-Files: `file1.ts:12-28`, `file2.ts`
-- [ ] Review file1.ts:12-28 ({brief description of changes})
-- [ ] Review file2.ts ({brief description of changes})
-
-### Stop 2: {title} ({risk} risk, ~{minutes}m)
-...
-
-## Trivial Changes
-
-- `package-lock.json` — lockfile update (+500 -400)
-- `src/old.ts` → `src/new.ts` — rename
-
-## Review Notes
-
-```
-
-Use owner/repo from the `repository` field in pr-metadata.json.
-
-### Step 3: Render review-tour/stop-NN.md
-
-For each stop, write a separate `stop-01.md`, `stop-02.md`, etc.:
+Each `stop-NN.md`:
 
 ```markdown
 # Stop {n}: {title}
@@ -348,7 +329,37 @@ For each stop, write a separate `stop-01.md`, `stop-02.md`, etc.:
 > **question** `{filename}:{line}` — {Question about implementation.}
 ```
 
-### Candidate Comment Format
+Each `stop-NN.json`:
+
+```json
+{
+  "number": 1,
+  "title": "Thematic title",
+  "risk": "medium",
+  "estimated_minutes": 5,
+  "narrative": "1-3 paragraphs explaining WHY...",
+  "files": [
+    {
+      "filename": "src/auth.ts",
+      "change_summary": "(+80 -0)",
+      "hunks": "all",
+      "line_range": "1-80",
+      "permalink": "https://github.com/.../files#diff-{hash}R1",
+      "diff": "@@ ... @@\\n+added line...",
+      "comments": [
+        {
+          "type": "suggestion",
+          "file": "src/auth.ts",
+          "line": 42,
+          "text": "Consider adding input validation here."
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Candidate Comment Format
 
 After each file's diff blocks within a stop, include a **Candidate comments** section with actionable review observations. Each comment is a blockquote with:
 
@@ -364,27 +375,21 @@ Extract line numbers from the diff hunk context. Use the new-file line number (t
 
 Only include comments where there is something genuinely worth raising. Do not force comments on clean code. Zero comments on a stop is fine.
 
-### Overview
-
-Write 2-4 paragraphs synthesizing the PR's purpose, approach, and key decisions. Use the PR description (body) as context but do NOT copy it verbatim. If the PR description is empty or low-quality, synthesize entirely from the diff.
-
-If the PR description makes claims about what the PR does, note any discrepancies with the actual changes — features mentioned but not implemented, undocumented changes, or scope differences.
-
-### Change Summary Format
+## Change Summary Format
 - New file: `(new file)`
 - Deleted: `(deleted)`
 - Renamed: `(renamed from {previous_filename})`
 - Modified: `(+{additions} -{deletions})`
 - Binary: `(binary file)` — use `has_patch` field from stop-plan.json
 
-### Binary File Handling
+## Binary File Handling
 For files where `has_patch` is false (binary files, very large files):
 - Include the file header with change summary
 - Include the permalink
 - Omit the diff code block
 - In the narrative, note the binary change (e.g., "Updated the application icon")
 
-### Permalink Construction
+## Permalink Construction
 
 Links point to the PR Files Changed tab so the reviewer can leave comments directly.
 
@@ -393,18 +398,13 @@ Links point to the PR Files Changed tab so the reviewer can leave comments direc
 https://github.com/{owner}/{repo}/pull/{number}/files#diff-{hash}R{line}
 ```
 
-- `{hash}` = SHA-256 hex digest of the file path (UTF-8). Compute with:
-  ```bash
-  echo -n "path/to/file.ts" | shasum -a 256 | cut -d' ' -f1
-  ```
+- `{hash}` = SHA-256 hex digest of the file path (UTF-8). Pre-computed in `review-tour/hashes.json`.
 - `R{line}` = right-side (new file) line number — use the exact line being referenced, not just the hunk start
 - Omit `R{line}` suffix to link to the file without a specific line
 
 Construct `{pr_files_url}` from pr-metadata.json: `https://github.com/{owner}/{repo}/pull/{number}/files`
 
-Pre-compute SHA-256 hashes for all files during generation to avoid repeated shell calls.
-
-### Narrative Voice
+## Narrative Voice
 - Written for a developer reviewer, not a PM
 - Explain *why* the change exists, not just *what* it does
 - Call out non-obvious design decisions or tradeoffs
@@ -413,18 +413,6 @@ Pre-compute SHA-256 hashes for all files during generation to avoid repeated she
 - Reference specific function names, types, or patterns
 - Concise: 1-3 short paragraphs, not a wall of text
 - Do NOT restate what the diff shows
-
-## Output
-
-Write three types of output:
-1. `review-tour.json` — structured source of truth
-2. `review-tour/index.md` — overview and checklist
-3. `review-tour/stop-01.md`, `stop-02.md`, ... — one per stop
-
-Record `review-tour.json` as the artifact (not the directory):
-```bash
-uv run plan.py record-artifact review-tour review-tour.json
-```
 """
 suggested_next = [
     { phase = "review-tour", instruction = "Tour generated — review for quality" }
