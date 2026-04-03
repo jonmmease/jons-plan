@@ -1,0 +1,581 @@
+[workflow]
+name = "codetour"
+description = "Generate a CodeTour-compatible .tour file from a GitHub PR diff"
+
+[[phases]]
+id = "gather"
+required_artifacts = ["pr-data", "pr-metadata", "pr-files", "diff"]
+prompt = """
+# Gather Phase
+
+Fetch all data needed to build the CodeTour.
+
+## Find the PR URL
+
+The PR URL should be in request.md. Extract it. It should be a GitHub PR URL like `https://github.com/owner/repo/pull/123`.
+
+If not found, ask the user to provide a PR URL.
+
+## Parse PR URL
+
+Extract owner, repo, and PR number from the URL:
+```bash
+PR_URL="<url from request.md>"
+# Parse: https://github.com/{owner}/{repo}/pull/{number}
+OWNER=$(echo "$PR_URL" | sed -n 's|.*/github.com/\\([^/]*\\)/.*|\\1|p')
+REPO=$(echo "$PR_URL" | sed -n 's|.*/github.com/[^/]*/\\([^/]*\\)/.*|\\1|p')
+PR_NUM=$(echo "$PR_URL" | sed -n 's|.*/pull/\\([0-9]*\\).*|\\1|p')
+```
+
+## Extract PR Metadata
+
+```bash
+gh pr view "$PR_URL" --json title,number,author,headRefName,baseRefName,headRefOid,body,additions,deletions,changedFiles,url,repository > pr-metadata.json
+```
+
+The `repository` field provides `{name, owner: {login}}` — use this for owner/repo instead of URL parsing.
+
+## Extract Per-File Details
+
+```bash
+gh api "repos/$OWNER/$REPO/pulls/$PR_NUM/files" --paginate --jq '.[]' | jq -s '.' > pr-files.json
+```
+
+**Important:** `--paginate` emits one JSON array per page. Use `--jq '.[]'` to flatten each page, then `jq -s '.'` to reassemble into a single valid JSON array.
+
+This gives per-file: filename, status, additions, deletions, previous_filename, blob_url, patch.
+
+**Note:** The `patch` field may be omitted for binary files or very large files. Handle this gracefully.
+
+## Get Full Diff
+
+```bash
+gh pr diff "$PR_URL" --patch > full.diff
+```
+
+This is a fallback for files where the API's `patch` field is truncated.
+
+## Generate PR Summary
+
+Create `pr-summary.md` with:
+- PR title, number, author, branches (from repository field)
+- PR description (body)
+- Total stats (files, additions, deletions)
+- File manifest table (status, filename, +/-, notes for each file from pr-files.json)
+
+## Outputs
+
+Record these artifacts:
+```bash
+uv run plan.py record-artifact pr-data pr-summary.md
+uv run plan.py record-artifact pr-metadata pr-metadata.json
+uv run plan.py record-artifact pr-files pr-files.json
+uv run plan.py record-artifact diff full.diff
+```
+"""
+suggested_next = [
+    { phase = "plan-stops", instruction = "PR data gathered — plan stop groupings" }
+]
+
+[[phases]]
+id = "plan-stops"
+context_artifacts = ["pr-data"]
+required_artifacts = ["stop-plan"]
+prompt = """
+# Plan Stops Phase
+
+Analyze the PR changes and determine how to group them into thematic stops. Each stop will become a section of the CodeTour with a narrative separator step followed by file steps.
+
+## Inputs
+
+- pr-summary.md (injected above) — PR metadata and file manifest
+- pr-files.json — read from the gather phase directory (too large to inject for big PRs)
+
+Resolve the path to pr-files.json:
+```bash
+uv run plan.py input-artifacts --json | jq -r '.found[]' | grep pr-files.json
+```
+
+## Task
+
+Determine the stop grouping for this PR.
+
+### Ordering Rules
+- **Dependency first:** Changes referenced by other changes come earlier
+- **Scope first:** Broad structural changes before localized behavioral
+- **Risk first:** Complex/high-risk when attention is freshest
+- **Convention last:** Tests, docs, formatting last unless they clarify earlier stops
+
+### Chunking Rules
+
+The unit of assignment is the **hunk**, not the file. A file with multiple unrelated hunks SHOULD be split across stops.
+
+**Group** hunks implementing same interface, function+tests, migration+model+schema, config+feature.
+**Split** files with logically unrelated hunks — place each hunk in the stop where it fits thematically.
+**Isolate** large self-contained new modules, standalone refactors/renames/deletions.
+**Collapse** trivial changes (pure renames, generated files, lockfiles, formatting-only) — these go in a dedicated "Trivial Changes" stop at the end, or are omitted from stops entirely and listed in the overview.
+
+### Sizing
+- <30 lines changed: 1 stop (overview still required)
+- 30-500 lines: 3-7 stops
+- 500-1000 lines: 5-10 stops
+- 1000+ lines: 7-15 stops
+
+## Process
+
+1. Read pr-files.json from the gather phase directory (resolved above)
+2. For each file, parse its **entire** `patch` field to identify all hunks. Parse hunk headers (`@@ -old_start,old_count +new_start,new_count @@`) to extract line ranges. Do NOT limit to the first ~20 lines — read all hunks for accurate grouping.
+3. If `patch` is missing (binary file), note it and group by filename/status alone
+4. For each hunk, determine its thematic group based on the chunking and ordering rules
+5. **Assign every changed hunk to exactly one stop.** A file may appear in multiple stops if its hunks belong to different thematic groups. Use `"hunks": "all"` when all hunks of a file belong to one stop.
+6. Identify trivial files (pure renames, generated files, lockfiles, formatting-only changes) and group them separately
+7. Order stops for comprehension
+8. Assign a risk level to each stop: `low` (trivial, tests, docs), `medium` (standard changes), `high` (complex logic, security, error handling)
+
+## Output
+
+Write `stop-plan.json`:
+
+```json
+{
+  "total_files": 5,
+  "total_additions": 127,
+  "total_deletions": 14,
+  "stops": [
+    {
+      "number": 1,
+      "title": "Thematic title for this stop",
+      "rationale": "Why these hunks belong together and why this stop comes first",
+      "risk": "medium",
+      "files": [
+        {
+          "filename": "src/types/auth.ts",
+          "status": "added",
+          "additions": 80,
+          "deletions": 0,
+          "previous_filename": null,
+          "has_patch": true,
+          "hunks": "all"
+        },
+        {
+          "filename": "src/middleware/handler.ts",
+          "status": "modified",
+          "additions": 15,
+          "deletions": 3,
+          "previous_filename": null,
+          "has_patch": true,
+          "hunks": [
+            { "index": 0, "new_start": 12, "new_end": 28 },
+            { "index": 2, "new_start": 95, "new_end": 110 }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Field details:**
+- `hunks`: Either `"all"` (entire file) or an array of hunk objects with `index` (0-based), `new_start`, and `new_end` (new-file line range)
+- `risk`: One of `"low"`, `"medium"`, `"high"`
+- Other fields: `status`, `additions`, `deletions`, `previous_filename` (for renames), `has_patch` (false for binary files)
+
+**Validation:** Every changed hunk from every file must appear in exactly one stop. Files may appear in multiple stops (with different hunks). Use the hunk indices to verify coverage is complete and non-overlapping.
+
+Record the artifact:
+```bash
+uv run plan.py record-artifact stop-plan stop-plan.json
+```
+"""
+suggested_next = [
+    { phase = "generate-tour", instruction = "Stop plan ready — generate the CodeTour" }
+]
+
+[[phases]]
+id = "generate-tour"
+use_tasks = true
+context_artifacts = ["pr-data", "pr-metadata", "stop-plan"]
+required_artifacts = ["codetour"]
+required_json_artifacts = ["proposals", "challenges"]
+prompt = """
+# Generate Tour Phase
+
+Generate the CodeTour `.tour` file using parallel subagents — one per stop.
+
+## Inputs
+
+- pr-summary.md (injected above) — PR metadata
+- pr-metadata.json (injected above) — raw PR metadata including headRefOid and repository
+- stop-plan.json (injected above) — stop grouping plan with hunk-level file metadata
+- pr-files.json — read from gather phase directory (too large to inject for big PRs)
+- full.diff — read from gather phase directory (fallback for truncated patches)
+
+Resolve artifact paths:
+```bash
+uv run plan.py input-artifacts --json
+```
+Use the paths from `.found[]` to locate pr-files.json and full.diff.
+
+## CodeTour Format
+
+The output is a single `.tour` JSON file conforming to the CodeTour schema:
+
+```json
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Review: {PR title} (#{number})",
+  "description": "{1-2 sentence summary of the PR}",
+  "ref": "{headRefOid}",
+  "steps": [...]
+}
+```
+
+### Step Types
+
+**Content-only steps** (stop separators — no `file` field):
+```json
+{
+  "title": "Stop 1: {stop title}",
+  "description": "## {stop title}\\n\\n{1-3 paragraph narrative explaining WHY these changes exist, not WHAT they do. Mention risk level and key files.}"
+}
+```
+
+**File steps** (anchored to code — has `file` and `pattern`):
+```json
+{
+  "title": "{Short description of this change}",
+  "file": "{relative/path/to/file}",
+  "pattern": "{unique regex matching one line}",
+  "description": "{2-5 sentences explaining the change's purpose, design decisions, and how it connects to the stop's theme. Call out non-obvious tradeoffs or risks.}"
+}
+```
+
+### Pattern Rules
+
+Patterns are the critical differentiator from markdown-based tours. They MUST:
+1. Be a JavaScript regex (no flags) that matches exactly ONE line in the target file
+2. Be JSON-escaped (double backslashes: `\\b`, `\\(`, `\\[`)
+3. Anchor to distinctive code: function signatures, class/struct declarations, unique string literals
+4. NOT match generic lines like `import`, `return`, `use`, `}`, blank lines
+
+**Pattern generation process for each file step:**
+1. Identify the hunk's most important line (the conceptual anchor)
+2. Extract a distinctive fragment from that line
+3. Escape regex metacharacters: `(`, `)`, `[`, `]`, `{`, `}`, `.`, `*`, `+`, `?`, `^`, `$`, `|`, `\\`
+4. **Verify uniqueness**: fetch the file contents and confirm the pattern matches exactly one line
+
+**Fallback to `line`:** If a pattern absolutely cannot be made unique (e.g., the anchor line is duplicated in the file), use the `line` field (1-based line number) instead. This is less durable but valid. Prefer `pattern` whenever possible.
+
+**Fetching file contents for verification:**
+```bash
+# Use gh api to get file at the PR's head commit
+gh api "repos/{owner}/{repo}/contents/{filepath}?ref={headRefOid}" --jq '.content' | base64 --decode > /tmp/verify-file.txt
+# Count matches (use -E for extended regex, -c for count)
+grep -cE '{pattern}' /tmp/verify-file.txt  # Must be exactly 1
+```
+
+**Note:** The `gh api .../contents/` endpoint has a 1MB file size limit. For larger files, use `gh api "repos/{owner}/{repo}/git/blobs/{blob_sha}"` (supports up to 100MB) — get the blob SHA from pr-files.json's `sha` field.
+
+If a pattern matches multiple lines, make it more specific by including more of the line.
+
+### Step-per-Hunk Guidance
+
+Not every hunk needs its own step. Use judgment:
+- **One step per conceptual change** — if two adjacent hunks implement one logical change, combine into one step anchored at the most important line
+- **Skip trivial hunks** — import additions, whitespace changes, or mechanical refactors don't need dedicated steps unless they're significant
+- **Target 5-15 total steps** (including content-only separator steps). If the stop plan has many stops, some may have only 1-2 file steps each.
+
+## Task Creation
+
+Read stop-plan.json to get the number of stops. Create tasks dynamically:
+
+### 1. `generate-overview` task (no parents)
+
+Produces `codetour/overview.json` — a JSON fragment containing the tour metadata and the first content-only overview step:
+
+```json
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Review: {PR title} (#{number})",
+  "description": "{1-2 sentence PR summary}",
+  "ref": "{headRefOid}",
+  "overview_step": {
+    "title": "Overview",
+    "description": "## {PR title}\\n\\n{2-3 paragraph overview of what this PR does and why, synthesized from PR description + stop plan. Mention the number of stops and key themes.}"
+  }
+}
+```
+
+Also extracts owner/repo/number/headRefOid from pr-metadata.json for stop tasks to use:
+```json
+// codetour/repo-info.json
+{
+  "owner": "...",
+  "repo": "...",
+  "number": 123,
+  "headRefOid": "abc123..."
+}
+```
+
+### 2. Per-stop tasks: `generate-stop-01`, `generate-stop-02`, ... (parents: [`generate-overview`])
+
+One task per stop in stop-plan.json. Each produces `codetour/stop-NN.json`:
+
+```json
+{
+  "number": 1,
+  "separator_step": {
+    "title": "Stop 1: {title}",
+    "description": "## {title}\\n\\n{narrative preamble...}"
+  },
+  "file_steps": [
+    {
+      "title": "{Short change description}",
+      "file": "src/auth/jwt.ts",
+      "pattern": "export async function generateToken\\\\(",
+      "description": "{2-5 sentences explaining the change...}"
+    }
+  ]
+}
+```
+
+**Each stop task receives in its `subagent_prompt`:**
+- The stop's entry from stop-plan.json (number, title, rationale, risk, files with hunk assignments)
+- Path to pr-files.json for reading patches
+- Path to full.diff for fallback
+- Path to codetour/repo-info.json for fetching file contents via `gh api`
+
+**Each stop task MUST:**
+1. Read the assigned hunks from pr-files.json
+2. For each significant hunk, identify a pattern anchor line
+3. Fetch the file contents via `gh api` and verify pattern uniqueness
+4. If pattern is ambiguous, make it more specific or try an adjacent distinctive line
+5. Write the stop's separator step and file steps to `codetour/stop-NN.json`
+
+### 3. `assemble-tour` task (parents: all stop tasks)
+
+Reads `codetour/overview.json` and all `codetour/stop-NN.json` fragments. Assembles the final `.tour` file:
+
+1. Start with overview metadata (schema, title, description, ref)
+2. Add the overview step
+3. For each stop (in order): add separator step, then file steps
+4. Write `codetour/{kebab-title}.tour`
+5. Also write `codetour/tour-manifest.json` with step count, stop count, pattern summary
+
+Records the artifact:
+```bash
+uv run plan.py record-artifact codetour codetour/{kebab-title}.tour
+```
+
+## Task Configuration
+
+```json
+{
+  "id": "generate-overview",
+  "description": "Generate tour overview and repo info",
+  "subagent": "general-purpose",
+  "parents": [],
+  "steps": ["Read pr-metadata.json and stop-plan.json", "Write codetour/overview.json", "Write codetour/repo-info.json"],
+  "status": "todo"
+}
+```
+
+For each stop N:
+```json
+{
+  "id": "generate-stop-NN",
+  "description": "Generate stop NN: {stop title}",
+  "subagent": "general-purpose",
+  "parents": ["generate-overview"],
+  "steps": ["Read stop data and patches", "Fetch file contents for pattern verification", "Generate patterns and verify uniqueness", "Write codetour/stop-NN.json"],
+  "status": "todo"
+}
+```
+
+Final assembly:
+```json
+{
+  "id": "assemble-tour",
+  "description": "Assemble .tour file from stop fragments",
+  "parents": ["generate-stop-01", "generate-stop-02", ...],
+  "steps": ["Read all stop-NN.json fragments", "Combine into .tour file", "Write tour-manifest.json", "Record artifact"],
+  "status": "todo"
+}
+```
+
+## Diff Source
+
+Use per-file `patch` fields from pr-files.json as the **primary** diff source. For each file entry in a stop, extract only the assigned hunks (by index) from the patch.
+
+If a file's `patch` is missing or truncated in pr-files.json, read the file's section from full.diff as a fallback.
+
+**Hunk extraction:** Parse hunk headers (`@@ -old,count +new,count @@`) to identify hunk boundaries. When `hunks` is `"all"`, include the entire patch. When `hunks` is an array of objects with `index`, extract only those hunks by their 0-based position in the patch.
+
+## Binary File Handling
+
+For files where `has_patch` is false (binary files, very large files):
+- Include a file step pointing to the file path (no `pattern`)
+- In the description, note the binary change (e.g., "Updated the application icon")
+- These steps will open the file in VS Code but won't anchor to a specific line
+
+## Narrative Voice
+- Written for a developer reviewer, not a PM
+- Explain *why* the change exists, not just *what* it does
+- Call out non-obvious design decisions or tradeoffs
+- **Critique**: Flag potential bugs, edge cases, error handling gaps. Be specific.
+- Reference specific function names, types, or patterns
+- Concise: 2-5 sentences per step description, not a wall of text
+- Do NOT restate what the code shows — the developer can see the code in VS Code
+"""
+suggested_next = [
+    { phase = "quality-gate", instruction = "Tour generated — review for quality" }
+]
+
+[[phases]]
+id = "quality-gate"
+use_tasks = true
+max_retries = 2
+context_artifacts = ["codetour", "pr-data"]
+required_tasks = [
+  { id = "pattern-validation", description = "Verify every pattern in the .tour file matches exactly one line in its target file", subagent = "general-purpose", subagent_prompt = "For each step in the .tour file that has a 'file' and 'pattern' field: (1) Read the .tour file from the codetour artifact (use `uv run plan.py input-artifacts --json` to find it). (2) Extract the ref SHA from the tour's top-level 'ref' field and owner/repo from pr-metadata.json. (3) For each file step, fetch the file contents at that ref using `gh api repos/{owner}/{repo}/contents/{path}?ref={ref} --jq .content | base64 --decode`. (4) Count how many lines match the pattern regex using `grep -cE`. (5) Report: PASS if exactly 1 match, FAIL if 0 or 2+ matches. Include the pattern, file, match count, and matching lines. Write results to pattern-validation.md.", model = "sonnet" },
+  { id = "slop-detection", description = "Scan tour step descriptions for AI-generated patterns", subagent = "general-purpose", prompt_file = "slop-detection", subagent_prompt = "Scan all step descriptions in the .tour file for AI-generated patterns. Use `uv run plan.py input-artifacts --json` to find the codetour artifact path, then read the .tour JSON and extract all description fields.", model = "haiku" },
+  { id = "quality-review", description = "Review tour for schema compliance, step quality, and narrative usefulness", subagent = "general-purpose", prompt_file = "codetour-spec", subagent_prompt = "Review this CodeTour .tour file for quality. Also verify hunk coverage: cross-reference stop-plan.json against the generated steps to ensure all significant hunks are represented. Tag each issue as Critical, Suggestion, or Nit.", model = "opus" },
+  { id = "synthesize-feedback", description = "Synthesize pattern validation, slop detection, and quality review into tour-feedback.md", parents = ["pattern-validation", "slop-detection", "quality-review"] }
+]
+prompt = """
+# Quality Gate Phase
+
+Review the generated CodeTour for quality before presenting to the user.
+
+## Inputs
+
+- .tour file (artifact path injected above) — the CodeTour JSON
+- pr-summary.md (injected above) — PR data for cross-reference
+
+Resolve artifact paths:
+```bash
+uv run plan.py input-artifacts --json
+```
+
+## Tasks
+
+Run the required tasks:
+1. **Pattern validation** (sonnet) — fetch each file at the pinned ref and verify every pattern matches exactly one line
+2. **Slop detection** (haiku) — scan step descriptions for AI-generated patterns
+3. **Quality review** (opus) — schema compliance, step count, description quality, narrative voice, hunk coverage
+4. **Synthesize** — combine feedback into tour-feedback.md organized by severity
+
+## Output
+
+Write `tour-feedback.md` with feedback organized by severity (Critical, Suggestion, Nit).
+
+Critical issues include:
+- Patterns matching 0 or 2+ lines (broken step anchoring)
+- Missing `ref` field
+- Invalid JSON schema
+- Steps with no description
+
+Suggestions include:
+- Generic patterns that might break on refactor
+- Steps that restate code instead of explaining WHY
+- Missing overview step
+- Unbalanced stop sizes
+"""
+suggested_next = [
+    { phase = "revise", instruction = "Feedback received — revise the tour" },
+    { phase = "complete", instruction = "Tour quality is acceptable — skip revision" }
+]
+
+[[phases]]
+id = "revise"
+context_artifacts = ["codetour"]
+required_artifacts = ["codetour"]
+prompt = """
+# Revise Phase
+
+Apply accepted feedback to improve the CodeTour.
+
+## Inputs
+
+- .tour file (artifact path injected above) — current CodeTour JSON
+- tour-feedback.md — from quality-gate phase
+
+Read tour-feedback.md from the quality-gate phase directory:
+```bash
+uv run plan.py input-artifacts --json
+```
+
+## Process
+
+1. Read tour-feedback.md
+2. For each item:
+   - **Critical**: Must fix (especially broken patterns)
+   - **Suggestion**: Fix if it clearly improves the tour
+   - **Nit**: Fix only if trivial; otherwise skip
+3. For broken patterns:
+   - Fetch the file contents via `gh api`
+   - Find a better anchor line
+   - Verify the new pattern matches exactly one line
+4. Edit the .tour JSON file directly
+5. Write brief revision notes in revision-log.md
+
+## Output
+
+Updated .tour file. Record the artifact:
+```bash
+uv run plan.py record-artifact codetour <path-to-updated-tour-file>
+```
+"""
+suggested_next = [
+    { phase = "quality-gate", instruction = "Revision complete — re-verify quality" },
+    { phase = "complete", instruction = "Revisions complete — present to user" }
+]
+
+[[phases]]
+id = "complete"
+terminal = true
+context_artifacts = ["codetour"]
+prompt = """
+# Complete Phase
+
+Present the CodeTour to the user.
+
+## Inputs
+
+- .tour file (artifact path injected above) — the final CodeTour JSON
+
+Locate the .tour file:
+```bash
+uv run plan.py input-artifacts --json
+```
+
+## Tasks
+
+1. Read the .tour file and present a summary:
+   - Tour title and description
+   - Number of stops (content-only separator steps)
+   - Number of file steps
+   - Files covered
+   - Ref (commit SHA)
+
+2. Show the first few steps as a preview so the user can see the format.
+
+3. Offer next actions:
+   - **Copy to project**: Copy the .tour file to the project's `.tours/` directory:
+     ```bash
+     TOUR_FILE="<path to .tour file>"
+     PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+     mkdir -p "$PROJECT_ROOT/.tours"
+     cp "$TOUR_FILE" "$PROJECT_ROOT/.tours/"
+     echo "Copied to $PROJECT_ROOT/.tours/"
+     ```
+   - **Open in editor**: Open the .tour file for manual review
+   - **View raw JSON**: Display the full .tour contents
+
+4. Note that:
+   - The `ref` field pins the tour to a specific commit — if the PR is rebased, the ref needs updating
+   - The CodeTour VS Code extension must be installed for interactive navigation
+   - Patterns are regex-based and may need updating if the anchored code changes significantly
+
+This is a terminal phase. The CodeTour generation is complete.
+"""
