@@ -104,55 +104,62 @@ if [[ "$SESSION_MODE" == "proceed" ]]; then
                 # Phase needs user input - allow stop (user will review and proceed)
                 :
             else
-                # Check for phase tasks
-                PHASE_TASKS=$(plan phase-next-tasks 2>/dev/null || echo "")
-                if [[ -n "$PHASE_TASKS" && "$PHASE_TASKS" != "No tasks in current phase" && "$PHASE_TASKS" != "All phase tasks complete" && "$PHASE_TASKS" != *"No tasks available"* ]]; then
-                    # Check safety limit before blocking
-                    COUNTER=$(get_iteration_counter)
-                    MAX_ITER=$(get_max_iterations)
-                    if [[ "$COUNTER" -ge "$MAX_ITER" ]]; then
-                        # Safety limit reached - allow stop
-                        plan log "AUTO_ITERATION_LIMIT: counter=$COUNTER >= max=$MAX_ITER, allowing stop" 2>/dev/null || true
-                    else
-                        increment_iteration_counter
-                        TASK_COUNT=$(echo "$PHASE_TASKS" | wc -l | tr -d ' ')
-                        echo '{"decision": "block", "reason": "Phase has '"$TASK_COUNT"' available tasks. Continue working on the next task. Run: uv run ${PLUGIN_ROOT}/plan.py phase-next-tasks"}'
-                        exit 2
-                    fi
-                fi
+                # Check if any tasks are in-progress (background agents or active work)
+                # If so, don't block — the parent agent is waiting on delegated work
+                TASK_STATS=$(plan task-stats 2>/dev/null || echo "")
+                IN_PROGRESS=$(echo "$TASK_STATS" | sed -n 's/.* \([0-9]*\) in-progress.*/\1/p')
+                IN_PROGRESS=${IN_PROGRESS:-0}
 
-                # Check if there are suggested next phases (workflow not complete)
-                # But only if the phase's required artifacts have all been recorded
-                # (if not, the phase work isn't done yet — may be waiting on a background agent)
-                PHASE_COMPLETE=true
-                REQUIRED_ARTS=$(jq -r '.required_artifacts // []' < "$PHASE_JSON_FILE" 2>/dev/null)
-                if [[ -n "$REQUIRED_ARTS" && "$REQUIRED_ARTS" != "null" && "$REQUIRED_ARTS" != "[]" ]]; then
-                    STATE_FILE="${ACTIVE_PLAN_DIR}/state.json"
-                    if [[ -f "$STATE_FILE" ]]; then
-                        CURRENT_ENTRY=$(jq -r '.current_phase_entry // 0' < "$STATE_FILE" 2>/dev/null)
-                        RECORDED_ARTS=$(jq -r --argjson entry "$CURRENT_ENTRY" \
-                            '[.phase_history[] | select(.entry == $entry) | .artifacts // {} | keys[]] | length' \
-                            < "$STATE_FILE" 2>/dev/null || echo "0")
-                        REQUIRED_COUNT=$(echo "$REQUIRED_ARTS" | jq -r 'length' 2>/dev/null || echo "0")
-                        if [[ "$RECORDED_ARTS" -lt "$REQUIRED_COUNT" ]]; then
-                            PHASE_COMPLETE=false
+                if [[ "$IN_PROGRESS" -gt 0 ]]; then
+                    # Work is actively happening via background agents — allow stop
+                    :
+                else
+                    # No in-progress tasks — check if there's work the agent should be doing
+
+                    # Check for available tasks
+                    PHASE_TASKS=$(plan phase-next-tasks 2>/dev/null || echo "")
+                    if [[ -n "$PHASE_TASKS" && "$PHASE_TASKS" != "No tasks in current phase" && "$PHASE_TASKS" != "All phase tasks complete" && "$PHASE_TASKS" != *"No tasks available"* ]]; then
+                        # Check safety limit before blocking
+                        COUNTER=$(get_iteration_counter)
+                        MAX_ITER=$(get_max_iterations)
+                        if [[ "$COUNTER" -ge "$MAX_ITER" ]]; then
+                            plan log "AUTO_ITERATION_LIMIT: counter=$COUNTER >= max=$MAX_ITER, allowing stop" 2>/dev/null || true
+                        else
+                            increment_iteration_counter
+                            TASK_COUNT=$(echo "$PHASE_TASKS" | wc -l | tr -d ' ')
+                            echo '{"decision": "block", "reason": "Phase has '"$TASK_COUNT"' available tasks. Continue working on the next task. Run: uv run ${PLUGIN_ROOT}/plan.py phase-next-tasks"}'
+                            exit 2
                         fi
                     fi
-                fi
-                SUGGESTED_NEXT_COUNT=$(jq -r '.suggested_next | length' < "$PHASE_JSON_FILE" 2>/dev/null || echo "0")
-                if [[ "$PHASE_COMPLETE" == "true" && "$SUGGESTED_NEXT_COUNT" -gt 0 ]]; then
-                    # Check safety limit before blocking
-                    COUNTER=$(get_iteration_counter)
-                    MAX_ITER=$(get_max_iterations)
-                    if [[ "$COUNTER" -ge "$MAX_ITER" ]]; then
-                        # Safety limit reached - allow stop
-                        plan log "AUTO_ITERATION_LIMIT: counter=$COUNTER >= max=$MAX_ITER, allowing stop" 2>/dev/null || true
-                    else
-                        increment_iteration_counter
-                        # Get suggested phases for the message
-                        SUGGESTED_PHASES=$(plan suggested-next 2>/dev/null | head -3 | tr '\n' ', ' | sed 's/,$//')
-                        echo '{"decision": "block", "reason": "TRANSITION REQUIRED: Phase complete but workflow continues. You MUST transition to the next phase before stopping.\n\nAvailable transitions: '"${SUGGESTED_PHASES}"'\n\nRun these commands:\n  1. uv run ~/.claude-plugins/jons-plan/plan.py suggested-next\n  2. uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <phase-id>\n\nIf scope exceeded, see proceed.md Scope Exceeded Handling section.\n\nDO NOT manually edit state.json or invent statuses."}'
-                        exit 2
+
+                    # Check if phase is complete and needs transition
+                    PHASE_COMPLETE=true
+                    REQUIRED_ARTS=$(jq -r '.required_artifacts // []' < "$PHASE_JSON_FILE" 2>/dev/null)
+                    if [[ -n "$REQUIRED_ARTS" && "$REQUIRED_ARTS" != "null" && "$REQUIRED_ARTS" != "[]" ]]; then
+                        STATE_FILE="${ACTIVE_PLAN_DIR}/state.json"
+                        if [[ -f "$STATE_FILE" ]]; then
+                            CURRENT_ENTRY=$(jq -r '.current_phase_entry // 0' < "$STATE_FILE" 2>/dev/null)
+                            RECORDED_ARTS=$(jq -r --argjson entry "$CURRENT_ENTRY" \
+                                '[.phase_history[] | select(.entry == $entry) | .artifacts // {} | keys[]] | length' \
+                                < "$STATE_FILE" 2>/dev/null || echo "0")
+                            REQUIRED_COUNT=$(echo "$REQUIRED_ARTS" | jq -r 'length' 2>/dev/null || echo "0")
+                            if [[ "$RECORDED_ARTS" -lt "$REQUIRED_COUNT" ]]; then
+                                PHASE_COMPLETE=false
+                            fi
+                        fi
+                    fi
+                    SUGGESTED_NEXT_COUNT=$(jq -r '.suggested_next | length' < "$PHASE_JSON_FILE" 2>/dev/null || echo "0")
+                    if [[ "$PHASE_COMPLETE" == "true" && "$SUGGESTED_NEXT_COUNT" -gt 0 ]]; then
+                        COUNTER=$(get_iteration_counter)
+                        MAX_ITER=$(get_max_iterations)
+                        if [[ "$COUNTER" -ge "$MAX_ITER" ]]; then
+                            plan log "AUTO_ITERATION_LIMIT: counter=$COUNTER >= max=$MAX_ITER, allowing stop" 2>/dev/null || true
+                        else
+                            increment_iteration_counter
+                            SUGGESTED_PHASES=$(plan suggested-next 2>/dev/null | head -3 | tr '\n' ', ' | sed 's/,$//')
+                            echo '{"decision": "block", "reason": "TRANSITION REQUIRED: Phase complete but workflow continues. You MUST transition to the next phase before stopping.\n\nAvailable transitions: '"${SUGGESTED_PHASES}"'\n\nRun these commands:\n  1. uv run ~/.claude-plugins/jons-plan/plan.py suggested-next\n  2. uv run ~/.claude-plugins/jons-plan/plan.py enter-phase <phase-id>\n\nIf scope exceeded, see proceed.md Scope Exceeded Handling section.\n\nDO NOT manually edit state.json or invent statuses."}'
+                            exit 2
+                        fi
                     fi
                 fi
             fi
