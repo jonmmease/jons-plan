@@ -287,7 +287,7 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
    uv run ~/.claude-plugins/jons-plan/plan.py workflow-diagram
    ```
 2. Show current phase and its prompt (but do NOT execute the phase)
-3. Launch the workflow viewer in the background and show the command:
+3. Launch the workflow viewer in the background. **This must be its own Bash call** — do not combine with other commands (the trailing `&` is incompatible with `&&` chaining):
    ```bash
    PLAN_DIR="$(uv run ~/.claude-plugins/jons-plan/plan.py active-plan-dir)"
    echo "Launching viewer: uv run ~/.claude-plugins/jons-plan/viewer.py \"$PLAN_DIR\""
