@@ -246,9 +246,40 @@ The output is a single `.tour` JSON file conforming to the CodeTour schema:
   "title": "{Short description of this change}",
   "file": "{relative/path/to/file}",
   "pattern": "{unique regex matching one line}",
-  "description": "{2-5 sentences explaining the change's purpose, design decisions, and how it connects to the stop's theme. Call out non-obvious tradeoffs or risks.}"
+  "description": "{description + optional candidate comments, see format below}"
 }
 ```
+
+### File Step Description Format
+
+Each file step's `description` has two sections separated by a horizontal rule:
+
+1. **Explanation** (required) — 2-5 sentences explaining the change's purpose, design decisions, and how it connects to the stop's theme. Do NOT restate the code.
+
+2. **Candidate comments** (optional) — Review observations as blockquotes with type tags. Only include when there is something genuinely worth raising. Zero comments is fine.
+
+**Comment types:**
+- `nit` — style, naming, minor cleanup
+- `suggestion` — concrete improvement with a specific alternative
+- `question` — something unclear that needs author explanation
+- `concern` — potential bug, edge case, or correctness issue
+
+**Example:**
+```
+This middleware validates JWT tokens on each request by extracting the Bearer header and verifying the signature against the configured secret. The validation is synchronous, which keeps the middleware simple but means key rotation requires a restart.
+
+---
+
+> **concern** — No token expiry check. Long-lived tokens remain valid indefinitely after issuance.
+
+> **question** — Why is the signing secret loaded from the environment on each request rather than cached at startup?
+```
+
+**Formatting rules:**
+- Use `---` (horizontal rule) to separate explanation from comments
+- Each comment is a blockquote (`>`) starting with a bold type tag
+- Comments should be self-contained — ready to paste as a PR comment
+- Omit the `---` and comments section entirely if there are no review observations
 
 ### Pattern Rules
 
@@ -333,7 +364,7 @@ One task per stop in stop-plan.json. Each produces `codetour/stop-NN.json`:
       "title": "{Short change description}",
       "file": "src/auth/jwt.ts",
       "pattern": "export async function generateToken\\\\(",
-      "description": "{2-5 sentences explaining the change...}"
+      "description": "{explanation}\\n\\n---\\n\\n> **concern** — {review observation...}"
     }
   ]
 }
@@ -422,10 +453,11 @@ For files where `has_patch` is false (binary files, very large files):
 - Written for a developer reviewer, not a PM
 - Explain *why* the change exists, not just *what* it does
 - Call out non-obvious design decisions or tradeoffs
-- **Critique**: Flag potential bugs, edge cases, error handling gaps. Be specific.
 - Reference specific function names, types, or patterns
-- Concise: 2-5 sentences per step description, not a wall of text
+- Concise: 2-5 sentences in the explanation section, not a wall of text
 - Do NOT restate what the code shows — the developer can see the code in VS Code
+- Use candidate comments (below the `---` separator) for actionable review observations: bugs, edge cases, questions, suggestions
+- Only include comments where genuinely warranted — zero comments on clean code is fine
 """
 suggested_next = [
     { phase = "quality-gate", instruction = "Tour generated — review for quality" }

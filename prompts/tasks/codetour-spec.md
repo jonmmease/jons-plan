@@ -84,16 +84,23 @@ This is the most critical quality dimension. Broken patterns mean broken navigat
 
 ### File Steps
 - [ ] Title is short and descriptive (not just the filename)
-- [ ] Description is 2-5 sentences
+- [ ] Explanation section is 2-5 sentences
 - [ ] Explains the change's purpose and design decisions
-- [ ] Calls out non-obvious tradeoffs, risks, or edge cases
 - [ ] Does NOT restate the code (the developer can see it in VS Code)
 - [ ] References specific function names, types, or patterns where relevant
+
+### Candidate Comments (codetour-review only)
+File step descriptions may include candidate review comments below a `---` separator:
+- [ ] Comments use blockquote format (`>`) with a bold type tag
+- [ ] Valid type tags: `nit`, `suggestion`, `question`, `concern`
+- [ ] Comments are self-contained (ready to paste as a PR comment)
+- [ ] Comments are only present when genuinely warranted — no forced observations on clean code
+- [ ] The `---` separator and comments section are omitted when there are no review observations
+- [ ] Comments raise specific, actionable points (not vague "consider improving this")
 
 ### Narrative Voice
 - [ ] Developer reviewer audience, not PM
 - [ ] Explains WHY, not WHAT
-- [ ] Flags potential bugs, edge cases, error handling gaps
 - [ ] Concise and direct — no filler
 
 ## Stop Ordering
