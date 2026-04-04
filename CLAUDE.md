@@ -32,7 +32,8 @@ Use `--workflow <name>` with `/new` to specify workflow type explicitly.
 | `design-and-implementation` | Design first, optionally implement |
 | `deep-implementation` | Thorough research + external review |
 | `review-tour` | Generate guided PR review tour from a GitHub PR URL |
-| `codetour` | Generate CodeTour .tour file from a GitHub PR URL |
+| `codetour` | Generate CodeTour .tour file from a codebase topic |
+| `codetour-review` | Generate CodeTour .tour file from a GitHub PR URL |
 | `code-review` | Review code changes + generate PR description |
 | `pr-review` | Review existing PR description |
 | `deslop-pr` | Quick slop detection and cleanup for PR descriptions |
